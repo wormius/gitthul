@@ -208,6 +208,12 @@ frontend y Rust en Linux x64, Windows x64 y macOS Intel/Apple Silicon. Sus
 acciones se fijan por commit; contrastar las revisiones upstream al actualizarlas.
 La versión Node sigue .nvmrc y Rust sigue rust-toolchain.toml. Los lockfiles son
 obligatorios: npm ci, cargo --locked y tauri build pasando -- --locked a Cargo.
+El CLI Tauri está fijado en 2.12.1 por las correcciones del empaquetador AppImage
+para Mesa reciente y módulos GIO. Al actualizarlo, conservar las comprobaciones
+del paquete: no incluir libwayland-client, no forzar X11 y cargar módulos GIO
+del AppImage. CI genera y comprueba el AppImage en cada ejecución Linux, aunque
+los demás instaladores se generen solo para Release. Verificar el arranque nativo
+en un Linux reciente además de construir en el runner de compatibilidad Ubuntu 22.04.
 
 .github/workflows/release.yml se activa con tags vX.Y.Z o manualmente con un tag
 existente. Resuelve su commit, exige coincidencia con la versión y notas en

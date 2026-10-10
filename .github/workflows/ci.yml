@@ -151,7 +151,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 rpm xdg-utils
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libcanberra-gtk3-module libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 rpm xdg-utils
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
@@ -184,16 +184,16 @@ jobs:
         working-directory: src-tauri
         run: cargo test --locked -- --nocapture
       - name: Build installers
-        if: inputs.packages
+        if: inputs.packages || runner.os == 'Linux'
         env:
           APPLE_SIGNING_IDENTITY: '-'
           APPIMAGE_EXTRACT_AND_RUN: '1'
-        run: npm run tauri build -- --ci --target '${{ matrix.target }}' --bundles '${{ matrix.bundles }}' -- --locked
+        run: npm run tauri build -- --ci --target '${{ matrix.target }}' --bundles '${{ inputs.packages && matrix.bundles || 'appimage' }}' -- --locked
       - name: Collect installers
-        if: inputs.packages
+        if: inputs.packages || runner.os == 'Linux'
         env:
           BUNDLE_ROOT: src-tauri/target/${{ matrix.target }}/release/bundle
-          BUNDLE_FORMATS: ${{ matrix.bundles }}
+          BUNDLE_FORMATS: ${{ inputs.packages && matrix.bundles || 'appimage' }}
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
@@ -223,13 +223,14 @@ jobs:
           for (const format of formats) assert.ok(found.has(format), `Missing ${format} installer`);
           NODE
       - name: Inventory AppImage libraries and system notices
-        if: inputs.packages && runner.os == 'Linux'
+        if: runner.os == 'Linux'
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import os from 'node:os';
           import path from 'node:path';
           import { execFileSync } from 'node:child_process';
+          import assert from 'node:assert/strict';
           const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
           const image = fs.readdirSync('release-assets').find(name => name.endsWith('.AppImage'));
           if (!image) throw new Error('Missing AppImage');
@@ -263,6 +264,14 @@ jobs:
             }
           }
           walk(appDir);
+          assert.ok(!fs.readdirSync(appDir, { recursive: true }).some(file => /(?:^|\/)libwayland-client\.so(?:\.\d+)*$/.test(file)), 'Bundled Wayland client breaks EGL on newer Mesa');
+          const gtkHook = fs.readFileSync(path.join(appDir, 'apprun-hooks/linuxdeploy-plugin-gtk.sh'), 'utf8');
+          assert.doesNotMatch(gtkHook, /^\s*export\s+GDK_BACKEND=/m, 'AppImage must respect the session display backend');
+          const gioPath = gtkHook.match(/^\s*export\s+GIO_MODULE_DIR="\$APPDIR\/([^"]+)"/m)?.[1];
+          assert.ok(gioPath, 'AppImage must isolate its GIO modules from host GLib');
+          const gioDir = path.join(appDir, gioPath.replace(/^\/+/, ''));
+          assert.ok(fs.readdirSync(gioDir).some(name => name.endsWith('.so')), 'Missing bundled GIO modules');
+          assert.ok(fs.statSync(path.join(appDir, 'usr/lib/gtk-3.0/modules/libcanberra-gtk-module.so')).isFile(), 'Missing GTK sound module');
           for (const name of [...packages].sort()) {
             const pkg = installed.get(name);
             const copyright = path.join('/usr/share/doc', name.split(':')[0], 'copyright');
@@ -281,7 +290,7 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `AppImage: ${report.libraries.length} library files; ${report.packages.length} system packages; ${report.unmapped.length} entries require review. System notices and source locations are attached.\n`);
           NODE
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: inputs.packages
+        if: inputs.packages || runner.os == 'Linux'
         with:
           name: gitthul-${{ matrix.platform }}
           path: release-assets/
