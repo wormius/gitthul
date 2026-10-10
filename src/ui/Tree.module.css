@@ -1,0 +1,108 @@
+.viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  contain: strict;
+}
+
+/* Cuando el árbol vive dentro de un contenedor que ya gestiona su propio scroll
+   (p. ej. una sección de CollapsibleRail), se fija la altura desde JS y se
+   relaja `contain` para que el navegador respete ese valor explícito sin
+   colapsar la caja a 0. */
+.autoHeight {
+  flex: none;
+  overflow: visible;
+  contain: layout style;
+}
+
+.viewport:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.canvas {
+  position: relative;
+  width: 100%;
+}
+
+.row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  width: 100%;
+  padding-right: var(--space-3);
+  color: var(--text-primary);
+}
+
+.row:hover {
+  background-color: var(--surface-hover);
+}
+
+.row[aria-selected='true'] {
+  background-color: var(--surface-selected);
+  outline: 1px solid var(--text-accent);
+  outline-offset: -1px;
+}
+
+.viewport:focus-visible .row[data-active] {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-accent);
+}
+
+/*
+ * Lo marcado se pinta por encima de sus vecinas.
+ *
+ * Las filas van posicionadas —la lista es virtual— y se pintan en el orden del
+ * DOM: sin esto, el fondo de hover de la fila siguiente tapaba el anillo de la
+ * activa justo por donde se tocan, y el recuadro se veía comido por un lado.
+ * No cambia ninguna caja, así que no roza la invariante 1.
+ */
+.viewport:focus-visible .row[data-active],
+.row[aria-selected='true'] {
+  z-index: 1;
+}
+
+/*
+ * El hueco del triángulo se reserva siempre, también en las hojas: si apareciera
+ * solo en las carpetas, cada expansión movería lateralmente las etiquetas de sus
+ * vecinas.
+ */
+.twisty {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: transform var(--duration-fast) ease;
+}
+
+.twisty[data-expanded] {
+  transform: rotate(90deg);
+}
+
+.twisty > svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.label {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-5);
+}

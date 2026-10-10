@@ -1,0 +1,304 @@
+/*
+ * Capa 2 del sistema de tokens: roles semánticos.
+ *
+ * Esta es la única capa que los componentes leen. Se define una sola vez: un
+ * tema nuevo cambia la paleta de la capa 1 y hereda todos los roles sin tocar
+ * nada de aquí. Si un componente necesita un color que no está en esta lista,
+ * falta un rol — no se recurre a la paleta ni, mucho menos, a un literal.
+ *
+ * **Se declara para `:root` y para cualquier elemento con `data-theme`**, que es
+ * el mismo patrón que `density.css` usa con `[data-density='cozy']`. La razón es
+ * que un rol se calcula donde se declara: `--surface-app: var(--palette-bg)` en
+ * `:root` resuelve contra la paleta del `<html>` y lo que heredan los
+ * descendientes es ya el color, no la fórmula. Sin este segundo selector, un
+ * `div` con `data-theme='thul'` cambiaría los `--palette-*` y seguiría pintado
+ * con las superficies del tema activo — o sea, no habría forma de enseñar un
+ * tema distinto del puesto. Con él, cualquier subárbol se pinta entero en su
+ * tema: es lo que hace posibles las vistas previas de Apariencia, y por eso su
+ * rótulo hereda el color de texto de ese tema y cumple el contraste que la
+ * suite ya mide. `tokens.test.ts` exige que los dos selectores declaren lo
+ * mismo.
+ */
+
+:root,
+[data-theme] {
+  /* Superficies */
+  --surface-app: var(--palette-bg);
+  --surface-panel: var(--palette-panel);
+  --surface-raised: var(--palette-raised);
+  --surface-sunken: var(--palette-sunken);
+  --surface-hover: var(--palette-hover);
+  --surface-active: var(--palette-active);
+  --surface-selected: var(--palette-selected);
+
+  /* Texto */
+  --text-primary: var(--palette-ink);
+  --text-secondary: var(--palette-ink-dim);
+  --text-muted: var(--palette-ink-faint);
+  --text-disabled: var(--palette-ink-disabled);
+  --text-accent: var(--palette-accent-text);
+  --text-on-accent: var(--palette-accent-ink);
+  --text-success: var(--palette-success);
+  --text-warning: var(--palette-warning);
+  --text-danger: var(--palette-danger);
+  --text-info: var(--palette-info);
+
+  /* Bordes. `subtle` separa sin gritar; `strong` es el que delimita de verdad
+     y cumple 3:1 contra las superficies que separa. */
+  --border-subtle: var(--palette-border);
+  --border-strong: var(--palette-border-strong);
+  --border-accent: var(--palette-accent-border);
+  --border-success: var(--palette-success-border);
+  --border-warning: var(--palette-warning-border);
+  --border-danger: var(--palette-danger-border);
+  --border-info: var(--palette-info-border);
+
+  /* Acento */
+  --accent: var(--palette-accent);
+  --accent-hover: var(--palette-accent-hover);
+  --accent-active: var(--palette-accent-active);
+  --accent-wash: var(--palette-accent-wash);
+  --accent-secondary: var(--palette-accent-2);
+
+  /* Fondos de estado */
+  --surface-success: var(--palette-success-wash);
+  --surface-warning: var(--palette-warning-wash);
+  --surface-danger: var(--palette-danger-wash);
+  --surface-info: var(--palette-info-wash);
+
+  /* Foco. El anillo va en `outline`, que no ocupa espacio: cumple la invariante
+     de que nada desplace la interfaz. */
+  --focus-ring-color: var(--palette-accent-text);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 1px;
+
+  /* Ramas del grafo. El color es un portador de significado; el trazo y la
+     forma del nodo son los otros dos, y en «Contraste» son los que mandan.
+     `dash` se consume con canvas setLineDash: `none` significa línea continua.
+     `shape` toma ring | ring-filled | diamond | square. */
+  --graph-branch-1: var(--palette-graph-1);
+  --graph-branch-2: var(--palette-graph-2);
+  --graph-branch-3: var(--palette-graph-3);
+  --graph-branch-4: var(--palette-graph-4);
+  --graph-branch-5: var(--palette-graph-5);
+  --graph-branch-6: var(--palette-graph-6);
+  --graph-branch-7: var(--palette-graph-7);
+  --graph-branch-8: var(--palette-graph-8);
+
+  --graph-dash-1: none;
+  --graph-dash-2: none;
+  --graph-dash-3: none;
+  --graph-dash-4: none;
+  --graph-dash-5: none;
+  --graph-dash-6: none;
+  --graph-dash-7: none;
+  --graph-dash-8: none;
+
+  --graph-shape-1: ring;
+  --graph-shape-2: ring;
+  --graph-shape-3: ring;
+  --graph-shape-4: ring;
+  --graph-shape-5: ring;
+  --graph-shape-6: ring;
+  --graph-shape-7: ring;
+  --graph-shape-8: ring;
+
+  /* El nodo del WIP y los stashes no pertenecen a ninguna rama. */
+  --graph-wip: var(--palette-ink-dim);
+  --graph-wip-node: var(--palette-monochrome);
+  --graph-stash: var(--palette-warning);
+
+  /* Tonos de avatar. Son 16 colores independientes de las ramas del grafo, de
+     modo que ampliar la paleta de avatares no altera el grafo. En los primeros
+     8 coinciden por comodidad visual; los 8 siguientes son exclusivos. */
+  --avatar-tone-1: var(--palette-avatar-1);
+  --avatar-tone-2: var(--palette-avatar-2);
+  --avatar-tone-3: var(--palette-avatar-3);
+  --avatar-tone-4: var(--palette-avatar-4);
+  --avatar-tone-5: var(--palette-avatar-5);
+  --avatar-tone-6: var(--palette-avatar-6);
+  --avatar-tone-7: var(--palette-avatar-7);
+  --avatar-tone-8: var(--palette-avatar-8);
+  --avatar-tone-9: var(--palette-avatar-9);
+  --avatar-tone-10: var(--palette-avatar-10);
+  --avatar-tone-11: var(--palette-avatar-11);
+  --avatar-tone-12: var(--palette-avatar-12);
+  --avatar-tone-13: var(--palette-avatar-13);
+  --avatar-tone-14: var(--palette-avatar-14);
+  --avatar-tone-15: var(--palette-avatar-15);
+  --avatar-tone-16: var(--palette-avatar-16);
+
+  /* Diff y conflictos */
+  --diff-added-bg: var(--palette-diff-added-bg);
+  --diff-removed-bg: var(--palette-diff-removed-bg);
+  --diff-added-ink: var(--palette-diff-added-ink);
+  --diff-removed-ink: var(--palette-diff-removed-ink);
+  --diff-word-added-bg: var(--palette-diff-word-added);
+  --diff-word-removed-bg: var(--palette-diff-word-removed);
+  --conflict-ours-ink: var(--palette-conflict-ours-ink);
+  --conflict-theirs-ink: var(--palette-conflict-theirs-ink);
+  --conflict-ours-bg: var(--palette-conflict-ours);
+  --conflict-theirs-bg: var(--palette-conflict-theirs);
+  --conflict-both-bg: var(--palette-conflict-both);
+  --conflict-auto-bg: var(--palette-conflict-auto);
+
+  /* Colores de código, sin reutilizar el acento de la interfaz. */
+  --editor-bg: var(--palette-editor-bg);
+  --editor-gutter: var(--palette-editor-gutter);
+  --syntax-keyword: var(--palette-syntax-keyword);
+  --syntax-string: var(--palette-syntax-string);
+  --syntax-function: var(--palette-syntax-function);
+  --syntax-number: var(--palette-syntax-number);
+  --syntax-annotation: var(--palette-syntax-annotation);
+  --syntax-type: var(--palette-syntax-type);
+  --syntax-property: var(--palette-syntax-property);
+  --syntax-comment: var(--palette-syntax-comment);
+
+  /* Terminal conserva su propia paleta, incluida la salida ANSI del shell. */
+  --terminal-bg: var(--palette-terminal-bg);
+  --terminal-foreground: var(--palette-terminal-foreground);
+  --terminal-prompt: var(--palette-terminal-prompt);
+  --terminal-muted: var(--palette-terminal-muted);
+  --terminal-info: var(--palette-terminal-info);
+  --terminal-selection: var(--palette-terminal-selection);
+  --terminal-black: var(--palette-terminal-black);
+  --terminal-red: var(--palette-terminal-red);
+  --terminal-green: var(--palette-terminal-green);
+  --terminal-yellow: var(--palette-terminal-yellow);
+  --terminal-blue: var(--palette-terminal-blue);
+  --terminal-magenta: var(--palette-terminal-magenta);
+  --terminal-cyan: var(--palette-terminal-cyan);
+  --terminal-white: var(--palette-terminal-white);
+  --terminal-bright-black: var(--palette-terminal-bright-black);
+  --terminal-bright-red: var(--palette-terminal-bright-red);
+  --terminal-bright-green: var(--palette-terminal-bright-green);
+  --terminal-bright-yellow: var(--palette-terminal-bright-yellow);
+  --terminal-bright-blue: var(--palette-terminal-bright-blue);
+  --terminal-bright-magenta: var(--palette-terminal-bright-magenta);
+  --terminal-bright-cyan: var(--palette-terminal-bright-cyan);
+  --terminal-bright-white: var(--palette-terminal-bright-white);
+
+  /* Selección dentro de editores. Se mezcla con el acento opaco para seguir
+     visible encima de fondos verdes, rojos y de conflicto. */
+  --code-selection-bg: color-mix(in oklch, var(--palette-accent) 42%, transparent);
+  --code-selection-border: var(--palette-accent-text);
+
+  /* Mapa de calor de actividad. Cinco escalones del vacío al máximo, con el
+     salto de luminancia entre vecinos suficiente para leerlos en escala de
+     grises. El nivel viaja además en el texto de cada celda, de modo que el
+     color nunca es el único portador. */
+  --heat-0: var(--palette-sunken);
+  --heat-1: var(--palette-accent-wash);
+  --heat-2: var(--palette-accent-border);
+  --heat-3: var(--palette-accent);
+  --heat-4: var(--palette-accent-hover);
+
+  /* Velo de los modales y sombras. Se escriben con alfa, así que viven aquí y
+     no en la paleta: son los únicos colores que no son opacos. */
+  --scrim: rgb(0 0 0 / 55%);
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 28%);
+  --shadow-overlay: 0 8px 28px rgb(0 0 0 / 40%);
+
+  /* Capas. Un solo sitio decide qué tapa a qué. Los flotantes van por encima
+     del modal a propósito: un menú abierto dentro de un diálogo tiene que
+     verse, y siempre es lo último que se pidió. Los avisos quedan entre medias
+     para que un deshacer no desaparezca detrás de un modal. */
+  --z-raised: 10;
+  --z-modal: 100;
+  --z-toast: 500;
+  --z-overlay: 1000;
+  --z-tooltip: 1100;
+
+  /* Radios y trazos. No dependen ni del tema ni de la densidad. */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 9px;
+  --radius-pill: 999px;
+  --border-width: 1px;
+
+  /* Lo deshabilitado se atenúa; «Contraste» lo sustituye por trama. */
+  --disabled-opacity: 0.55;
+  --blocked-surface-opacity: 0.25;
+  --disabled-pattern: none;
+
+  /* Duraciones. Un solo lugar para poder anularlas con prefers-reduced-motion. */
+  --duration-instant: 60ms;
+  --duration-fast: 120ms;
+  --duration-slow: 220ms;
+}
+
+/*
+ * «Contraste» no es una paleta más: cambia también reglas de forma.
+ * Bordes sólidos en toda superficie, anillo de foco de 3 px siempre visible,
+ * sin sombras que hagan de jerarquía, sin atenuación por alfa, y el grafo con
+ * trazo y forma distintos por rama para que el color no sea el único portador.
+ */
+[data-theme='contraste'] {
+  --border-subtle: var(--palette-border);
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 2px;
+
+  --shadow-raised: none;
+  --shadow-overlay: none;
+
+  --disabled-opacity: 1;
+  --blocked-surface-opacity: 1;
+  --disabled-pattern: repeating-linear-gradient(
+    135deg,
+    transparent 0 4px,
+    var(--palette-border) 4px 5px
+  );
+
+  --scrim: rgb(0 0 0 / 80%);
+
+  /* Cuatro colores por cuatro tratamientos: ocho ramas distinguibles en escala
+     de grises y con cualquier daltonismo. */
+  --graph-dash-1: none;
+  --graph-dash-2: none;
+  --graph-dash-3: none;
+  --graph-dash-4: none;
+  --graph-dash-5: 8 4;
+  --graph-dash-6: 2 3;
+  --graph-dash-7: 9 3 2 3;
+  --graph-dash-8: 4 4;
+
+  --graph-shape-1: ring;
+  --graph-shape-2: ring-filled;
+  --graph-shape-3: diamond;
+  --graph-shape-4: square;
+  --graph-shape-5: ring-filled;
+  --graph-shape-6: diamond;
+  --graph-shape-7: square;
+  --graph-shape-8: ring;
+
+  /* La escala de calor se reparte por luminancia y no por color: aquí el nivel
+     de un día tiene que leerse en un monitor en blanco y negro. `--heat-1` deja
+     de ser el lavado del acento —que sobre el fondo da 1,3:1 y no se distingue
+     de un día vacío— y pasa a la superficie activa, el gris más cercano que
+     tiene el tema. */
+  --heat-1: var(--palette-active);
+  --heat-2: var(--palette-graph-3);
+  --heat-3: var(--palette-accent);
+  --heat-4: var(--palette-ink);
+}
+
+/*
+ * Los dos escalones de en medio se cruzan según el modo.
+ *
+ * Sobre negro el amarillo es más claro que el magenta y sobre blanco es al
+ * revés, así que un solo orden para los dos modos deja la escala subiendo,
+ * bajando y volviendo a subir — y entonces el nivel solo se puede leer por
+ * color, que es justo lo que este tema no admite.
+ */
+[data-theme='contraste'][data-mode='dark'] {
+  --heat-2: var(--palette-accent);
+  --heat-3: var(--palette-graph-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-slow: 0ms;
+  }
+}

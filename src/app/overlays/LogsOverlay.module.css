@@ -1,0 +1,114 @@
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 18rem;
+  max-height: min(62vh, 42rem);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+  list-style: none;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(7rem, max-content) 1fr;
+  gap: var(--space-1) var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+}
+
+.time,
+.scope {
+  color: var(--text-muted);
+}
+
+.level {
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.level[data-level='warn'] {
+  color: var(--text-warning);
+}
+
+.level[data-level='error'] {
+  color: var(--text-danger);
+}
+
+.message {
+  min-width: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  display: block;
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+.detail {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-secondary);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.state {
+  display: grid;
+  min-height: 18rem;
+  margin: 0;
+  color: var(--text-muted);
+  place-items: center;
+}
+
+@media (max-width: 56rem) {
+  .entry {
+    grid-template-columns: max-content max-content 1fr;
+  }
+
+  .message,
+  .detail {
+    grid-column: 1 / -1;
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.filters label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.filters input,
+.filters select {
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2);
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+.detail pre {
+  margin: var(--space-2) 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+.detail summary {
+  cursor: pointer;
+}

@@ -1,0 +1,9 @@
+.panel {
+  padding: var(--space-4);
+  overflow: auto;
+  color: var(--text-primary);
+  background-color: var(--surface-raised);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+}

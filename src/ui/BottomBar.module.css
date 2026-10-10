@@ -1,0 +1,49 @@
+/*
+ * El alto de la barra lo pone su contenido y nada más.
+ *
+ * El relleno vertical es el mínimo de la escala y el horizontal se queda como
+ * estaba: la barra tocaba los cuarenta píxeles con botones de treinta, y ese
+ * cinturón de aire se lo quitaba a la vista, que es la que tiene algo que
+ * enseñar. Reducirla no encoge nada de dentro: los botones, la tira y el
+ * mensaje siguen a su tamaño.
+ */
+.bar {
+  display: flex;
+  flex: none;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--surface-panel);
+  border-top: var(--border-width) solid var(--border-subtle);
+}
+
+/* Tratamiento propio: hundidos y agrupados, para que se lean como un bloque de
+   botones y no como las primeras pestañas de la tira. El hueco hundido abraza a
+   los botones por los lados; a lo alto son ellos los que fijan la medida. */
+.launchers {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  align-items: center;
+  padding: 0 var(--space-1);
+  background-color: var(--surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.divider {
+  flex: none;
+  align-self: stretch;
+}
+
+.status {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.utilities {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  align-items: center;
+}

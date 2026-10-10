@@ -1,0 +1,10 @@
+/*
+ * El lienzo ocupa exactamente su fila y no crece con ella: el ancho lo fija el
+ * número de calles y el alto es el de la fila. `flex: none` impide que la celda
+ * lo estire cuando la columna es más ancha que el dibujo, que dejaría las
+ * calles separándose entre sí al ensanchar la columna.
+ */
+.canvas {
+  display: block;
+  flex: none;
+}

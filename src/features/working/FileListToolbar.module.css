@@ -1,0 +1,58 @@
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.primary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.filter {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.treeActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.allFiles {
+  --icon-lg: 14px;
+  margin-inline-start: auto;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.allFiles > span:last-child {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.treeAction {
+  text-align: left;
+  margin: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--line-height-ui);
+  text-decoration: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.treeAction:hover {
+  color: var(--text-accent);
+  text-decoration: underline;
+}

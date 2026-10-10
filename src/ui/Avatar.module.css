@@ -1,0 +1,114 @@
+.avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--text-on-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-pill);
+}
+
+.xs {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  font-size: calc(var(--text-xs) - 2px);
+}
+
+.sm {
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  font-size: var(--text-xs);
+}
+
+.md {
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+}
+
+.lg {
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  font-size: var(--text-lg);
+}
+
+img.avatar {
+  object-fit: cover;
+}
+
+/* El lienzo común conserva el detalle a tamaño de fila. Los dibujos dejan
+   margen en sus 24 unidades para respirar dentro del disco. */
+.glyph {
+  width: 76%;
+  height: 76%;
+}
+
+.tone1 {
+  background-color: var(--avatar-tone-1);
+}
+
+.tone2 {
+  background-color: var(--avatar-tone-2);
+}
+
+.tone3 {
+  background-color: var(--avatar-tone-3);
+}
+
+.tone4 {
+  background-color: var(--avatar-tone-4);
+}
+
+.tone5 {
+  background-color: var(--avatar-tone-5);
+}
+
+.tone6 {
+  background-color: var(--avatar-tone-6);
+}
+
+.tone7 {
+  background-color: var(--avatar-tone-7);
+}
+
+.tone8 {
+  background-color: var(--avatar-tone-8);
+}
+
+.tone9 {
+  background-color: var(--avatar-tone-9);
+}
+
+.tone10 {
+  background-color: var(--avatar-tone-10);
+}
+
+.tone11 {
+  background-color: var(--avatar-tone-11);
+}
+
+.tone12 {
+  background-color: var(--avatar-tone-12);
+}
+
+.tone13 {
+  background-color: var(--avatar-tone-13);
+}
+
+.tone14 {
+  background-color: var(--avatar-tone-14);
+}
+
+.tone15 {
+  background-color: var(--avatar-tone-15);
+}
+
+.tone16 {
+  background-color: var(--avatar-tone-16);
+}
+
+.avatar[data-custom-color] {
+  background-color: var(--avatar-color);
+  color: var(--avatar-foreground, var(--text-on-accent));
+}

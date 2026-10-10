@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name={{name}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}}
+Icon={{icon}}
+Categories={{categories}}
+Terminal=false
+# Tauri genera GitThul.desktop. Conservarlo como alias para los favoritos previos;
+# el lanzador visible y la identidad GTK usan org.gitthul.GitThul.desktop.
+# AppImage sustituye este alias por el lanzador visible mediante appimage.files.
+NoDisplay=true
+StartupWMClass=org.gitthul.GitThul
+{{#if mime_type}}
+MimeType={{mime_type}}
+{{/if}}

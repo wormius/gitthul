@@ -1,0 +1,442 @@
+//! Sesiones de shell reales sobre PTY. La interfaz solo transporta bytes y tamaño.
+
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+use portable_pty::{
+    native_pty_system, ChildKiller, CommandBuilder, ExitStatus, MasterPty, PtySize,
+};
+use serde::Serialize;
+use serde_json::{json, Value};
+use tauri::{ipc::Channel, State};
+
+struct TerminalSession {
+    master: Box<dyn MasterPty + Send>,
+    writer: Box<dyn Write + Send>,
+    killer: Box<dyn ChildKiller + Send + Sync>,
+    observing_cwd: Arc<AtomicBool>,
+}
+
+impl Drop for TerminalSession {
+    fn drop(&mut self) {
+        self.observing_cwd.store(false, Ordering::Release);
+        let _ = self.killer.kill();
+    }
+}
+
+#[derive(Default)]
+pub struct TerminalSessions {
+    sessions: Mutex<HashMap<String, TerminalSession>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalError {
+    code: &'static str,
+    params: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalExit {
+    code: u32,
+    signal: Option<String>,
+    success: bool,
+}
+
+impl TerminalError {
+    fn new(code: &'static str, params: Value, error: impl std::fmt::Display) -> Self {
+        Self {
+            code,
+            params,
+            output: Some(error.to_string()),
+        }
+    }
+
+    fn session_not_found(session_id: &str) -> Self {
+        Self {
+            code: "terminal.sessionNotFound",
+            params: json!({ "session": session_id }),
+            output: None,
+        }
+    }
+}
+
+#[tauri::command]
+pub fn terminal_create_session(
+    sessions: State<'_, TerminalSessions>,
+    locks: State<'_, crate::git::GitWriteLocks>,
+    session_id: String,
+    cwd: String,
+    cols: u16,
+    rows: u16,
+    on_data: Channel<Vec<u8>>,
+    on_cwd: Channel<String>,
+    on_exit: Channel<TerminalExit>,
+) -> Result<(), TerminalError> {
+    if !cwd.is_empty() && !Path::new(&cwd).is_dir() {
+        return Err(TerminalError::new(
+            "terminal.cwdNotFound",
+            json!({ "path": cwd }),
+            "working directory does not exist",
+        ));
+    }
+
+    close_if_present(&sessions, &session_id)?;
+
+    let pair = native_pty_system()
+        .openpty(PtySize {
+            rows: rows.max(1),
+            cols: cols.max(1),
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|error| TerminalError::new("terminal.openFailed", json!({}), error))?;
+
+    let mut command = CommandBuilder::new_default_prog();
+    configure_terminal_environment(&mut command);
+    if !cwd.is_empty() {
+        command.cwd(&cwd);
+    }
+
+    let mut reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|error| TerminalError::new("terminal.openFailed", json!({}), error))?;
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|error| TerminalError::new("terminal.openFailed", json!({}), error))?;
+    let recovery =
+        crate::git::begin_terminal_recovery(&cwd, locks.inner().clone()).map_err(|error| {
+            TerminalError::new("terminal.openFailed", json!({}), format!("{error:?}"))
+        })?;
+    let mut child = pair.slave.spawn_command(command).map_err(|error| {
+        TerminalError::new("terminal.spawnFailed", json!({ "path": cwd }), error)
+    })?;
+    let killer = child.clone_killer();
+    let process_id = child.process_id();
+    let observing_cwd = Arc::new(AtomicBool::new(true));
+
+    let log_context = json!({ "request": format!("sessionId={session_id}"), "repository": cwd, "phase": "event" });
+    let reader_log_context = log_context.clone();
+    sessions.sessions.lock().map_err(lock_error)?.insert(
+        session_id,
+        TerminalSession {
+            master: pair.master,
+            writer,
+            killer,
+            observing_cwd: Arc::clone(&observing_cwd),
+        },
+    );
+
+    if let Some(process_id) = process_id {
+        thread::spawn(move || observe_cwd(process_id, on_cwd, observing_cwd));
+    }
+
+    thread::spawn(move || {
+        let mut buffer = [0_u8; 8192];
+        loop {
+            match reader.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(count) => {
+                    if on_data.send(buffer[..count].to_vec()).is_err() {
+                        break;
+                    }
+                }
+                // Linux PTYs signal the normal end of a slave with EIO.
+                Err(error) if cfg!(unix) && error.raw_os_error() == Some(5) => break,
+                Err(error) => {
+                    crate::logging::native_with_context(
+                        "warn",
+                        "terminal.native",
+                        "La lectura del PTY se interrumpió",
+                        Some(format!("ioKind={:?}", error.kind())),
+                        Some(reader_log_context.clone()),
+                    );
+                    break;
+                }
+            }
+        }
+    });
+    thread::spawn(move || {
+        match child.wait() {
+            Ok(status) => {
+                if let Some(recovery) = recovery { recovery.finish(); }
+                let _ = on_exit.send(terminal_exit(status));
+            }
+            Err(_) => crate::logging::native_with_context("error", "terminal.native", "No se pudo observar la salida del proceso; comprueba el repositorio antes de continuar", None, Some(log_context)),
+        }
+    });
+
+    Ok(())
+}
+
+fn configure_terminal_environment(command: &mut CommandBuilder) {
+    // Las capacidades pertenecen a xterm.js, no a la terminal que lanzó la app
+    // (ni a un lanzador gráfico, que puede dejar TERM vacío o en `dumb`).
+    command.env("TERM", "xterm-256color");
+    command.env("COLORTERM", "truecolor");
+    command.env("TERM_PROGRAM", "GitThul");
+    command.env("TERM_PROGRAM_VERSION", env!("CARGO_PKG_VERSION"));
+    // El tamaño lo comunica el PTY; no heredar dimensiones ni termcap del padre.
+    command.env_remove("COLUMNS");
+    command.env_remove("LINES");
+    command.env_remove("TERMCAP");
+}
+
+fn terminal_exit(status: ExitStatus) -> TerminalExit {
+    TerminalExit {
+        code: status.exit_code(),
+        signal: status.signal().map(str::to_owned),
+        success: status.success(),
+    }
+}
+
+fn observe_cwd(process_id: u32, on_cwd: Channel<String>, active: Arc<AtomicBool>) {
+    let mut previous = None;
+    while active.load(Ordering::Acquire) {
+        if let Some(cwd) = process_cwd(process_id) {
+            let cwd = cwd.to_string_lossy().into_owned();
+            if previous.as_deref() != Some(cwd.as_str()) {
+                if on_cwd.send(cwd.clone()).is_err() {
+                    break;
+                }
+                previous = Some(cwd);
+            }
+        }
+        thread::sleep(Duration::from_millis(250));
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn process_cwd(process_id: u32) -> Option<std::path::PathBuf> {
+    std::fs::read_link(format!("/proc/{process_id}/cwd"))
+        .ok()
+        .filter(|path| path.is_dir())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn process_cwd(_process_id: u32) -> Option<std::path::PathBuf> {
+    None
+}
+
+#[tauri::command]
+pub fn terminal_write(
+    sessions: State<'_, TerminalSessions>,
+    session_id: String,
+    data: String,
+) -> Result<(), TerminalError> {
+    let mut map = sessions.sessions.lock().map_err(lock_error)?;
+    let session = map
+        .get_mut(&session_id)
+        .ok_or_else(|| TerminalError::session_not_found(&session_id))?;
+    session
+        .writer
+        .write_all(data.as_bytes())
+        .and_then(|_| session.writer.flush())
+        .map_err(|error| {
+            TerminalError::new(
+                "terminal.writeFailed",
+                json!({ "session": session_id }),
+                error,
+            )
+        })
+}
+
+#[tauri::command]
+pub fn terminal_resize(
+    sessions: State<'_, TerminalSessions>,
+    session_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), TerminalError> {
+    let map = sessions.sessions.lock().map_err(lock_error)?;
+    let session = map
+        .get(&session_id)
+        .ok_or_else(|| TerminalError::session_not_found(&session_id))?;
+    session
+        .master
+        .resize(PtySize {
+            rows: rows.max(1),
+            cols: cols.max(1),
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|error| {
+            TerminalError::new(
+                "terminal.resizeFailed",
+                json!({ "session": session_id }),
+                error,
+            )
+        })
+}
+
+#[tauri::command]
+pub fn terminal_close_session(
+    sessions: State<'_, TerminalSessions>,
+    session_id: String,
+) -> Result<(), TerminalError> {
+    close_if_present(&sessions, &session_id)
+}
+
+fn close_if_present(sessions: &TerminalSessions, session_id: &str) -> Result<(), TerminalError> {
+    sessions
+        .sessions
+        .lock()
+        .map_err(lock_error)?
+        .remove(session_id);
+    Ok(())
+}
+
+fn lock_error<T>(error: std::sync::PoisonError<T>) -> TerminalError {
+    TerminalError::new("terminal.stateFailed", json!({}), error)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Read, Write};
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+
+    #[test]
+    #[cfg(unix)]
+    fn shell_recibe_capacidades_del_emulador_sin_dimensiones_del_padre() {
+        let pair = native_pty_system().openpty(PtySize::default()).unwrap();
+        let mut command = CommandBuilder::new("/bin/sh");
+        command.args([
+            "-c",
+            "printf '%s|%s|%s|%s|%s|%s\\n' \"$TERM\" \"$COLORTERM\" \"$TERM_PROGRAM\" \"$COLUMNS\" \"$LINES\" \"$TERMCAP\"",
+        ]);
+        command.env("TERM", "dumb");
+        command.env("COLORTERM", "");
+        command.env("TERM_PROGRAM", "otra-terminal");
+        command.env("COLUMNS", "200");
+        command.env("LINES", "60");
+        command.env("TERMCAP", "capacidades-del-padre");
+        super::configure_terminal_environment(&mut command);
+        let mut reader = pair.master.try_clone_reader().unwrap();
+        let mut child = pair.slave.spawn_command(command).unwrap();
+        drop(pair.slave);
+        let (sender, receiver) = mpsc::channel();
+        thread::spawn(move || {
+            let mut buffer = [0_u8; 1024];
+            let mut output = Vec::new();
+            while let Ok(count) = reader.read(&mut buffer) {
+                if count == 0 {
+                    break;
+                }
+                output.extend_from_slice(&buffer[..count]);
+            }
+            let _ = sender.send(output);
+        });
+        let result = receiver.recv_timeout(Duration::from_secs(5));
+        if result.is_err() {
+            let _ = child.kill();
+        }
+        assert!(child.wait().unwrap().success());
+        let output = String::from_utf8(result.expect("el shell debe responder")).unwrap();
+        assert_eq!(output.trim(), "xterm-256color|truecolor|GitThul|||");
+    }
+
+    #[test]
+    fn pty_real_transporta_entrada_salida_y_resize() {
+        let pair = native_pty_system().openpty(PtySize::default()).unwrap();
+        let mut command = CommandBuilder::new_default_prog();
+        super::configure_terminal_environment(&mut command);
+        let mut child = pair.slave.spawn_command(command).unwrap();
+        let mut reader = pair.master.try_clone_reader().unwrap();
+        let mut writer = pair.master.take_writer().unwrap();
+
+        pair.master
+            .resize(PtySize {
+                rows: 31,
+                cols: 97,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .unwrap();
+        assert_eq!(pair.master.get_size().unwrap().rows, 31);
+        assert_eq!(pair.master.get_size().unwrap().cols, 97);
+
+        let marker = "gitthul-pty-real";
+        writer
+            .write_all(format!("echo {marker}\r").as_bytes())
+            .unwrap();
+        writer.flush().unwrap();
+
+        let (sender, receiver) = mpsc::channel();
+        thread::spawn(move || {
+            let mut buffer = [0_u8; 1024];
+            while let Ok(count) = reader.read(&mut buffer) {
+                if count == 0 || sender.send(buffer[..count].to_vec()).is_err() {
+                    break;
+                }
+            }
+        });
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut output = String::new();
+        while Instant::now() < deadline && !output.contains(marker) {
+            if let Ok(bytes) = receiver.recv_timeout(Duration::from_millis(100)) {
+                output.push_str(&String::from_utf8_lossy(&bytes));
+            }
+        }
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert!(output.contains(marker), "salida PTY inesperada: {output:?}");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn observa_el_cwd_real_del_shell_despues_de_cd() {
+        let pair = native_pty_system().openpty(PtySize::default()).unwrap();
+        let command = CommandBuilder::new_default_prog();
+        let mut child = pair.slave.spawn_command(command).unwrap();
+        let process_id = child.process_id().expect("el PTY nativo debe exponer pid");
+        let mut writer = pair.master.take_writer().unwrap();
+        let target = std::env::temp_dir().canonicalize().unwrap();
+
+        writer
+            .write_all(format!("cd -- {}\r", target.display()).as_bytes())
+            .unwrap();
+        writer.flush().unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut observed = None;
+        while Instant::now() < deadline {
+            observed = super::process_cwd(process_id);
+            if observed.as_ref() == Some(&target) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert_eq!(observed, Some(target));
+    }
+
+    #[test]
+    fn conserva_codigo_exito_y_senal_de_salida() {
+        let success = super::terminal_exit(portable_pty::ExitStatus::with_exit_code(0));
+        let failure = super::terminal_exit(portable_pty::ExitStatus::with_exit_code(7));
+        let signal = super::terminal_exit(portable_pty::ExitStatus::with_signal("TERM"));
+
+        assert!(success.success);
+        assert_eq!(failure.code, 7);
+        assert!(!failure.success);
+        assert_eq!(signal.signal.as_deref(), Some("TERM"));
+        assert!(!signal.success);
+    }
+}

@@ -1,0 +1,60 @@
+.bar {
+  display: flex;
+  flex: none;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--surface-sunken);
+  border-bottom: var(--border-width) solid var(--border-strong);
+}
+
+.brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding-left: var(--space-2);
+}
+
+/* La zona libre es también la de arrastre: crece para ocupar todo lo que no son
+   controles, porque cuanto más grande, más fácil es mover la ventana. */
+.drag {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--space-2);
+  align-items: baseline;
+  justify-content: center;
+  min-width: 0;
+  height: var(--control-height-sm);
+  overflow: hidden;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.detail {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.controls {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+/* Cerrar la ventana avisa de lo que es al pasar por encima. Solo color: el
+   tamaño y el borde no se mueven. */
+.close:hover:not(:disabled) {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+}

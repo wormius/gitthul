@@ -1,0 +1,76 @@
+.header {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+}
+
+.avatar {
+  flex: 0 0 auto;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow: hidden;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Botón sin apariencia de botón: el hover solo cambia el color del texto, que
+ * es lo que la invariante 1 permite — nada de bordes ni de peso.
+ */
+.branch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow: hidden;
+  padding: 0;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.branch:hover {
+  color: var(--text-primary);
+}
+
+.branch:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.branchIcon {
+  flex: 0 0 auto;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--accent);
+}
+
+.collapsed .header {
+  padding: 0;
+}
+.header:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+}

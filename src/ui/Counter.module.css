@@ -1,0 +1,15 @@
+.counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: calc(var(--control-height-sm) * 0.7);
+  height: calc(var(--control-height-sm) * 0.7);
+  padding: 0 var(--space-2);
+  color: var(--text-secondary);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+  font-variant-numeric: tabular-nums;
+  background-color: var(--surface-sunken);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+}

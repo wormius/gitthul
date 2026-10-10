@@ -1,0 +1,216 @@
+# GitThul
+
+GitThul es un cliente gráfico de Git de escritorio, multiplataforma y libre.
+Su propósito es hacer visibles el estado real y las operaciones de Git, con una
+interfaz clara, terminal integrada y mecanismos de recuperación. La red responde
+a acciones del usuario o preferencias explícitas; no introducir telemetría.
+No incluye una función de IA dentro de la aplicación.
+
+La consulta de novedades permanece neutralizada. Aunque existe el repositorio
+público wormius/gitthul, su reactivación requiere un cambio explícito de alcance;
+no reactivarla a partir de preferencias almacenadas.
+
+El código propio se distribuye bajo MIT. GitThul™ y su logotipo tienen una política
+de marca separada, documentada en TRADEMARKS.md; los avisos de terceros se
+conservan. Usar ™ en presentación de marca y reservar ® para un registro
+confirmado. Los nombres técnicos, paquetes y rutas no llevan símbolos de marca.
+Los textos de licencias de terceros están en THIRD_PARTY_NOTICES.md y licenses/.
+
+## Arquitectura
+
+- Escritorio: Tauri 2; backend Rust; lectura estructurada con gitoxide.
+- Escrituras Git, hooks y red: Git CLI, respetando la configuración del usuario.
+- Frontend: React 19, TypeScript estricto, Vite 7 y Zustand.
+- Listas y grafos: TanStack Virtual; editores y diff: CodeMirror 6.
+- Terminal: xterm.js y portable-pty; secretos: keyring del sistema.
+- Pruebas: Vitest, Testing Library, jsdom y pruebas Rust con repos temporales.
+
+src/app contiene shell, pestañas, proveedores y acciones globales.
+src/features contiene repositorios, GitWorking, Resolver, Terminal y Configuración.
+src/core/domain define datos y reglas; src/core/ports, contratos; los adaptadores
+mock y Tauri implementan los mismos puertos. src/ui ofrece componentes compartidos
+y galería. src/design reúne tokens, temas, variantes, densidad y fuentes locales.
+src/i18n contiene los cinco catálogos; src/test, utilidades de pruebas.
+src-tauri/src contiene Git, PTY, autenticación, persistencia, watchers y sistema.
+src-tauri/capabilities contiene permisos; src-tauri/icons, activos de empaquetado.
+src/assets/brand/logo.svg es el maestro del logotipo utilizado por la aplicación.
+
+React consume los puertos de src/core/ports; las llamadas nativas pertenecen a sus
+adaptadores Tauri. Los adaptadores mock permiten desarrollar y probar la interfaz
+sin repositorios reales. Mantener ese contrato compartido, sin accesos directos
+al sistema desde las vistas ni permisos globales del WebView para suplirlo.
+
+## Antes de trabajar
+
+Leer el estado Git, el diff y las instrucciones vigentes. Respetar cambios ajenos
+y mantener el alcance solicitado. No deducir funciones actuales de referencias a
+fases antiguas en comentarios; contrastarlas con código y pruebas. Identificar los consumidores compartidos y
+seguir el contrato completo antes de cambiar una operación.
+
+README presenta el producto y docs/ contiene exclusivamente ayuda para el usuario
+final. Este AGENTS reúne las instrucciones técnicas necesarias para trabajar sobre
+el código; mantenerlo actualizado al cambiar contratos o requisitos cruciales.
+La documentación extensa de desarrollo, planes y herramientas particulares de
+diagnóstico se conserva fuera de este repositorio. No añadir scripts de experimentos
+o escenarios manuales a Producto ni convertirlos en requisitos de sus comprobaciones.
+Este repositorio debe poder desarrollarse solo con sus archivos y herramientas
+documentadas. No introducir dependencias de directorios privados externos.
+
+## Invariantes de Git y privacidad
+
+El repositorio en disco es la fuente de verdad. No deducir éxito de una vista,
+banner o estado de interfaz sin comprobar el resultado Git cuando corresponda.
+Preservar la serialización por repositorio, la revalidación previa a escrituras y
+las protecciones frente a cambios concurrentes, worktrees y pérdida de datos.
+
+No sustituir errores significativos por éxito ni confundir cancelación con fallo.
+Cuando cambie un puerto, actualizar dominio, mock, adaptador Tauri, backend y
+consumidores afectados. Los secretos recordados usan el llavero; las llaves SSH
+privadas permanecen en los archivos seleccionados por el usuario, fuera del repo.
+No persistir credenciales efímeras ni incluir secretos o datos reales innecesarios
+en registros y fixtures.
+
+Las pruebas de escritura usan repositorios descartables. No experimentar con
+reset, limpieza o recuperación destructiva sobre repositorios del usuario.
+
+## Recuperación y persistencia
+
+El historial de Deshacer/Rehacer es de sesión. Las operaciones compuestas usan
+checkpoints persistentes; las capturas locales pequeñas siguen en memoria. Mantener
+capturas de alcance limitado para operaciones predecibles y completas para terminal,
+integraciones, hooks, auto-stash y otras escrituras cuyo alcance no se conoce antes.
+Cubrir colisiones con ignorados, flags del índice y los tres padres de un stash.
+
+src-tauri/src/git/recovery_store.rs guarda las copias bajo
+app_local_data_dir()/recovery, separadas por gitdir e identidad de instancia.
+Resolver gitdir y common-dir mediante Git: un worktree puede tener un archivo .git
+y referencias/configuración compartidas. Un repositorio recreado en la misma ruta
+no debe heredar automáticamente copias de otra instancia.
+
+La política recovery de settings.json controla depuración automática, cantidad,
+antigüedad y espacio. Los límites son blandos: nunca eliminar puntos activos,
+pendientes, parejas incompletas ni copias referidas por una restauración interrumpida.
+Ante corrupción o ambigüedad, conservar el almacén afectado. No depurar las referencias
+refs/gitthul/undo/objects/: pueden proteger puntos antiguos y otros worktrees.
+Exportar archivos no reemplaza la base de objetos Git que necesitan commits y stashes.
+
+La recuperación persistente exige vista previa, token y confirmación. Antes de escribir,
+guardar un baseline durable pendiente; aplicar los mismos bloqueos y comprobaciones
+de cambios posteriores que Deshacer/Rehacer. Completar la pareja solo con el estado
+posterior durable. La importación antigua es explícita y por copia, sin modificar
+el origen ni seguir rutas absolutas no verificadas en los manifiestos.
+
+Los ajustes y biblioteca usan los directorios de configuración del usuario;
+los logs y recovery usan sus directorios de datos. Resolverlos con Tauri, sin rutas
+personales fijas ni almacenamiento dentro del repositorio fuente. Una configuración
+ilegible suspende la depuración automática y permite arrancar; conservar sus bytes
+antes de repararla y mantener la suspensión al escribir otras preferencias.
+
+## Acceso al sistema
+
+Leer la identidad efectiva de Git. Seleccionar un perfil escribe user.name/user.email
+en la configuración local o de worktree; no pasar el perfil como autor de todos los
+commits. Amend conserva el autor original salvo una acción explícita distinta.
+
+Conservar los credential helpers y useHttpPath del sistema al consultar accesos.
+Los accesos propios distinguen repositorio canónico y URL completa. No mezclar
+autenticación SSH con firma de commits; quitar una llave del catálogo no borra su
+archivo privado. Los auxiliares de autenticación usan credenciales ficticias al probarse.
+
+El PTY ejecuta el shell del usuario; transportar bytes y secuencias ANSI sin reconstruir
+comandos. Mantener TERM=xterm-256color, COLORTERM=truecolor y tamaño tomado del PTY.
+Leer el portapapeles solo al pegar; Ctrl+C sin selección debe poder interrumpir.
+Los logs conservan errores útiles y redactan secretos antes de persistir o notificar;
+no registrar contenido libre de archivos, credenciales, mensajes de commit, PTY o
+portapapeles. Un fallo del logger no cambia el resultado de una operación Git.
+
+## Convenciones
+
+Seguir TypeScript estricto, imports de tipos explícitos, ESLint y Prettier ya
+configurados. Seguir el estilo del módulo Rust y comprobar formato con cargo fmt.
+Reutilizar puertos y componentes existentes. Mantener cambios funcionales y
+refactorizaciones independientes cuando no sean necesarios para la misma tarea.
+Conservar package-lock.json y Cargo.lock; no actualizarlos sin una causa del cambio.
+
+## Diseño e internacionalización
+
+Usar tokens de src/design y patrones de src/ui; no añadir colores literales o
+controles inconsistentes. Respetar temas, variantes, densidades y fuentes locales.
+Comprobar teclado, foco, accesibilidad, paneles estrechos y edición de texto segura.
+Los atajos no deben interceptar entrada normal ni composición de texto. No comunicar
+un estado solo por color; mantener foco visible y contraste verificable.
+
+Todo texto de la interfaz de usuario del producto usa i18n. Las muestras internas
+de la galería conservan su convención actual; no requieren una traducción global
+por esta reorganización. Mantener es-MX, es-ES, en, de y fr coherentes en claves,
+parámetros, etiquetas, ayuda y menús. Usar terminología habitual de Git en cada
+comunidad lingüística. Redactar cada idioma a partir del significado de la operación,
+sin traducir mecánicamente desde español. Conservar términos reconocibles como
+commit, stash, rebase, merge, fetch, pull, push, diff, tag, HEAD, upstream y worktree
+cuando su comunidad los utiliza. Distinguir autor/committer, Stage/árbol de trabajo,
+autenticación/firma y cancelar/rechazar/fallar. Los parámetros deben concordar entre
+los cinco catálogos; src/i18n/i18n.test.ts comprueba claves, vacíos y placeholders.
+
+## Desarrollo y validación
+
+Las herramientas seleccionadas son Node.js 20.20.2 (en .nvmrc), npm 10.8.2 y
+Rust/Cargo 1.97.0 (en rust-toolchain.toml), además de Git y las dependencias nativas
+de Tauri 2 para la plataforma. rust-version = 1.88 declara el límite del grafo,
+sin afirmar que se haya certificado como mínimo efectivo en todos los sistemas.
+Python y Bash sirven a herramientas externas opcionales, no a las comprobaciones
+ordinarias. OpenSSH proporciona ssh y ssh-keygen para los remotos y las funciones
+de llaves SSH de la aplicación.
+
+Instalar con npm ci. npm run dev usa mocks fuera de Tauri; npm run tauri dev
+ejecuta el escritorio. El puerto fijo es 5183 y la galería está en /dev/tokens.
+
+Desde la raíz: npm run typecheck, npm run lint, npm run format:check,
+npm test y npm run build. Desde src-tauri: cargo fmt --all -- --check,
+cargo check --locked y cargo test --locked.
+La aplicación nativa se construye con npm run tauri build -- --no-bundle;
+npm run tauri build crea paquetes locales según src-tauri/tauri.conf.json.
+Los activos, lanzadores, fuentes y avisos de licencias se resuelven desde este
+repositorio. Los binarios empaquetados funcionan sin Vite ni carpetas privadas.
+
+.github/workflows/ci.yml valida versiones, SHA-256 y cobertura de avisos,
+frontend y Rust en Linux x64, Windows x64 y macOS Intel/Apple Silicon. Sus
+acciones se fijan por commit; contrastar las revisiones upstream al actualizarlas.
+La versión Node sigue .nvmrc y Rust sigue rust-toolchain.toml. Los lockfiles son
+obligatorios: npm ci, cargo --locked y tauri build pasando -- --locked a Cargo.
+
+.github/workflows/release.yml se activa con tags vX.Y.Z o manualmente con un tag
+existente. Resuelve su commit, exige coincidencia con la versión y notas en
+docs/releases/X.Y.Z.md, y reutiliza CI para construir todos los instaladores.
+Solo tras pasar todos los jobs crea una release borrador con sumas SHA-256.
+No modifica una release ya publicada. El token automático de GitHub basta;
+contents:write se concede únicamente al job que prepara el borrador.
+Windows no tiene certificado comercial; macOS usa firma ad hoc, sin notarización.
+Revisar instalación nativa, avisos y fuentes de bibliotecas adicionales de AppImage
+antes de publicar el borrador. No confundir compilación con pruebas de instalación.
+
+Ejecutar las comprobaciones pertinentes al cambio y las requeridas para cerrar
+su alcance. Las pruebas mock/browser no demuestran integración Git o conducta
+nativa. Para cambios visuales, inspeccionar geometría renderizada y variantes
+afectadas; para comportamiento de plataforma, probar en esa plataforma.
+
+Para comprobar independencia, usar una copia o clon descartable con almacén Git
+propio, sin alternates, symlinks privados, node_modules, dist, target ni gen heredados.
+Instalar dependencias y construir desde sus archivos, con herramientas de sistema.
+Comparar contenido, índice y referencias con Git CLI cuando se validen escrituras.
+Usar remotos bare locales para comprobaciones de red; no sustituirlas por cuentas
+o repositorios personales. Los scripts de escenarios particulares son opcionales
+y ninguna validación ordinaria de Producto puede depender de su ubicación externa.
+
+## Entrega de cambios
+
+Explicar el problema, el comportamiento resultante, la validación y los límites
+reales. Actualizar contratos y documentación de comportamiento junto al código.
+No registrar bitácoras personales, secretos o artefactos generados en el producto.
+Conservar una historia comprensible y commits acordes al alcance solicitado.
+Las ramas de agentes usan codex/ salvo indicación humana distinta. Mantener la
+documentación de uso junto al comportamiento; los registros de ejecución y criterios
+detallados de investigación quedan fuera del producto.
+
+La creación de un repositorio local no autoriza publicación, push, releases ni
+distribución externa. Las pruebas ignoradas que necesitan red o un repositorio
+externo solo se ejecutan cuando ese alcance esté autorizado.

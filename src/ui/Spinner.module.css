@@ -1,0 +1,37 @@
+.wrapper {
+  display: inline-flex;
+}
+
+.spinner {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  border: 2px solid var(--border-subtle);
+  border-top-color: var(--accent);
+  border-radius: var(--radius-pill);
+  animation: spin 0.7s linear infinite;
+}
+
+.sm {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.lg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* No se detiene del todo — sigue siendo la única señal de que algo carga —
+   pero gira mucho más despacio para quien pidió menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}

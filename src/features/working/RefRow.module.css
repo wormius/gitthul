@@ -1,0 +1,101 @@
+/*
+ * Desde F2.4 la fila tiene menú contextual y doble clic. El `:hover` solo
+ * cambia el fondo: ni padding, ni borde, ni peso de letra — invariante 1.
+ */
+.row {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--row-height);
+  padding: 0 var(--space-3);
+  color: var(--text-primary);
+}
+
+.icon {
+  flex: 0 0 auto;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--text-muted);
+}
+
+.row:hover {
+  background-color: var(--surface-hover);
+}
+
+/* Dentro de Tree, la fila exterior ya pinta el hover a todo lo ancho. La fila
+   de referencia interior no añade otro fondo que cortaría su anillo activo. */
+.row[data-nested-in-tree]:hover {
+  background-color: transparent;
+}
+
+/*
+ * `data-selected` **no pinta fondo**, y no es un olvido.
+ *
+ * La fila señalada existe desde el 4 de agosto de 2026 para dar objeto a los
+ * gestos de `checkout`, borrar rama y borrar tag; se probó con fondo propio y
+ * se quitó al verlo: dentro de un árbol la caja de esta fila es más estrecha
+ * que la exterior, así que su fondo se superpone al anillo de la fila y lo
+ * corta. Es exactamente el bug que `cc29ae2` había arreglado para el hover —
+ * ver el punto 25 de `estado.md`—, y volver a meterlo por la puerta de la
+ * selección sería deshacer aquel arreglo. Si algún día la marca necesita verse,
+ * quien tiene que pintarla es la fila exterior del `Tree`, no esta.
+ */
+
+.row[data-active='true'] .icon {
+  color: var(--accent);
+}
+
+.label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+.row[data-active='true'] .label {
+  font-weight: var(--font-weight-medium);
+}
+
+.tracking {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* La región del menú envuelve la fila sin aportar caja propia. */
+.region {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * Lo que lleva anillo se pinta por encima de sus vecinas — el mismo motivo que
+ * en `Tree`: las filas se pintan en el orden del DOM y el fondo de hover de la
+ * de al lado tapaba el borde por donde se tocan. Posicionar sin desplazar es lo
+ * que hace que el `z-index` cuente, y no mueve ninguna caja.
+ */
+.row[data-drop='valid'][data-over],
+.row[data-active='true'] {
+  position: relative;
+  z-index: 1;
+}
+
+/* Arrastre y suelta — F2.7 */
+.row[data-ghost] {
+  opacity: 0.4;
+}
+
+.row[data-drop='valid'][data-over] {
+  background-color: var(--accent-wash);
+  outline: calc(var(--border-width) * 2) solid var(--border-accent);
+  outline-offset: calc(-1 * var(--border-width));
+}
+
+.row[data-drop='invalid'][data-over] {
+  opacity: 0.5;
+}

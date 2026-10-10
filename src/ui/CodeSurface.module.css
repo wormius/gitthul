@@ -1,0 +1,472 @@
+/*
+ * El tema de CodeMirror, escrito como CSS y no como JavaScript.
+ *
+ * CodeMirror inyecta su tema base al montar la vista, con selectores de dos
+ * clases (`.ͼ1 .cm-content`). Todo lo de aquí cuelga de `.surface`, así que gana
+ * por especificidad sin depender del orden en el que se inserten las hojas —que
+ * es distinto en desarrollo y en la compilación—. Y como todo son variables de
+ * la capa 2, cambiar de tema, de modo, de densidad o de fuente de visores
+ * repinta el visor sin tocar una línea de JavaScript.
+ */
+
+.surface {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--editor-bg);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+/* El anillo va en el contenedor, no en el editable: CodeMirror pinta el suyo
+   sobre `.cm-editor` y ahí queda por dentro del borde, medio tapado. */
+.surface:focus-within {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.surface :global(.cm-editor) {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-primary);
+  background-color: transparent;
+}
+
+.surface :global(.cm-editor.cm-focused) {
+  outline: none;
+}
+
+.surface :global(.cm-editor .cm-scroller) {
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-md);
+  line-height: var(--line-height-code);
+}
+
+.surface :global(.cm-editor .cm-content) {
+  padding: var(--space-2) 0;
+  /* `user-select: none` del reset global no bloquea la selección de
+     CodeMirror —la resuelve él mismo por ratón y teclado—, pero sí apaga la
+     heurística del navegador que dibuja el cursor de texto: sin esto el
+     puntero no avisa que hay algo que seleccionar. */
+  cursor: text;
+  caret-color: var(--accent);
+}
+
+.surface :global(.cm-editor .cm-line) {
+  padding: 0 var(--space-3);
+}
+
+/* Márgenes: números de línea y flechas de plegado. */
+.surface :global(.cm-editor .cm-gutters) {
+  color: var(--text-muted);
+  background-color: var(--editor-gutter);
+  border-right: var(--border-width) solid var(--border-subtle);
+}
+
+.surface :global(.cm-editor .cm-lineNumbers .cm-gutterElement) {
+  padding: 0 var(--space-2) 0 var(--space-3);
+}
+
+.surface :global(.cm-editor .cm-foldGutter .cm-gutterElement) {
+  padding: 0 var(--space-2);
+  cursor: pointer;
+}
+
+/* Solo color: el peso o el tamaño moverían el renglón entero. */
+.surface :global(.cm-editor .cm-foldGutter .cm-gutterElement:hover) {
+  color: var(--text-primary);
+}
+
+.surface :global(.cm-editor .cm-choiceGutter .cm-gutterElement) {
+  display: flex;
+  align-items: center;
+  min-width: calc(var(--space-6) + var(--space-3) + var(--space-2));
+  padding: 0 var(--space-1);
+}
+
+.surface :global(.gitthul-choice-controls) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  width: 100%;
+}
+
+.surface :global(.gitthul-block-choice) {
+  appearance: none;
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--choice-color, var(--conflict-ours-ink));
+  border-radius: 4px;
+  background: var(--editor-gutter);
+  cursor: pointer;
+}
+
+.surface :global(.gitthul-block-choice:checked) {
+  background: var(--choice-color, var(--conflict-ours-ink));
+}
+
+.surface :global(.gitthul-block-choice:checked)::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  width: 4px;
+  height: 7px;
+  border: solid var(--editor-gutter);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.surface :global(.gitthul-block-choice:focus-visible) {
+  outline: 2px solid var(--choice-color, var(--conflict-ours-ink));
+  outline-offset: 3px;
+}
+
+.surface :global(.gitthul-block-choice:disabled) {
+  opacity: var(--disabled-opacity);
+  cursor: not-allowed;
+}
+
+.surface :global(.gitthul-line-choice) {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.surface :global(.cm-gutterElement:hover .gitthul-line-choice),
+.surface :global(.gitthul-line-choice:focus-visible),
+.surface :global(.gitthul-line-choice[aria-pressed='true']) {
+  opacity: 1;
+}
+
+.surface :global(.gitthul-line-choice[aria-pressed='true']) {
+  color: var(--choice-color, var(--conflict-ours-ink));
+}
+
+.surface :global(.gitthul-line-choice:hover) {
+  color: var(--choice-color, var(--conflict-ours-ink));
+  background-color: var(--surface-hover);
+  border-color: var(--border-subtle);
+}
+
+.surface :global(.gitthul-block-control button) {
+  min-height: calc(var(--line-height-code) * 1em);
+  padding: 0 var(--space-2);
+  color: var(--text-primary);
+  background-color: var(--surface-raised);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+}
+
+.surface :global(.gitthul-block-control button[aria-pressed='true']) {
+  color: var(--text-on-accent);
+  background-color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+.surface :global(.gitthul-block-control button:disabled) {
+  cursor: not-allowed;
+  opacity: var(--disabled-opacity);
+}
+
+.surface :global(.gitthul-block-control) {
+  box-sizing: border-box;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  width: 100%;
+  min-height: calc(var(--line-height-code) * 1em + var(--space-2));
+  padding: var(--space-1) var(--space-3);
+  color: var(--text-secondary);
+  background-color: var(--surface-raised);
+  border-block: var(--border-width) solid var(--border-subtle);
+  font-family: var(--font-family-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.surface :global(.gitthul-block-control[data-tone='ours']) {
+  background-color: var(--conflict-ours-bg);
+}
+
+.surface :global(.gitthul-block-control[data-tone='theirs']) {
+  background-color: var(--conflict-theirs-bg);
+}
+
+.surface :global(.gitthul-block-control[data-tone='resolved']) {
+  background-color: var(--conflict-auto-bg);
+}
+
+.surface :global(.gitthul-block-spacer) {
+  --choice-color: var(--conflict-ours-ink);
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: calc(var(--gitthul-block-spacer-rows) * var(--line-height-code) * 1em);
+  background-color: var(--editor-bg);
+  box-shadow:
+    inset 0 1px color-mix(in srgb, var(--text-muted) 18%, transparent),
+    inset 0 -1px color-mix(in srgb, var(--text-muted) 18%, transparent);
+}
+
+.surface :global(.gitthul-block-anchor) {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.surface :global(.cm-editor .cm-activeLine) {
+  background-color: var(--surface-hover);
+}
+
+/*
+ * La selección es la de CodeMirror, sin tocar su apilado: su capa se dibuja
+ * **por detrás** del fondo de `.cm-line`, y ahí se queda.
+ *
+ * Que se vea sobre una línea añadida o quitada no es cosa de esta regla, sino
+ * de que esos fondos llevan alfa en `palette.css` — translúcidos a propósito,
+ * justo para dejar ver lo que hay debajo. Con fondos opacos la selección
+ * quedaba tapada entera; subir la capa por encima habría tapado el texto.
+ */
+.surface :global(.cm-editor .cm-selectionBackground),
+.surface :global(.cm-editor .cm-content ::selection) {
+  background-color: var(--code-selection-bg);
+  box-shadow: inset 0 -1px 0 var(--code-selection-border);
+}
+
+.surface :global(.cm-editor.cm-focused .cm-selectionBackground) {
+  background-color: var(--code-selection-bg);
+  outline: 1px solid var(--code-selection-border);
+  outline-offset: -1px;
+}
+
+.surface :global(.cm-editor .cm-activeLineGutter) {
+  color: var(--text-secondary);
+  background-color: var(--surface-hover);
+}
+
+.surface :global(.cm-editor .cm-cursor) {
+  border-left-color: var(--accent);
+}
+
+/* Lo que queda en lugar del bloque plegado. Es un botón: se despliega al
+   pulsarlo, así que se rotula y se resalta como tal. */
+.surface :global(.cm-editor .cm-foldPlaceholder) {
+  padding: 0 var(--space-2);
+  color: var(--text-secondary);
+  background-color: var(--surface-raised);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.surface :global(.cm-editor .cm-foldPlaceholder:hover) {
+  color: var(--text-primary);
+}
+
+/*
+ * Tonos de línea.
+ *
+ * Van con cuatro clases de especificidad para ganarle a la línea activa: que el
+ * cursor esté encima de una línea añadida no puede borrar que esté añadida. El
+ * par fondo/tinta de cada tono es uno de los que verifica `color.test.ts`.
+ */
+.surface :global(.cm-editor .cm-line).added {
+  box-shadow: inset 3px 0 var(--diff-added-ink);
+  background-color: var(--diff-added-bg);
+}
+
+.surface :global(.cm-editor .cm-line).removed {
+  box-shadow: inset 3px 0 var(--diff-removed-ink);
+  background-color: var(--diff-removed-bg);
+}
+
+.surface :global(.cm-editor .cm-line).ours {
+  background-color: var(--conflict-ours-bg);
+}
+
+.surface :global(.cm-editor .cm-line).theirs {
+  background-color: var(--conflict-theirs-bg);
+}
+
+.surface :global(.cm-editor .cm-line).both {
+  background-color: var(--conflict-both-bg);
+}
+
+.surface :global(.cm-editor .cm-line).resolved {
+  background-color: var(--conflict-auto-bg);
+}
+
+/*
+ * Resaltado por palabra: el tramo que de verdad cambió dentro de una línea que
+ * ya lleva su tono. Va con el fondo saturado sobre el lavado de la línea, que es
+ * el par que `--diff-word-*` declara desde F0.3 para exactamente esto.
+ */
+.surface :global(.cm-editor .cm-line) .wordAdded,
+.surface :global(.cm-editor .cm-line) .wordRemoved {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}
+
+.surface :global(.cm-editor .cm-line) .wordAdded {
+  background-color: var(--diff-word-added-bg);
+  text-decoration-color: var(--diff-added-ink);
+  border-radius: var(--radius-sm);
+}
+
+.surface :global(.cm-editor .cm-line) .wordRemoved {
+  background-color: var(--diff-word-removed-bg);
+  text-decoration-color: var(--diff-removed-ink);
+  border-radius: var(--radius-sm);
+}
+
+.surface :global(.cm-editor) .syntaxKeyword {
+  color: var(--syntax-keyword);
+}
+
+.surface :global(.cm-editor) .syntaxString {
+  color: var(--syntax-string);
+}
+
+.surface :global(.cm-editor) .syntaxComment {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.surface :global(.cm-editor) .syntaxNumber {
+  color: var(--syntax-number);
+}
+
+/*
+ * El visor que crece con su contenido.
+ *
+ * Hay que soltar las dos cosas que hacen que scrollee por dentro: el recorte del
+ * contenedor y el alto fijo del `scroller` de CodeMirror. Con las dos sueltas el
+ * editor mide lo que mide su texto y quien scrollea es el contenedor de fuera,
+ * que es lo que deja apilar los hunks de un diff bajo una sola barra.
+ */
+.fit {
+  overflow: visible;
+}
+
+.fit :global(.cm-editor .cm-scroller) {
+  height: auto;
+  overflow: visible;
+}
+
+.surface :global(.cm-editor) .syntaxFunction {
+  color: var(--syntax-function);
+}
+
+.surface :global(.cm-editor) .syntaxType {
+  color: var(--syntax-type);
+}
+
+.surface :global(.cm-editor) .syntaxProperty {
+  color: var(--syntax-property);
+}
+
+.surface :global(.cm-editor) .syntaxAnnotation {
+  color: var(--syntax-annotation);
+}
+
+/* La columna cubre la altura medida del bloque, incluso con líneas vacías o partidas. */
+.surface :global(.cm-choiceGutter) {
+  --choice-color: var(--conflict-ours-ink);
+  position: relative;
+}
+
+.surface :global(.cm-choiceGutter[data-choice-tone='theirs']) {
+  --choice-color: var(--conflict-theirs-ink);
+}
+
+.surface :global(.gitthul-block-column) {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.surface :global(.gitthul-block-range) {
+  position: absolute;
+  left: 1px;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 2px;
+  box-sizing: border-box;
+  pointer-events: none;
+  border-radius: 5px 0 0 5px;
+  background: var(--conflict-ours-bg);
+}
+
+.surface :global(.gitthul-block-range .gitthul-block-choice) {
+  pointer-events: auto;
+}
+
+.surface :global(.gitthul-block-range)::before {
+  content: '';
+  position: absolute;
+  inset: 3px auto 3px 9px;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--choice-color);
+  opacity: 0.55;
+}
+
+.surface :global(.gitthul-block-range[data-selected='true'])::before,
+.surface :global(.gitthul-block-range:hover)::before {
+  opacity: 1;
+}
+
+.surface :global(.gitthul-block-range[data-tone='theirs']) {
+  background: var(--conflict-theirs-bg);
+}
+
+.surface :global(.cm-editor .cm-line).chosenLine {
+  box-shadow: inset 3px 0 var(--conflict-ours-ink);
+  background-image: linear-gradient(var(--conflict-ours-bg), var(--conflict-ours-bg));
+}
+
+.surface :global(.cm-editor .cm-line).chosenLine.theirs {
+  box-shadow: inset 3px 0 var(--conflict-theirs-ink);
+  background-image: linear-gradient(var(--conflict-theirs-bg), var(--conflict-theirs-bg));
+}
+
+.surface :global(.gitthul-editable-spacer) {
+  cursor: text;
+}
+
+.surface .invalidCharacter {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+}
+
+.surface :global(.cm-editor) .controlCharacter {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+}

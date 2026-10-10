@@ -1,0 +1,53 @@
+/* `align-self` porque quien lo use suele meterlo en una columna que estira a
+   sus hijos: un selector de dos opciones no debe volverse un listón ancho con
+   medio metro de aire antes de la segunda opción. */
+.group {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: var(--space-1);
+  background-color: var(--surface-sunken);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.segment:hover {
+  color: var(--text-primary);
+}
+
+.selected {
+  color: var(--text-on-accent);
+  background-color: var(--accent);
+}
+
+.selected:hover {
+  color: var(--text-on-accent);
+}
+
+/* Sin rótulo, el segmento es cuadrado: el mismo relleno a los cuatro lados para
+   que el icono quede centrado y no descolgado a la izquierda. */
+.iconOnly {
+  justify-content: center;
+  width: var(--control-height-sm);
+  padding: 0;
+}
+
+.icon {
+  display: inline-flex;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}

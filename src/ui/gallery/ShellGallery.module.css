@@ -1,0 +1,59 @@
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupTitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+/* Las barras se pintan sobre el fondo de la aplicación, que es donde viven. */
+.stage {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface-app);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+/* Las asas se pegan al borde de su contenedor posicionado, así que aquí el
+   recuadro hace de ventana. Con altura, porque un recuadro de una línea deja los
+   ocho bordes amontonados y no se distingue ninguno. */
+.windowStage {
+  position: relative;
+  height: 140px;
+  padding: var(--space-4);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.brand {
+  color: var(--text-accent);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+}

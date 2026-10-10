@@ -1,0 +1,101 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/*
+ * La caja del `SplitPane` de las dos listas tiene que ser flex.
+ *
+ * `SplitPane` se estira con `flex: 1`, que dentro de un contenedor de bloque no
+ * significa nada: el divisor quedaba pegado bajo la cabecera de Seguimiento y
+ * las dos listas se pintaban con cero de alto, así que no se veía ni un archivo.
+ * En jsdom no se notaba porque `virtualViewport` finge las medidas, y por eso lo
+ * destapó F2.6 al abrir la ventana para probar el visor.
+ */
+/* La caja del `SplitPane` que reparte el alto entre los archivos y el mensaje:
+   el divisor deja subir el compositor cuando el detalle se alarga. */
+.split {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.lists {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  color: var(--text-secondary);
+}
+
+.title {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.allAction {
+  border-color: currentColor;
+}
+
+.stageAllAction {
+  color: var(--text-success);
+  background-color: var(--surface-success);
+  border-color: var(--border-success);
+}
+
+.unstageAllAction {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+  border-color: var(--border-danger);
+}
+
+button.stageAllAction:hover:not(:disabled) {
+  color: var(--text-success);
+  background-color: var(--surface-success);
+  border-color: var(--text-success);
+}
+
+button.unstageAllAction:hover:not(:disabled) {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+  border-color: var(--text-danger);
+}
+
+.treeAction {
+  align-self: flex-start;
+  margin: var(--space-1) var(--space-3);
+  padding: 0;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: var(--line-height-ui);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.treeAction:hover {
+  color: var(--text-accent);
+  text-decoration: underline;
+}

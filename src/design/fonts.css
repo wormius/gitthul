@@ -1,0 +1,363 @@
+/*
+ * Fuentes empaquetadas. Cero peticiones de red.
+ *
+ * Se declaran a mano en vez de importar el CSS de @fontsource porque ese trae
+ * además un respaldo .woff que ninguno de los tres motores de Tauri 2 necesita
+ * — WebKitGTK, WKWebView y WebView2 leen woff2 desde hace años — y que pesaría
+ * un megabyte de archivos que nadie va a pedir. Declararlas aquí también deja
+ * fijar font-display: block, que es lo correcto cuando el archivo está en disco:
+ * no hay espera real, y así no se ve un parpadeo con la fuente del sistema.
+ *
+ * Los .woff2 salen de los paquetes @fontsource, ya subseteados; Vite resuelve
+ * el especificador y los copia al bundle con las demás piezas. assets.test.ts
+ * comprueba que cada ruta existe y que ninguna sale a un dominio externo.
+ */
+
+/* Interfaz */
+
+/* Space Grotesk — por defecto */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('@fontsource/space-grotesk/files/space-grotesk-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/space-grotesk/files/space-grotesk-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/space-grotesk/files/space-grotesk-latin-ext-400-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('@fontsource/space-grotesk/files/space-grotesk-latin-ext-500-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/space-grotesk/files/space-grotesk-latin-ext-700-normal.woff2')
+    format('woff2');
+}
+
+/* Inter */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/inter/files/inter-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('@fontsource/inter/files/inter-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/inter/files/inter-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/inter/files/inter-latin-ext-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('@fontsource/inter/files/inter-latin-ext-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/inter/files/inter-latin-ext-700-normal.woff2') format('woff2');
+}
+
+/* IBM Plex Sans */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-ext-400-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-ext-500-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-ext-700-normal.woff2')
+    format('woff2');
+}
+
+/* Atkinson Hyperlegible — solo publica 400 y 700 */
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-400-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-700-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-ext-400-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-ext-700-normal.woff2')
+    format('woff2');
+}
+
+/* Source Sans 3 */
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/source-sans-3/files/source-sans-3-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('@fontsource/source-sans-3/files/source-sans-3-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/source-sans-3/files/source-sans-3-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/source-sans-3/files/source-sans-3-latin-ext-400-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('@fontsource/source-sans-3/files/source-sans-3-latin-ext-500-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/source-sans-3/files/source-sans-3-latin-ext-700-normal.woff2')
+    format('woff2');
+}
+
+/* Visores de archivo */
+
+/* JetBrains Mono — por defecto */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/jetbrains-mono/files/jetbrains-mono-latin-ext-400-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/jetbrains-mono/files/jetbrains-mono-latin-ext-700-normal.woff2')
+    format('woff2');
+}
+
+/* IBM Plex Mono */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-ext-400-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-ext-700-normal.woff2')
+    format('woff2');
+}
+
+/* Fira Code */
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/fira-code/files/fira-code-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/fira-code/files/fira-code-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/fira-code/files/fira-code-latin-ext-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/fira-code/files/fira-code-latin-ext-700-normal.woff2') format('woff2');
+}
+
+/* Cascadia Code */
+@font-face {
+  font-family: 'Cascadia Code';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/cascadia-code/files/cascadia-code-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cascadia Code';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/cascadia-code/files/cascadia-code-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cascadia Code';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@fontsource/cascadia-code/files/cascadia-code-latin-ext-400-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Cascadia Code';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('@fontsource/cascadia-code/files/cascadia-code-latin-ext-700-normal.woff2')
+    format('woff2');
+}

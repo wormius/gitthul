@@ -1,0 +1,148 @@
+.list {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/*
+ * Ni la fila ni la carpeta cambian de caja al pasar el puntero: el fondo lo
+ * pintan `VirtualList` y `Tree`, y aquí solo se reparte el contenido —
+ * invariante 1.
+ */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * Lo que se recorta es la carpeta, nunca el nombre.
+ *
+ * Con `text-overflow` sobre la ruta entera, la primera víctima de un panel
+ * estrecho sería el nombre del archivo, que es justo lo que se busca al mirar la
+ * lista. Así se pierde `src/features/…` y se conserva `FileList.tsx`.
+ */
+.path {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.name {
+  flex: none;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.counts {
+  flex: none;
+  display: flex;
+  gap: var(--space-2);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+}
+
+.insertions {
+  color: var(--diff-added-ink);
+}
+
+.deletions {
+  color: var(--diff-removed-ink);
+}
+
+.binary {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.trailing {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.folder {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.folderName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/*
+ * El botón de acción rápida reserva su caja siempre y solo cambia opacidad al
+ * pasar el puntero sobre la fila — invariante 1: hover no desplaza la interfaz.
+ * El `row:hover` lo aporta el contenedor padre (`VirtualList` / `Tree`), que ya
+ * pinta el fondo de la fila seleccionada; aquí solo aparece el botón.
+ */
+.quickAction {
+  flex: none;
+  opacity: 0;
+  color: var(--text-primary);
+  background-color: var(--surface-raised);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-raised);
+  transition: opacity 80ms ease;
+}
+
+/*
+ * Selector que alcanza la fila de `VirtualList` y `Tree`: ambos marcan la fila
+ * como `[data-selected]` o aplican `:hover` directamente al div que contiene la
+ * clase `.row`. El selector `:hover` del ancestro más cercano cubre ambos.
+ */
+:global([role='option']:hover) .quickAction,
+:global([role='treeitem']:hover) .quickAction,
+.quickAction:focus-visible {
+  opacity: 1;
+}
+
+.quickActionDanger {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+  border-color: var(--border-danger);
+}
+
+.quickActionSuccess {
+  color: var(--text-success);
+  background-color: var(--surface-success);
+  border-color: var(--border-success);
+}
+
+button.quickActionDanger:hover:not(:disabled) {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+  border-color: var(--text-danger);
+}
+
+button.quickActionSuccess:hover:not(:disabled) {
+  color: var(--text-success);
+  background-color: var(--surface-success);
+  border-color: var(--text-success);
+}

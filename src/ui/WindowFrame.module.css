@@ -1,0 +1,93 @@
+/*
+ * La capa cubre la ventana entera pero no intercepta nada: `pointer-events` solo
+ * se enciende en las asas. Sin eso, un marco a pantalla completa se comería
+ * todos los clics de la aplicación.
+ *
+ * Va en `--z-tooltip`, por encima incluso de las superposiciones, porque
+ * redimensionar la ventana tiene que funcionar también con Configuraciones o un
+ * diálogo abiertos. Que sean cinco píxeles pegados al borde es lo que hace que
+ * estar tan arriba no le quite un clic a nadie.
+ *
+ * El contorno también se dibuja aquí: una sombra interior en el shell queda
+ * debajo de los fondos de sus paneles. En esta capa permanece visible en los
+ * cuatro lados, incluso con diálogos abiertos, sin cambiar el tamaño del
+ * contenido ni interceptar clics. `border-strong` aporta contraste en cada tema.
+ */
+.frame {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-strong);
+}
+
+.grip {
+  position: absolute;
+  pointer-events: auto;
+}
+
+.grip[data-edge='n'] {
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--window-grip);
+  cursor: ns-resize;
+}
+
+.grip[data-edge='s'] {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--window-grip);
+  cursor: ns-resize;
+}
+
+.grip[data-edge='w'] {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--window-grip);
+  cursor: ew-resize;
+}
+
+.grip[data-edge='e'] {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--window-grip);
+  cursor: ew-resize;
+}
+
+/* Las cuatro esquinas comparten tamaño y se pintan después que los lados, que es
+   lo que las deja mandar en su cuadrado. */
+.grip[data-edge='nw'],
+.grip[data-edge='ne'],
+.grip[data-edge='sw'],
+.grip[data-edge='se'] {
+  width: var(--window-grip-corner);
+  height: var(--window-grip-corner);
+}
+
+.grip[data-edge='nw'] {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.grip[data-edge='ne'] {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.grip[data-edge='sw'] {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.grip[data-edge='se'] {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}

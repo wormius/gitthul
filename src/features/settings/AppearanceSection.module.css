@@ -1,0 +1,87 @@
+/*
+ * Apariencia no es una lista de filas rótulo + control como el resto de las
+ * secciones: es una pila de bloques, y cada bloque enseña lo que ofrece. Por eso
+ * aquí no aparece la rejilla de dos columnas de `SettingRow`.
+ */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+}
+
+.block + .block {
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+/* Cabecera del bloque: su nombre y el botón que restablece solo ese ajuste. La
+   caja del botón está siempre, encendido o apagado, así que la fila no se mueve
+   cuando un ajuste vuelve a su valor de fábrica. */
+.blockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-block-size: var(--control-height-sm);
+}
+
+.blockTitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.modes {
+  align-self: start;
+}
+
+/* Ocho chips que se reparten el ancho: caben cuatro en la medida ancha y dos en
+   una ventana estrecha, sin media queries. */
+.themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+  gap: var(--space-3);
+}
+
+.variants {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-3);
+}
+
+.variantTitle {
+  margin: var(--space-3) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.densities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  align-items: start;
+  gap: var(--space-3);
+}
+
+/*
+ * Las dos tarjetas de fuente comparten sus cuatro filas: cabecera, familias,
+ * tamaño y espécimen. Declararlas aquí y heredarlas con `subgrid` en la tarjeta
+ * es lo que las alinea aunque una ofrezca cinco familias y la otra cuatro.
+ */
+.fonts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  grid-template-rows: auto auto auto auto;
+  align-content: start;
+  gap: var(--space-3) var(--space-5);
+}

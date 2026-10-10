@@ -1,0 +1,132 @@
+/*
+ * El alto va en `height` y no en `flex`.
+ *
+ * El `<main>` del shell es una celda de rejilla y no un contenedor flexible, así
+ * que un `flex: 1` aquí no lo obedece nadie: la vista se quedaba con el alto de
+ * su contenido, la lista virtualizada sin alto no montaba ninguna fila y el
+ * panel derecho terminaba en una tira de doscientos píxeles. Es la misma
+ * solución que usan también las demás vistas de pantalla completa.
+ */
+.view {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  background-color: var(--surface-app);
+}
+
+.view > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * El panel izquierdo es una columna continua y sin escalones: acciones, filtro y
+ * las tres secciones. Ninguna línea horizontal las separa —una raya entre dos
+ * zonas de la misma columna promete un corte que no existe—, así que lo que las
+ * distingue es el aire y su título.
+ */
+.left {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background-color: var(--surface-panel);
+}
+
+/*
+ * Un solo contenedor scrolleable por debajo del filtro: los espacios (o los
+ * recientes) y «Todos» se desplazan juntos. Antes cada sección scrolleaba por
+ * su cuenta, y con muchos espacios «Todos» quedaba aplastada hasta ser inusable.
+ */
+.scrollArea {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  padding-bottom: var(--space-4);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+/*
+ * Los espacios o recientes: contenedor de layout sin scroll propio. Su alto es
+ * el de su contenido y scrollea dentro de `.scrollArea`.
+ */
+.sections {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+/*
+ * «Recientes» va en una lista virtualizada de alto exacto —tantas filas como
+ * haya— para que su selección, su teclado y su semántica sean las mismas que las
+ * de «Todos». Con el alto justo nunca scrollea por dentro: quien scrollea es la
+ * columna.
+ */
+.recent {
+  display: flex;
+  flex: 0 0 auto;
+  padding: 0 var(--space-2);
+}
+
+.hint {
+  margin: 0;
+  padding: 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.listRegion {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.list {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 0 var(--space-2) var(--space-2);
+}
+
+.skeletons {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.skeleton {
+  border-radius: var(--radius-md);
+}
+
+.centered {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  padding: var(--space-4);
+  overflow: auto;
+}
+
+/*
+ * El panel derecho no pinta nada por sí mismo: reparte el alto entre el panel
+ * de estadísticas, la pantalla de inicio y el fallo de abrir, y cada uno de los
+ * tres decide su propio desplazamiento.
+ */
+.detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.detail > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}

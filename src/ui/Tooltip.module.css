@@ -1,0 +1,14 @@
+.tip {
+  z-index: var(--z-tooltip);
+  max-width: 40ch;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  line-height: var(--line-height-ui);
+  background-color: var(--surface-raised);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-overlay);
+  /* No intercepta el puntero: un tooltip nunca debe robar un clic. */
+  pointer-events: none;
+}

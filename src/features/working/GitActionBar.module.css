@@ -1,0 +1,34 @@
+/*
+ * Fusionada visualmente con la cabecera de columnas de `CommitTable`: mismo
+ * fondo y sin borde propio abajo, para que la línea que de verdad separa la
+ * barra del cuerpo de la tabla sea la que ya trae la cabecera de `DataGrid` —
+ * ver la sección 1 del subplan, «fusionada visualmente con la barra».
+ *
+ * Los botones se centran horizontalmente: es una fila de iconos grandes que se
+ * lee mejor equilibrada que empujada a la izquierda. Al estrechar el panel
+ * envuelve sin desplazar — mismo criterio que `RepoActionsBar`.
+ */
+.container {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  background-color: var(--surface-panel);
+}
+
+.bar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--surface-panel);
+}
+
+.separator {
+  width: 1px;
+  height: 2em;
+  margin-inline: var(--space-2);
+  background-color: var(--border-subtle);
+}

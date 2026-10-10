@@ -1,0 +1,31 @@
+.output {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-base);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--terminal-foreground);
+  background: var(--terminal-bg);
+  user-select: text;
+}
+
+.line {
+  display: block;
+  min-height: 1.5em;
+}
+
+.stderr {
+  color: var(--terminal-red);
+}
+
+.prompt {
+  color: var(--terminal-prompt);
+}
+
+.command {
+  color: var(--terminal-foreground);
+  font-weight: 500;
+}

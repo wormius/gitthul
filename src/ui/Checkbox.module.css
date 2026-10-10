@@ -1,0 +1,71 @@
+.wrapper {
+  display: inline-flex;
+  gap: var(--space-3);
+  align-items: center;
+  cursor: pointer;
+}
+
+.input {
+  position: absolute;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  margin: 0;
+  opacity: 0;
+}
+
+/* El hueco del anillo es transparencia real, no un color a juego con el fondo:
+   así funciona sobre cualquier superficie del tema sin quedar desajustado. */
+.box {
+  position: relative;
+  flex: none;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  background-color: transparent;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * Marcada se rellena y saca su palomita, que es la forma en la que todo el
+ * mundo reconoce una casilla. Antes solo engordaba el anillo: se leía como un
+ * foco raro más que como «esto está puesto».
+ *
+ * La palomita son dos lados de un cuadro girado y va en un `::after` colocado
+ * fuera del flujo, así que aparecer no mueve ni un píxel — invariante 1.
+ */
+.input:checked ~ .box {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.box::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 25%;
+  height: 55%;
+  margin: auto;
+  border: solid var(--text-on-accent);
+  border-width: 0 2px 2px 0;
+  transform: translateY(-8%) rotate(45deg);
+  opacity: 0;
+}
+
+.input:checked ~ .box::after {
+  opacity: 1;
+}
+
+.input:disabled ~ .box {
+  background-image: var(--disabled-pattern);
+  opacity: var(--disabled-opacity);
+}
+
+.input:focus-visible ~ .box {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.label {
+  color: var(--text-primary);
+  font-size: var(--text-md);
+}

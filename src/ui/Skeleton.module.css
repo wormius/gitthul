@@ -1,0 +1,40 @@
+.skeleton {
+  display: block;
+  background-color: var(--surface-sunken);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.text {
+  height: 1em;
+  border-radius: var(--radius-sm);
+}
+
+.block {
+  width: 100%;
+  height: var(--row-height);
+  border-radius: var(--radius-md);
+}
+
+.circle {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  border-radius: var(--radius-pill);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    opacity: 0.75;
+  }
+}

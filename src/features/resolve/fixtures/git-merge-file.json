@@ -1,0 +1,4027 @@
+[
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "",
+    "clean": true,
+    "result": ""
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": true,
+    "result": "reescrito\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "uno\nseparador\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\ncambio1\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nnuevo1\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nseparador\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\ncambio1\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nnuevo1\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ncambio3\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ncambio3\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\ncambio4\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "uno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "cambio0\nuno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\ncambio1\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\ncambio2\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ncambio3\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": true,
+    "result": "inicio\nuno\nseparador\ndos\nfin\nfinal\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": ""
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "",
+    "clean": true,
+    "result": ""
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "",
+    "theirs": "reescrito\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\n",
+    "clean": true,
+    "result": "reescrito\n"
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "uno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "cambio0\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "nuevo0\ninicio\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\ncambio1\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nnuevo1\nuno\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\ncambio2\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\nnuevo2\nseparador\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\nseparador\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\nseparador\ncambio3\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\nseparador\nnuevo3\ndos\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\nseparador\ndos\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\nseparador\ndos\ncambio4\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nnuevo4\nfin\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "inicio\nuno\nseparador\ndos\nfin\nfinal\n",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "inicio\nuno\nseparador\ndos\nfin\n",
+    "ours": "reescrito\n",
+    "theirs": "reescrito\n",
+    "clean": true,
+    "result": "reescrito\n"
+  },
+  {
+    "base": "a\r\nb\r\n",
+    "ours": "A\r\nb\r\n",
+    "theirs": "a\r\nb\r\n",
+    "clean": true,
+    "result": "A\r\nb\r\n"
+  },
+  {
+    "base": "a\nb",
+    "ours": "a\nB",
+    "theirs": "a\nb",
+    "clean": true,
+    "result": "a\nB"
+  },
+  {
+    "base": "a\nb\n",
+    "ours": "a\nb",
+    "theirs": "a\nb\n",
+    "clean": true,
+    "result": "a\nb"
+  },
+  {
+    "base": "",
+    "ours": "A",
+    "theirs": "B",
+    "clean": false
+  },
+  {
+    "base": "x\nx\nx\n",
+    "ours": "x\n",
+    "theirs": "x\nx\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\n\ny\n\n",
+    "ours": "x\ny\ny\n\nnuevo\n",
+    "theirs": "y\nx\ny\n\ny\n\n",
+    "clean": true,
+    "result": "y\nx\ny\ny\n\nnuevo\n"
+  },
+  {
+    "base": "x\ny\n\ny\nx\nx\n\n\n",
+    "ours": "x\ny\n\ny\nx\nx\n\n\nnuevo\ny\n",
+    "theirs": "x\nx\ny\n\ny\nnuevo\nx\n\n",
+    "clean": true,
+    "result": "x\nx\ny\n\ny\nnuevo\nx\n\nnuevo\ny\n"
+  },
+  {
+    "base": "y\nx\n\nx\n\ny\nx\ny\n",
+    "ours": "y\ny\nnuevo\n\ny\ny\nx\n\ny\n",
+    "theirs": "y\nx\n\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\ny\n",
+    "ours": "x\nnuevo\ny\n",
+    "theirs": "y\ny\ny\nnuevo\ny\nnuevo\n",
+    "clean": true,
+    "result": "x\nnuevo\ny\nnuevo\ny\nnuevo\n"
+  },
+  {
+    "base": "x\n\nx\nx\ny\n",
+    "ours": "x\n\nx\nx\ny\n",
+    "theirs": "x\ny\nnuevo\nx\ny\n",
+    "clean": true,
+    "result": "x\ny\nnuevo\nx\ny\n"
+  },
+  {
+    "base": "x\ny\ny\nx\n\nx\n",
+    "ours": "y\ny\nx\n\nx\n",
+    "theirs": "x\ny\ny\nx\n\nx\n",
+    "clean": true,
+    "result": "y\ny\nx\n\nx\n"
+  },
+  {
+    "base": "\ny\n\n\nx\n\nx\n",
+    "ours": "\ny\nnuevo\nx\n\nx\n",
+    "theirs": "\ny\n\n\nx\n",
+    "clean": true,
+    "result": "\ny\nnuevo\nx\n"
+  },
+  {
+    "base": "x\nx\nx\ny\nx\n\n",
+    "ours": "x\nnuevo\nx\ny\nnuevo\n",
+    "theirs": "y\nx\ny\ny\n\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\nx\n\nx\ny\n\n",
+    "ours": "nuevo\nx\nx\nx\nnuevo\ny\n\n",
+    "theirs": "\nx\nx\nx\nx\ny\n\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\nx\n\ny\ny\ny\n",
+    "ours": "x\n\ny\ny\n",
+    "theirs": "x\nnuevo\nnuevo\n\ny\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\n\ny\n\ny\ny\n\n",
+    "ours": "\ny\ny\n\ny\n\ny\ny\n\n",
+    "theirs": "\n\ny\n\ny\ny\n",
+    "clean": true,
+    "result": "\ny\ny\n\ny\n\ny\ny\n"
+  },
+  {
+    "base": "\nx\ny\n\ny\n",
+    "ours": "\ny\n\ny\n",
+    "theirs": "\nx\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "nuevo\n",
+    "theirs": "y\n",
+    "clean": false
+  },
+  {
+    "base": "\n\ny\ny\n\nx\n\n\n",
+    "ours": "\n\ny\ny\n\nx\n\nx\nnuevo\n",
+    "theirs": "\n\n\n\n",
+    "clean": true,
+    "result": "\n\n\nx\nnuevo\n"
+  },
+  {
+    "base": "x\n\nx\n\nx\n\n",
+    "ours": "nuevo\n\nx\nnuevo\n\n",
+    "theirs": "x\n\nx\n\n\n",
+    "clean": false
+  },
+  {
+    "base": "y\n",
+    "ours": "nuevo\n",
+    "theirs": "y\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\nx\n",
+    "ours": "y\ny\nx\nnuevo\nx\n",
+    "theirs": "y\ny\nx\n",
+    "clean": true,
+    "result": "y\ny\nx\nnuevo\nx\n"
+  },
+  {
+    "base": "\n\nx\n",
+    "ours": "nuevo\n",
+    "theirs": "\ny\nx\nx\nx\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "y\nx\ny\nx\nx\n\nx\nx\n",
+    "ours": "y\nx\nnuevo\nx\ny\nx\nx\n\nx\nx\n",
+    "theirs": "y\nx\ny\nx\nx\n\nx\nx\n",
+    "clean": true,
+    "result": "y\nx\nnuevo\nx\ny\nx\nx\n\nx\nx\n"
+  },
+  {
+    "base": "y\nx\ny\ny\n\n\n",
+    "ours": "y\nx\ny\ny\n\n",
+    "theirs": "y\ny\nnuevo\n\n\n",
+    "clean": true,
+    "result": "y\ny\nnuevo\n\n"
+  },
+  {
+    "base": "\n\n\n\ny\n\n",
+    "ours": "\n\n\n\ny\nx\n",
+    "theirs": "y\n\n\nnuevo\n\ny\n\n",
+    "clean": true,
+    "result": "y\n\n\nnuevo\n\ny\nx\n"
+  },
+  {
+    "base": "y\n\n\ny\n\n\n",
+    "ours": "y\nx\nnuevo\n\n\ny\n\n\n",
+    "theirs": "y\nnuevo\ny\n\nx\ny\n\ny\n\n\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "x\nnuevo\n",
+    "theirs": "y\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\n\n\n",
+    "ours": "x\nx\n\n\ny\n\nnuevo\n",
+    "theirs": "x\n\nnuevo\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\ny\ny\nx\nx\nx\n",
+    "ours": "x\nx\ny\ny\nx\nx\n",
+    "theirs": "nuevo\nx\nx\nx\nx\nx\nx\n",
+    "clean": true,
+    "result": "nuevo\nx\nx\nx\nx\nx\n"
+  },
+  {
+    "base": "y\ny\nx\ny\ny\nx\n\n\n",
+    "ours": "y\nx\ny\nx\ny\ny\nx\ny\nx\nnuevo\nx\n\n",
+    "theirs": "y\ny\nx\ny\ny\nx\n\n\n",
+    "clean": true,
+    "result": "y\nx\ny\nx\ny\ny\nx\ny\nx\nnuevo\nx\n\n"
+  },
+  {
+    "base": "y\nx\nx\ny\n\n\n",
+    "ours": "nuevo\ny\nx\nx\ny\n\n",
+    "theirs": "y\nx\nx\ny\ny\n\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\ny\ny\ny\n",
+    "ours": "\nx\ny\ny\ny\nx\n",
+    "theirs": "nuevo\nnuevo\n\nx\nx\nx\ny\ny\ny\n",
+    "clean": true,
+    "result": "nuevo\nnuevo\n\nx\nx\nx\ny\ny\ny\nx\n"
+  },
+  {
+    "base": "",
+    "ours": "y\nnuevo\n",
+    "theirs": "x\nnuevo\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\n",
+    "ours": "",
+    "theirs": "x\ny\nnuevo\nx\nnuevo\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\n",
+    "ours": "x\nnuevo\n",
+    "theirs": "x\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "y\ny\n",
+    "theirs": "x\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\n",
+    "ours": "\nnuevo\n",
+    "theirs": "y\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\ny\n\n",
+    "ours": "y\n\n",
+    "theirs": "y\nx\ny\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\n",
+    "ours": "x\n\ny\nnuevo\n",
+    "theirs": "x\n\nx\nnuevo\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\n\n",
+    "ours": "y\n\n\nnuevo\nx\n",
+    "theirs": "nuevo\nnuevo\ny\n\n",
+    "clean": false
+  },
+  {
+    "base": "\ny\nx\ny\n",
+    "ours": "\ny\nnuevo\nnuevo\nx\ny\n",
+    "theirs": "\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\n",
+    "ours": "nuevo\nx\n",
+    "theirs": "y\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\n\n\nx\nx\n",
+    "ours": "\nnuevo\nnuevo\nx\nx\n\n\nx\nx\n",
+    "theirs": "\nx\n\n\ny\ny\nx\nx\n",
+    "clean": true,
+    "result": "\nnuevo\nnuevo\nx\nx\n\n\ny\ny\nx\nx\n"
+  },
+  {
+    "base": "y\nx\nx\n\ny\n",
+    "ours": "y\nx\nnuevo\nx\nx\ny\nx\n",
+    "theirs": "y\nx\nnuevo\nnuevo\n\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\nx\nx\ny\ny\n",
+    "ours": "y\ny\nx\nnuevo\nx\nx\nnuevo\n",
+    "theirs": "y\n\nx\nx\ny\ny\n",
+    "clean": true,
+    "result": "y\ny\nx\nnuevo\nx\nx\nnuevo\n"
+  },
+  {
+    "base": "",
+    "ours": "y\nnuevo\n",
+    "theirs": "nuevo\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\nx\n\n\ny\n\n",
+    "ours": "y\n\nx\n\n\nx\nnuevo\nnuevo\n\n",
+    "theirs": "y\n\nx\nx\n\n\nx\n\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\n\n\n",
+    "ours": "x\n\ny\nnuevo\n",
+    "theirs": "x\nx\n\n",
+    "clean": false
+  },
+  {
+    "base": "\n",
+    "ours": "\n",
+    "theirs": "y\nnuevo\n",
+    "clean": true,
+    "result": "y\nnuevo\n"
+  },
+  {
+    "base": "x\n\nx\n\ny\n\ny\n\n",
+    "ours": "x\n\nnuevo\nx\n\ny\n\ny\n\n",
+    "theirs": "x\n\nx\ny\ny\n\ny\n\n",
+    "clean": true,
+    "result": "x\n\nnuevo\nx\ny\ny\n\ny\n\n"
+  },
+  {
+    "base": "x\nx\ny\nx\nx\nx\nx\n\n",
+    "ours": "x\nx\ny\nx\nx\nx\nnuevo\nx\n",
+    "theirs": "x\nx\nx\nx\nx\n\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\n",
+    "ours": "nuevo\nnuevo\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "x\n\ny\n\n",
+    "ours": "x\n\ny\n\ny\nx\n",
+    "theirs": "x\nnuevo\n\n",
+    "clean": true,
+    "result": "x\nnuevo\n\ny\nx\n"
+  },
+  {
+    "base": "x\ny\nx\ny\n\nx\ny\n",
+    "ours": "nuevo\nx\ny\nx\ny\n\nnuevo\n",
+    "theirs": "y\ny\n\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\nx\n",
+    "ours": "y\ny\ny\n",
+    "theirs": "y\nx\nnuevo\ny\nx\n",
+    "clean": true,
+    "result": "y\nx\nnuevo\ny\ny\n"
+  },
+  {
+    "base": "y\n\n\nx\n\n\n",
+    "ours": "y\n\n\nx\n\nx\nx\n",
+    "theirs": "y\n\n\nx\n\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\n\n",
+    "ours": "x\ny\ny\nnuevo\n",
+    "theirs": "x\ny\nx\nx\n\n",
+    "clean": false
+  },
+  {
+    "base": "\ny\n",
+    "ours": "y\nx\n",
+    "theirs": "\n",
+    "clean": false
+  },
+  {
+    "base": "\n",
+    "ours": "x\n",
+    "theirs": "\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\n",
+    "ours": "x\ny\nnuevo\n",
+    "theirs": "nuevo\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\n\ny\nx\ny\ny\n",
+    "ours": "y\ny\ny\n\ny\nx\ny\ny\nnuevo\nnuevo\n",
+    "theirs": "y\ny\n\nnuevo\ny\ny\n",
+    "clean": true,
+    "result": "y\ny\ny\n\nnuevo\ny\ny\nnuevo\nnuevo\n"
+  },
+  {
+    "base": "x\n\nx\n",
+    "ours": "x\n\ny\nx\nx\n",
+    "theirs": "x\n\nx\n",
+    "clean": true,
+    "result": "x\n\ny\nx\nx\n"
+  },
+  {
+    "base": "x\ny\n\n\nx\nx\n",
+    "ours": "x\ny\n\nx\n\nx\nx\ny\n",
+    "theirs": "x\ny\n\nx\nx\n\nx\nx\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\n\ny\ny\ny\ny\n",
+    "ours": "\ny\ny\n\ny\ny\ny\n",
+    "theirs": "y\nnuevo\n\ny\ny\ny\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\n",
+    "ours": "\n",
+    "theirs": "\nx\nx\nx\n",
+    "clean": true,
+    "result": "\nx\nx\nx\n"
+  },
+  {
+    "base": "x\n",
+    "ours": "x\ny\n",
+    "theirs": "y\nx\nx\n",
+    "clean": true,
+    "result": "y\nx\nx\ny\n"
+  },
+  {
+    "base": "y\n\ny\ny\n\n\ny\nx\n",
+    "ours": "y\n\n\n\ny\nx\n",
+    "theirs": "y\n\ny\ny\n\n\ny\nnuevo\nnuevo\nx\n",
+    "clean": true,
+    "result": "y\n\n\n\ny\nnuevo\nnuevo\nx\n"
+  },
+  {
+    "base": "x\n\n\nx\n\n",
+    "ours": "x\n\n\nx\n\n",
+    "theirs": "x\ny\nx\n\nnuevo\nnuevo\n",
+    "clean": true,
+    "result": "x\ny\nx\n\nnuevo\nnuevo\n"
+  },
+  {
+    "base": "x\nx\n",
+    "ours": "nuevo\nx\n",
+    "theirs": "x\nx\nnuevo\nnuevo\n",
+    "clean": true,
+    "result": "nuevo\nx\nnuevo\nnuevo\n"
+  },
+  {
+    "base": "",
+    "ours": "",
+    "theirs": "",
+    "clean": true,
+    "result": ""
+  },
+  {
+    "base": "",
+    "ours": "x\n",
+    "theirs": "y\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "x\nnuevo\nx\n",
+    "theirs": "nuevo\n",
+    "clean": false
+  },
+  {
+    "base": "y\n",
+    "ours": "x\ny\n",
+    "theirs": "y\ny\nnuevo\n",
+    "clean": true,
+    "result": "x\ny\ny\nnuevo\n"
+  },
+  {
+    "base": "\ny\n",
+    "ours": "x\nnuevo\ny\n",
+    "theirs": "\ny\n",
+    "clean": true,
+    "result": "x\nnuevo\ny\n"
+  },
+  {
+    "base": "x\n",
+    "ours": "",
+    "theirs": "x\n",
+    "clean": true,
+    "result": ""
+  },
+  {
+    "base": "x\n",
+    "ours": "",
+    "theirs": "x\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "nuevo\ny\n",
+    "theirs": "",
+    "clean": true,
+    "result": "nuevo\ny\n"
+  },
+  {
+    "base": "x\n\n",
+    "ours": "x\ny\nnuevo\ny\n",
+    "theirs": "x\nx\nx\nx\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "y\n",
+    "theirs": "y\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\ny\ny\nx\nx\ny\n",
+    "ours": "x\n\ny\ny\nx\nx\ny\n",
+    "theirs": "x\nx\nx\nx\ny\n",
+    "clean": true,
+    "result": "x\nx\nx\nx\ny\n"
+  },
+  {
+    "base": "y\n\nx\ny\ny\n",
+    "ours": "y\n\nx\ny\ny\n",
+    "theirs": "y\n\nx\nnuevo\n",
+    "clean": true,
+    "result": "y\n\nx\nnuevo\n"
+  },
+  {
+    "base": "x\ny\ny\n\n",
+    "ours": "x\nnuevo\ny\nx\nx\ny\n",
+    "theirs": "nuevo\ny\n\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\ny\n",
+    "ours": "x\nnuevo\n\ny\n",
+    "theirs": "\nx\nnuevo\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\n",
+    "ours": "\nx\n",
+    "theirs": "y\ny\nnuevo\nx\n",
+    "clean": true,
+    "result": "y\ny\nnuevo\nx\n"
+  },
+  {
+    "base": "y\n\n",
+    "ours": "y\ny\ny\n\n",
+    "theirs": "y\nnuevo\ny\n\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\n",
+    "ours": "\nx\n",
+    "theirs": "\n",
+    "clean": true,
+    "result": "\n"
+  },
+  {
+    "base": "y\nx\nx\nx\ny\n\nx\ny\n",
+    "ours": "y\nx\ny\ny\ny\n\nx\ny\n",
+    "theirs": "y\nx\nx\nx\ny\n\nx\ny\n",
+    "clean": true,
+    "result": "y\nx\ny\ny\ny\n\nx\ny\n"
+  },
+  {
+    "base": "y\n\ny\n\ny\ny\n",
+    "ours": "y\nnuevo\nnuevo\ny\n\ny\ny\n",
+    "theirs": "x\nx\ny\n\ny\n\ny\ny\nx\nnuevo\n",
+    "clean": true,
+    "result": "x\nx\ny\nnuevo\nnuevo\ny\n\ny\ny\nx\nnuevo\n"
+  },
+  {
+    "base": "",
+    "ours": "",
+    "theirs": "y\nx\nnuevo\n",
+    "clean": true,
+    "result": "y\nx\nnuevo\n"
+  },
+  {
+    "base": "\ny\n",
+    "ours": "x\n\ny\n",
+    "theirs": "\ny\n",
+    "clean": true,
+    "result": "x\n\ny\n"
+  },
+  {
+    "base": "x\ny\n\n\n",
+    "ours": "x\ny\ny\nnuevo\n\n\n",
+    "theirs": "x\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\n",
+    "ours": "y\nx\ny\n",
+    "theirs": "nuevo\n",
+    "clean": false
+  },
+  {
+    "base": "y\nx\ny\n",
+    "ours": "y\nx\ny\n",
+    "theirs": "y\ny\n",
+    "clean": true,
+    "result": "y\ny\n"
+  },
+  {
+    "base": "\ny\ny\ny\ny\ny\ny\ny\n",
+    "ours": "\ny\nnuevo\ny\ny\ny\ny\ny\n",
+    "theirs": "\ny\ny\ny\ny\nx\ny\n",
+    "clean": true,
+    "result": "\ny\nnuevo\ny\ny\nx\ny\n"
+  },
+  {
+    "base": "x\nx\nx\ny\n\ny\n\n",
+    "ours": "x\nx\nx\ny\n\ny\n\nx\n",
+    "theirs": "x\nx\nx\ny\n\nnuevo\nx\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "y\nnuevo\nnuevo\n",
+    "theirs": "y\ny\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "y\n",
+    "theirs": "nuevo\nx\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\ny\nx\n\ny\ny\n\n",
+    "ours": "x\ny\ny\nx\ny\ny\nnuevo\nnuevo\nx\n",
+    "theirs": "x\ny\ny\nx\n\ny\nnuevo\ny\n\n",
+    "clean": true,
+    "result": "x\ny\ny\nx\ny\nnuevo\ny\nnuevo\nnuevo\nx\n"
+  },
+  {
+    "base": "\ny\n\ny\n\n\nx\nx\n",
+    "ours": "\nnuevo\ny\ny\n\ny\ny\nx\nx\n",
+    "theirs": "\ny\n\ny\n\nx\ny\n\nx\nx\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\n",
+    "ours": "x\nx\ny\n",
+    "theirs": "nuevo\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\n",
+    "ours": "x\nx\n",
+    "theirs": "y\n",
+    "clean": true,
+    "result": "y\n"
+  },
+  {
+    "base": "\n\nx\n",
+    "ours": "\n\nnuevo\nnuevo\nx\n",
+    "theirs": "\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\n\n\n",
+    "ours": "x\nx\nnuevo\n\nx\nx\n",
+    "theirs": "x\nnuevo\n\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\nx\ny\ny\ny\ny\n",
+    "ours": "y\nx\ny\ny\ny\nx\nnuevo\n",
+    "theirs": "y\nx\ny\ny\ny\ny\n",
+    "clean": true,
+    "result": "y\nx\ny\ny\ny\nx\nnuevo\n"
+  },
+  {
+    "base": "\ny\n\n\ny\ny\ny\n",
+    "ours": "\ny\ny\nnuevo\ny\ny\nx\n",
+    "theirs": "\ny\n\n\ny\ny\ny\n",
+    "clean": true,
+    "result": "\ny\ny\nnuevo\ny\ny\nx\n"
+  },
+  {
+    "base": "y\ny\n\n",
+    "ours": "y\ny\nnuevo\n\n",
+    "theirs": "y\ny\n\nnuevo\nnuevo\n",
+    "clean": true,
+    "result": "y\ny\nnuevo\n\nnuevo\nnuevo\n"
+  },
+  {
+    "base": "x\nx\nx\n\nx\nx\nx\n",
+    "ours": "x\n\nx\nx\n",
+    "theirs": "x\nx\nx\n\ny\nnuevo\nx\nx\nx\n",
+    "clean": true,
+    "result": "x\n\ny\nnuevo\nx\nx\n"
+  },
+  {
+    "base": "y\n\nx\nx\n\nx\n",
+    "ours": "y\nx\nx\nx\nx\nx\n",
+    "theirs": "y\n\nnuevo\nx\n\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\n\n\n\nx\n",
+    "ours": "x\nx\n\nnuevo\nx\n",
+    "theirs": "x\nx\n\ny\n\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\nx\n\ny\ny\n",
+    "ours": "\nx\nx\nx\n\ny\ny\n",
+    "theirs": "\nx\nx\n\ny\ny\n",
+    "clean": true,
+    "result": "\nx\nx\nx\n\ny\ny\n"
+  },
+  {
+    "base": "y\n\ny\ny\n\n",
+    "ours": "y\ny\n\n",
+    "theirs": "y\n\ny\nx\ny\nx\nx\n\n",
+    "clean": false
+  },
+  {
+    "base": "\n",
+    "ours": "nuevo\ny\n",
+    "theirs": "y\nx\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "x\ny\n",
+    "theirs": "nuevo\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\n\ny\ny\nx\nx\n\n",
+    "ours": "y\ny\n\ny\ny\nx\nx\n\n",
+    "theirs": "y\ny\ny\nx\nx\n\n",
+    "clean": true,
+    "result": "y\ny\ny\nx\nx\n\n"
+  },
+  {
+    "base": "x\n\ny\n\nx\nx\n",
+    "ours": "\ny\n\nx\ny\nx\n",
+    "theirs": "x\n\ny\ny\nx\ny\nx\n",
+    "clean": true,
+    "result": "\ny\ny\nx\ny\nx\n"
+  },
+  {
+    "base": "y\ny\n",
+    "ours": "y\ny\ny\nx\n",
+    "theirs": "y\n",
+    "clean": false
+  },
+  {
+    "base": "\ny\n\n\ny\n\ny\n",
+    "ours": "\ny\ny\n\nnuevo\n",
+    "theirs": "\ny\n\nnuevo\n\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\n\n\n\nx\nx\n\ny\n",
+    "ours": "\n\ny\n\n\nx\nx\nx\ny\n",
+    "theirs": "\n\n\n\nx\ny\nx\n\ny\nnuevo\n",
+    "clean": true,
+    "result": "\n\ny\n\n\nx\ny\nx\nx\ny\nnuevo\n"
+  },
+  {
+    "base": "y\nx\ny\n\n\ny\ny\n",
+    "ours": "y\nx\ny\n\n\ny\nx\ny\n",
+    "theirs": "y\nx\ny\n\nnuevo\nnuevo\n\ny\ny\n",
+    "clean": true,
+    "result": "y\nx\ny\n\nnuevo\nnuevo\n\ny\nx\ny\n"
+  },
+  {
+    "base": "\n",
+    "ours": "\nnuevo\ny\n",
+    "theirs": "x\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\n\nx\n",
+    "ours": "y\ny\n\nx\ny\nnuevo\nx\n",
+    "theirs": "y\ny\nx\nx\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\n\ny\ny\nx\n",
+    "ours": "\ny\nx\n",
+    "theirs": "y\n\n\nnuevo\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\nx\n",
+    "ours": "y\n\ny\nx\n",
+    "theirs": "y\n\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "nuevo\nx\n",
+    "theirs": "nuevo\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\n",
+    "ours": "y\ny\ny\nx\n",
+    "theirs": "y\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\n",
+    "ours": "y\n",
+    "theirs": "y\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\n\n\n\nx\nx\ny\ny\n",
+    "ours": "\n\nx\n\nx\nx\ny\ny\n",
+    "theirs": "\n\n\nx\nx\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\ny\ny\n",
+    "ours": "nuevo\ny\ny\n",
+    "theirs": "\nx\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\n",
+    "ours": "y\ny\n",
+    "theirs": "\n",
+    "clean": true,
+    "result": "y\ny\n"
+  },
+  {
+    "base": "x\nx\n\ny\n",
+    "ours": "x\nx\n\ny\nnuevo\nx\n",
+    "theirs": "x\nx\n\ny\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\n\ny\ny\n",
+    "ours": "y\ny\n\ny\ny\nnuevo\n",
+    "theirs": "x\n\ny\nnuevo\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "\ny\nx\n\nx\n",
+    "ours": "\ny\nx\n\nx\n",
+    "theirs": "\ny\nx\nnuevo\nx\n",
+    "clean": true,
+    "result": "\ny\nx\nnuevo\nx\n"
+  },
+  {
+    "base": "x\n\ny\ny\nx\nx\n\nx\n",
+    "ours": "x\n\ny\nx\nx\n\nx\nx\nnuevo\n",
+    "theirs": "x\nx\ny\ny\nx\nx\nnuevo\n\nx\nnuevo\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\nx\ny\n\nx\nx\n\n",
+    "ours": "nuevo\n\nx\ny\n\nx\nx\nx\n",
+    "theirs": "x\n\nx\ny\n\nx\nx\n\n",
+    "clean": true,
+    "result": "nuevo\n\nx\ny\n\nx\nx\nx\n"
+  },
+  {
+    "base": "x\n",
+    "ours": "y\n",
+    "theirs": "y\n",
+    "clean": true,
+    "result": "y\n"
+  },
+  {
+    "base": "y\n\n",
+    "ours": "y\n\nx\n",
+    "theirs": "y\n",
+    "clean": false
+  },
+  {
+    "base": "\n\n",
+    "ours": "nuevo\ny\ny\nnuevo\n\n\n",
+    "theirs": "x\n\n",
+    "clean": false
+  },
+  {
+    "base": "y\n",
+    "ours": "nuevo\n",
+    "theirs": "nuevo\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\ny\ny\n",
+    "ours": "x\n\ny\ny\ny\n",
+    "theirs": "x\n\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "\n\n",
+    "ours": "nuevo\nx\n",
+    "theirs": "\nnuevo\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\n\nx\nx\n",
+    "ours": "x\ny\n\nx\nnuevo\nx\nx\n",
+    "theirs": "x\ny\n\nx\nx\n",
+    "clean": true,
+    "result": "x\ny\n\nx\nnuevo\nx\nx\n"
+  },
+  {
+    "base": "\n\nx\n\ny\n\n",
+    "ours": "y\nx\n\ny\n\n",
+    "theirs": "y\nnuevo\nnuevo\n\nx\n\ny\n\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\nx\ny\ny\n\n\ny\n",
+    "ours": "x\ny\nx\ny\ny\n\n\nx\nx\n",
+    "theirs": "nuevo\nx\ny\nx\ny\ny\n\n\ny\n",
+    "clean": true,
+    "result": "nuevo\nx\ny\nx\ny\ny\n\n\nx\nx\n"
+  },
+  {
+    "base": "x\ny\ny\n\ny\n\nx\n",
+    "ours": "x\ny\ny\n\ny\ny\nx\n",
+    "theirs": "nuevo\nx\ny\ny\n\ny\n\nx\n",
+    "clean": true,
+    "result": "nuevo\nx\ny\ny\n\ny\ny\nx\n"
+  },
+  {
+    "base": "\ny\n\n",
+    "ours": "y\ny\nnuevo\n\ny\nx\nnuevo\n",
+    "theirs": "\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\n\nx\n\ny\nx\n\n\n",
+    "ours": "\nx\n\ny\nx\n\n\n",
+    "theirs": "\n\nx\nx\ny\nnuevo\nx\nx\n\n\n",
+    "clean": true,
+    "result": "\nx\nx\ny\nnuevo\nx\nx\n\n\n"
+  },
+  {
+    "base": "\n\n",
+    "ours": "nuevo\ny\n\n",
+    "theirs": "x\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\ny\ny\ny\nx\ny\n",
+    "ours": "y\n\ny\ny\ny\n",
+    "theirs": "y\ny\ny\ny\ny\nx\ny\n",
+    "clean": true,
+    "result": "y\ny\ny\ny\ny\n"
+  },
+  {
+    "base": "y\ny\ny\n\n\n\n",
+    "ours": "y\ny\ny\n\n\n\n",
+    "theirs": "y\ny\ny\ny\nx\n\n",
+    "clean": true,
+    "result": "y\ny\ny\ny\nx\n\n"
+  },
+  {
+    "base": "x\n\ny\nx\nx\n",
+    "ours": "x\n\ny\nnuevo\nnuevo\ny\n",
+    "theirs": "x\n\ny\nx\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\n",
+    "ours": "\ny\ny\nx\ny\nx\n",
+    "theirs": "nuevo\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\n\n\nx\ny\ny\ny\n",
+    "ours": "x\n\n\n\nx\ny\ny\ny\ny\n",
+    "theirs": "x\n\n\n\ny\nx\ny\ny\ny\n",
+    "clean": true,
+    "result": "x\n\n\n\ny\nx\ny\ny\ny\ny\n"
+  },
+  {
+    "base": "\ny\n",
+    "ours": "\ny\nx\n",
+    "theirs": "\nnuevo\ny\n",
+    "clean": true,
+    "result": "\nnuevo\ny\nx\n"
+  },
+  {
+    "base": "x\n",
+    "ours": "x\ny\nx\n",
+    "theirs": "x\n",
+    "clean": true,
+    "result": "x\ny\nx\n"
+  },
+  {
+    "base": "y\n\n\nx\n",
+    "ours": "y\n\n\nx\n",
+    "theirs": "x\ny\n\n\nx\n",
+    "clean": true,
+    "result": "x\ny\n\n\nx\n"
+  },
+  {
+    "base": "",
+    "ours": "x\ny\ny\n",
+    "theirs": "x\n",
+    "clean": false
+  },
+  {
+    "base": "x\n",
+    "ours": "nuevo\ny\n",
+    "theirs": "x\n",
+    "clean": true,
+    "result": "nuevo\ny\n"
+  },
+  {
+    "base": "y\n\n\n\ny\ny\nx\n",
+    "ours": "y\n\n\n\ny\ny\n",
+    "theirs": "y\nnuevo\nnuevo\n\nx\ny\n\n\ny\ny\nx\n",
+    "clean": true,
+    "result": "y\nnuevo\nnuevo\n\nx\ny\n\n\ny\ny\n"
+  },
+  {
+    "base": "y\nx\n\n\ny\n\n\n",
+    "ours": "y\nnuevo\n\nx\ny\ny\n\n\n",
+    "theirs": "y\nx\n\n\ny\n\n\n",
+    "clean": true,
+    "result": "y\nnuevo\n\nx\ny\ny\n\n\n"
+  },
+  {
+    "base": "",
+    "ours": "nuevo\n",
+    "theirs": "nuevo\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\nx\nx\ny\nx\n\n",
+    "ours": "x\n\nx\nx\ny\nx\n",
+    "theirs": "x\n\nx\nx\ny\nx\ny\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\ny\ny\nx\n",
+    "ours": "x\nx\ny\ny\n",
+    "theirs": "\nx\ny\ny\nx\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\nx\ny\ny\n\n",
+    "ours": "\nx\ny\ny\n\nx\n",
+    "theirs": "\nx\nx\ny\ny\n\nnuevo\ny\nx\nx\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "x\n",
+    "theirs": "x\n",
+    "clean": true,
+    "result": "x\n"
+  },
+  {
+    "base": "x\nx\nx\n\n",
+    "ours": "x\nx\nx\nx\n\n",
+    "theirs": "x\ny\ny\n\nx\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "",
+    "theirs": "",
+    "clean": true,
+    "result": ""
+  },
+  {
+    "base": "\nx\nx\n\n\n\n\n",
+    "ours": "\nx\nnuevo\n\n",
+    "theirs": "\nx\nx\n\n\ny\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "",
+    "theirs": "",
+    "clean": true,
+    "result": ""
+  },
+  {
+    "base": "\n\ny\nx\n\ny\n\nx\n",
+    "ours": "\n\nnuevo\nx\ny\nx\n\ny\n\nx\n",
+    "theirs": "\nx\n\ny\n\nx\nx\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\nx\ny\n\n\nx\n\n",
+    "ours": "y\nx\ny\n\n\nx\nx\n\n",
+    "theirs": "y\nx\ny\nx\nx\n\n",
+    "clean": true,
+    "result": "y\nx\ny\nx\nx\nx\n\n"
+  },
+  {
+    "base": "\n\ny\nx\ny\n\n",
+    "ours": "\n\ny\nx\ny\n\nnuevo\nnuevo\n",
+    "theirs": "\ny\nx\ny\n\ny\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\ny\nx\nx\n",
+    "ours": "x\n\ny\nx\nx\n",
+    "theirs": "y\ny\ny\nx\nx\n",
+    "clean": true,
+    "result": "y\ny\ny\nx\nx\n"
+  },
+  {
+    "base": "\n\nx\n\ny\nx\n\ny\n",
+    "ours": "y\ny\n\nx\ny\nnuevo\ny\nx\n\ny\n",
+    "theirs": "\n\nx\n\ny\nx\nx\ny\ny\n",
+    "clean": true,
+    "result": "y\ny\n\nx\ny\nnuevo\ny\nx\nx\ny\ny\n"
+  },
+  {
+    "base": "\ny\n",
+    "ours": "\ny\nnuevo\nx\n",
+    "theirs": "\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\nx\nx\ny\ny\nx\nx\n",
+    "ours": "nuevo\ny\nx\ny\ny\nnuevo\nx\nx\n",
+    "theirs": "y\nx\nx\ny\ny\nx\nx\n",
+    "clean": true,
+    "result": "nuevo\ny\nx\ny\ny\nnuevo\nx\nx\n"
+  },
+  {
+    "base": "y\nx\nx\ny\nx\n",
+    "ours": "y\nx\nx\nx\nnuevo\ny\nx\n",
+    "theirs": "y\nx\nx\ny\nx\n",
+    "clean": true,
+    "result": "y\nx\nx\nx\nnuevo\ny\nx\n"
+  },
+  {
+    "base": "\n\nx\n",
+    "ours": "nuevo\n\nnuevo\nx\n",
+    "theirs": "\ny\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "y\n",
+    "ours": "y\nnuevo\nnuevo\nnuevo\n",
+    "theirs": "y\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "nuevo\n",
+    "theirs": "nuevo\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\n",
+    "ours": "x\nnuevo\nx\n\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "x\nx\ny\nx\ny\n\ny\n",
+    "ours": "x\nx\ny\nnuevo\nx\n\ny\n",
+    "theirs": "x\ny\nnuevo\nnuevo\n\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\nx\n\ny\nx\n",
+    "ours": "x\nnuevo\ny\nx\nx\n\nx\nx\nx\n",
+    "theirs": "x\nx\nnuevo\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\n",
+    "ours": "x\nx\nx\n",
+    "theirs": "x\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\n",
+    "ours": "x\nx\ny\n",
+    "theirs": "x\n",
+    "clean": true,
+    "result": "x\nx\ny\n"
+  },
+  {
+    "base": "y\n",
+    "ours": "y\n",
+    "theirs": "y\nnuevo\n",
+    "clean": true,
+    "result": "y\nnuevo\n"
+  },
+  {
+    "base": "y\nx\ny\ny\ny\ny\n\nx\n",
+    "ours": "y\ny\nx\ny\ny\ny\ny\n\nx\n",
+    "theirs": "y\nx\nnuevo\ny\ny\ny\n\nx\n",
+    "clean": true,
+    "result": "y\ny\nx\nnuevo\ny\ny\ny\n\nx\n"
+  },
+  {
+    "base": "\ny\ny\nx\nx\nx\ny\n\n",
+    "ours": "\ny\ny\nx\nx\ny\n\n",
+    "theirs": "\ny\nx\nx\ny\n\n",
+    "clean": true,
+    "result": "\ny\nx\ny\n\n"
+  },
+  {
+    "base": "x\nx\n",
+    "ours": "x\nx\ny\nx\n",
+    "theirs": "x\nx\n",
+    "clean": true,
+    "result": "x\nx\ny\nx\n"
+  },
+  {
+    "base": "\ny\ny\n\ny\ny\n",
+    "ours": "\ny\nnuevo\ny\ny\ny\n",
+    "theirs": "y\ny\nnuevo\nx\nx\ny\ny\n\ny\ny\n",
+    "clean": true,
+    "result": "y\ny\nnuevo\nx\nx\ny\nnuevo\ny\ny\ny\n"
+  },
+  {
+    "base": "x\ny\nx\ny\ny\ny\n",
+    "ours": "x\ny\nx\ny\ny\ny\n",
+    "theirs": "x\ny\nnuevo\nx\ny\ny\ny\n",
+    "clean": true,
+    "result": "x\ny\nnuevo\nx\ny\ny\ny\n"
+  },
+  {
+    "base": "\n",
+    "ours": "nuevo\n",
+    "theirs": "\nnuevo\nx\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "",
+    "theirs": "",
+    "clean": true,
+    "result": ""
+  },
+  {
+    "base": "\n\ny\n",
+    "ours": "\nx\ny\n",
+    "theirs": "y\n\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\n\ny\nx\nx\ny\nx\n",
+    "ours": "x\nx\n\ny\nx\nx\nx\ny\ny\nx\n",
+    "theirs": "x\nx\n\ny\nx\nx\ny\nx\n",
+    "clean": true,
+    "result": "x\nx\n\ny\nx\nx\nx\ny\ny\nx\n"
+  },
+  {
+    "base": "y\nx\n",
+    "ours": "",
+    "theirs": "x\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\n\n",
+    "ours": "y\nnuevo\n",
+    "theirs": "y\nnuevo\ny\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\nx\n\nx\ny\ny\n",
+    "ours": "x\n\nx\n\nnuevo\ny\ny\ny\n",
+    "theirs": "x\n\nx\n\nx\ny\ny\n",
+    "clean": true,
+    "result": "x\n\nx\n\nnuevo\ny\ny\ny\n"
+  },
+  {
+    "base": "x\n\ny\nx\ny\n\nx\n",
+    "ours": "y\nnuevo\ny\ny\nx\ny\ny\n",
+    "theirs": "x\n\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "\n\ny\ny\ny\nx\ny\n\n",
+    "ours": "\n\ny\ny\ny\nx\ny\n\n",
+    "theirs": "\n\ny\ny\ny\nx\nnuevo\nx\n",
+    "clean": true,
+    "result": "\n\ny\ny\ny\nx\nnuevo\nx\n"
+  },
+  {
+    "base": "\nx\nx\ny\n\n",
+    "ours": "\nx\nx\nnuevo\ny\n\n",
+    "theirs": "\nx\ny\n\nx\nnuevo\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\n\n\n",
+    "ours": "x\ny\nnuevo\nnuevo\nnuevo\n",
+    "theirs": "x\n\n\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\nx\n\n",
+    "ours": "x\ny\nx\n\ny\nnuevo\ny\n",
+    "theirs": "x\nx\n\n",
+    "clean": true,
+    "result": "x\nx\n\ny\nnuevo\ny\n"
+  },
+  {
+    "base": "\ny\n\ny\n",
+    "ours": "\ny\n\ny\n",
+    "theirs": "\ny\n\nx\n",
+    "clean": true,
+    "result": "\ny\n\nx\n"
+  },
+  {
+    "base": "\ny\n",
+    "ours": "x\nx\nnuevo\n",
+    "theirs": "x\ny\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "nuevo\nx\n",
+    "theirs": "",
+    "clean": true,
+    "result": "nuevo\nx\n"
+  },
+  {
+    "base": "y\nx\n\nx\n\n",
+    "ours": "y\nx\n\nx\n\n",
+    "theirs": "y\ny\nx\nnuevo\nx\n\n",
+    "clean": true,
+    "result": "y\ny\nx\nnuevo\nx\n\n"
+  },
+  {
+    "base": "y\n\nx\n\ny\n\nx\n\n",
+    "ours": "y\n\nx\nx\ny\ny\n\nx\ny\ny\n",
+    "theirs": "y\n\nnuevo\nnuevo\ny\n\nnuevo\nx\n",
+    "clean": false
+  },
+  {
+    "base": "x\n",
+    "ours": "x\nnuevo\ny\n",
+    "theirs": "y\nx\n",
+    "clean": true,
+    "result": "y\nx\nnuevo\ny\n"
+  },
+  {
+    "base": "x\nx\n\ny\nx\nx\n\n",
+    "ours": "x\ny\ny\nx\nx\n\nnuevo\nnuevo\n",
+    "theirs": "x\nx\nx\nx\nx\n\n",
+    "clean": false
+  },
+  {
+    "base": "\ny\n",
+    "ours": "x\n",
+    "theirs": "nuevo\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\n\n\n",
+    "ours": "\nx\n\ny\n",
+    "theirs": "x\nnuevo\n\nx\n\n\n",
+    "clean": true,
+    "result": "x\nnuevo\n\nx\n\ny\n"
+  },
+  {
+    "base": "x\n\n",
+    "ours": "x\n\nx\ny\ny\ny\n",
+    "theirs": "x\n\n",
+    "clean": true,
+    "result": "x\n\nx\ny\ny\ny\n"
+  },
+  {
+    "base": "y\n\n",
+    "ours": "y\n\nnuevo\nx\n",
+    "theirs": "y\nx\n",
+    "clean": false
+  },
+  {
+    "base": "\n\n\ny\n\n",
+    "ours": "\n\nnuevo\nnuevo\n",
+    "theirs": "\n\ny\nnuevo\n\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\n\ny\n",
+    "ours": "nuevo\ny\nx\ny\n",
+    "theirs": "\nx\n\ny\nnuevo\n",
+    "clean": true,
+    "result": "nuevo\ny\nx\ny\nnuevo\n"
+  },
+  {
+    "base": "x\ny\nx\n",
+    "ours": "x\n",
+    "theirs": "nuevo\nx\nnuevo\nx\ny\nx\nx\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\ny\n",
+    "ours": "y\nnuevo\nx\n",
+    "theirs": "y\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\n",
+    "ours": "x\ny\n",
+    "theirs": "x\nx\nnuevo\n",
+    "clean": true,
+    "result": "x\nx\nnuevo\n"
+  },
+  {
+    "base": "x\ny\nx\n\ny\ny\n\n",
+    "ours": "nuevo\nx\ny\nx\n\ny\ny\n\n",
+    "theirs": "x\ny\nnuevo\nx\ny\ny\n\n",
+    "clean": true,
+    "result": "nuevo\nx\ny\nnuevo\nx\ny\ny\n\n"
+  },
+  {
+    "base": "\ny\n\n",
+    "ours": "\nnuevo\nnuevo\ny\ny\n",
+    "theirs": "y\n\ny\n\nx\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "y\nx\nx\n\nx\nx\ny\ny\n",
+    "ours": "y\nx\nx\n\ny\nnuevo\nx\nx\ny\ny\n",
+    "theirs": "y\nx\nx\nx\nx\nnuevo\nx\nx\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\nx\nx\ny\n\n",
+    "ours": "y\nx\ny\n\ny\nx\n",
+    "theirs": "x\ny\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "",
+    "theirs": "x\ny\n",
+    "clean": true,
+    "result": "x\ny\n"
+  },
+  {
+    "base": "\ny\nx\nx\nx\ny\nx\n",
+    "ours": "y\nnuevo\nx\nx\nx\ny\nx\n",
+    "theirs": "nuevo\ny\nx\nx\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\ny\ny\nx\nx\nx\nx\n",
+    "ours": "x\n\ny\nx\ny\nx\nx\nnuevo\n",
+    "theirs": "y\ny\ny\nx\nx\nx\nx\n",
+    "clean": true,
+    "result": "y\ny\nx\ny\nx\nx\nnuevo\n"
+  },
+  {
+    "base": "\nx\nx\nx\n",
+    "ours": "\ny\ny\n",
+    "theirs": "\nx\nx\nx\nx\nx\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\nx\n",
+    "ours": "x\ny\nnuevo\nnuevo\nx\nx\n",
+    "theirs": "",
+    "clean": false
+  },
+  {
+    "base": "\nx\nx\ny\nx\ny\nx\n",
+    "ours": "\nx\nx\nx\ny\ny\n",
+    "theirs": "\nx\nx\ny\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\ny\n\nx\n\n",
+    "ours": "y\ny\n\nx\n\nx\n",
+    "theirs": "y\ny\ny\nx\ny\n\nx\n\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\n\ny\ny\n\ny\n",
+    "ours": "y\n\n\ny\ny\n\ny\n",
+    "theirs": "y\n\n\ny\ny\nx\ny\n",
+    "clean": true,
+    "result": "y\n\n\ny\ny\nx\ny\n"
+  },
+  {
+    "base": "x\nx\ny\n\n",
+    "ours": "x\nx\ny\n\n",
+    "theirs": "x\nx\ny\nx\n\n",
+    "clean": true,
+    "result": "x\nx\ny\nx\n\n"
+  },
+  {
+    "base": "\nx\nx\n\n\nx\nx\n\n",
+    "ours": "\nx\nx\n\n\nx\nx\nnuevo\n",
+    "theirs": "\nx\nx\nx\nx\n\n",
+    "clean": true,
+    "result": "\nx\nx\nx\nx\nnuevo\n"
+  },
+  {
+    "base": "x\ny\n\n\n",
+    "ours": "x\ny\nx\nx\ny\n",
+    "theirs": "x\ny\n\ny\n\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\ny\n\n\n\n",
+    "ours": "x\n\ny\nnuevo\n\n",
+    "theirs": "x\n\ny\n\n\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\nx\n",
+    "ours": "y\nx\nnuevo\ny\nx\n",
+    "theirs": "y\ny\ny\nnuevo\nx\n",
+    "clean": true,
+    "result": "y\ny\ny\nnuevo\nx\nnuevo\ny\nx\n"
+  },
+  {
+    "base": "\n\ny\n",
+    "ours": "x\ny\n",
+    "theirs": "x\n\ny\ny\nx\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\nx\nx\n\n\n",
+    "ours": "\nx\nx\nx\n\n\ny\nx\n",
+    "theirs": "\nx\nx\nx\n\n\nx\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "y\nx\n\ny\nx\n",
+    "ours": "y\nx\nx\n\ny\nx\n",
+    "theirs": "y\nx\n\ny\nx\n",
+    "clean": true,
+    "result": "y\nx\nx\n\ny\nx\n"
+  },
+  {
+    "base": "x\nx\nx\nx\nx\ny\n\nx\n",
+    "ours": "x\nx\nx\nx\nx\ny\n\nx\n",
+    "theirs": "x\nx\nx\nnuevo\nx\ny\n\nx\n",
+    "clean": true,
+    "result": "x\nx\nx\nnuevo\nx\ny\n\nx\n"
+  },
+  {
+    "base": "\n",
+    "ours": "x\n",
+    "theirs": "x\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\ny\ny\n",
+    "ours": "y\nx\ny\ny\n",
+    "theirs": "y\n",
+    "clean": false
+  },
+  {
+    "base": "y\n\n\ny\nx\ny\n",
+    "ours": "y\nnuevo\nx\n\n\ny\nx\ny\nnuevo\nnuevo\n",
+    "theirs": "y\ny\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "",
+    "theirs": "nuevo\nnuevo\nx\n",
+    "clean": true,
+    "result": "nuevo\nnuevo\nx\n"
+  },
+  {
+    "base": "y\nx\nx\nx\n",
+    "ours": "y\nx\nx\nx\nx\nnuevo\n",
+    "theirs": "y\nx\nx\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "",
+    "ours": "nuevo\nx\n",
+    "theirs": "",
+    "clean": true,
+    "result": "nuevo\nx\n"
+  },
+  {
+    "base": "",
+    "ours": "x\nnuevo\n",
+    "theirs": "x\ny\nx\nnuevo\n",
+    "clean": false
+  },
+  {
+    "base": "\nx\n\nx\ny\n\n\ny\n",
+    "ours": "\nx\nnuevo\ny\n\nnuevo\n",
+    "theirs": "\nx\n\nx\ny\nx\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\nx\nx\n\n\ny\n",
+    "ours": "x\nx\ny\nx\n\ny\n",
+    "theirs": "y\nx\nx\n\n\ny\nx\ny\n",
+    "clean": true,
+    "result": "x\nx\ny\nx\n\ny\nx\ny\n"
+  },
+  {
+    "base": "\ny\n\n\n",
+    "ours": "\nnuevo\ny\n\n\n",
+    "theirs": "x\nnuevo\n\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\nx\n\ny\ny\n",
+    "ours": "x\n\ny\ny\n",
+    "theirs": "y\ny\nx\n\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "x\n\n\n\ny\n\n\n",
+    "ours": "x\nx\n\n\n\ny\n\n\n",
+    "theirs": "x\n\n\n\ny\ny\n",
+    "clean": true,
+    "result": "x\nx\n\n\n\ny\ny\n"
+  },
+  {
+    "base": "y\nx\ny\ny\nx\n\ny\ny\n",
+    "ours": "y\ny\nx\ny\ny\nx\n\ny\ny\n",
+    "theirs": "nuevo\nnuevo\nx\ny\ny\nx\n\ny\ny\n",
+    "clean": false
+  },
+  {
+    "base": "y\n",
+    "ours": "y\ny\n",
+    "theirs": "nuevo\ny\nnuevo\nx\nx\n",
+    "clean": false
+  },
+  {
+    "base": "x\ny\nx\nx\ny\n\ny\n\n",
+    "ours": "x\ny\nx\nnuevo\nx\nx\ny\n\ny\n\n",
+    "theirs": "x\ny\nx\nx\ny\ny\n\ny\n\n",
+    "clean": true,
+    "result": "x\ny\nx\nnuevo\nx\nx\ny\ny\n\ny\n\n"
+  }
+]

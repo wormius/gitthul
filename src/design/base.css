@@ -1,0 +1,98 @@
+/*
+ * Entrada del sistema de diseño. Es lo único que la aplicación importa.
+ *
+ * El orden importa: la paleta define los literales, los roles los nombran, la
+ * densidad y la tipografía dimensionan, y el reinicio de abajo ya consume roles.
+ */
+
+@import './fonts.css';
+@import './palette.css';
+@import './variants.css';
+@import './terminalPalette.css';
+@import './roles.css';
+@import './typography.css';
+@import './density.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/*
+ * La aplicación dibuja sus propias señales de posición —por ejemplo el
+ * minimapa de los diffs— y las barras nativas de WebKit aparecen tarde, al
+ * mover la rueda o pasar el puntero, ocupando el mismo borde. El contenido
+ * conserva todo su scroll por rueda, gesto, teclado y arrastre; solo se oculta
+ * el adorno nativo para que el layout no cambie ni se superponga.
+ */
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+html {
+  /* Los cuatro atributos que gobiernan el sistema los escribe ThemeProvider en
+     <html>; el fallback deja la aplicación presentable si algo falla al montar. */
+  color-scheme: dark;
+
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-ui);
+  line-height: var(--line-height-ui);
+
+  /* Sin síntesis de peso: un negrita falso ocupa otro ancho y desplazaría la
+     interfaz. La cursiva sintética sí se permite, que es como los visores de
+     código marcan comentarios en las familias que no publican cursiva. */
+  font-synthesis: style;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+html[data-mode='light'] {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--surface-app);
+  color: var(--text-primary);
+
+  /* La ventana es la aplicación: nada se selecciona ni se arrastra por accidente. */
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Las superficies de código y los campos sí permiten selección. */
+input,
+textarea,
+[data-selectable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* El anillo de foco es un token, y va en outline para no ocupar espacio: así
+   aparecer y desaparecer no mueve nada de sitio. */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-family-code);
+  font-size: var(--font-size-code);
+}

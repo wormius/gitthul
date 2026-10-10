@@ -1,0 +1,35 @@
+/*
+ * Los cinco botones, centrados y con la misma caja.
+ *
+ * Con una cuadrícula de `1fr` los botones se estiraban a lo ancho del panel y
+ * salían rectángulos distintos según cuánto ocupara su palabra. Ahora es una
+ * fila que envuelve y se centra: cada botón mide lo mismo —el mínimo lo fija el
+ * icono, no la etiqueta— y al estrechar el panel pasan de cinco a tres y a dos
+ * sin que ninguno se salga del área visible. Un `BigActionButton` fuera de la
+ * vista es un camino perdido, y por eso aquí nunca hay desplazamiento.
+ *
+ * Sin borde inferior: lo que separa esta zona del filtro es el aire, no una
+ * línea. El panel entero se lee de arriba abajo sin escalones.
+ */
+.bar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  padding: var(--space-4) var(--space-3) var(--space-3);
+}
+
+/*
+ * Cuadrado fijo para todos los botones — mismo ancho al píxel.
+ *
+ * Un `min-width` deja que «Terminal» sea más ancho que «Abrir» porque la
+ * etiqueta manda. Con `width` fijo todos miden igual y el texto se permite
+ * comprimir sin deformar la caja. El valor es el mismo que el alto del botón
+ * con su icono y su etiqueta, así que queda prácticamente cuadrado.
+ */
+.action {
+  width: 68px;
+  padding-right: var(--space-1);
+  padding-left: var(--space-1);
+}

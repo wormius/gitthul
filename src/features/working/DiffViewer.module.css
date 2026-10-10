@@ -1,0 +1,262 @@
+/*
+ * El visor cubre la tabla y no la barra de acciones: se estira dentro de la caja
+ * que `WorkingView` reserva para eso, que empieza debajo de la barra y llega al
+ * fondo de la columna central — decisión 2 del subplan.
+ *
+ * Va en `z-index: 2` porque el historial de un archivo ocupa el 1: el diff que
+ * se abre desde el historial se pone encima y al cerrarse devuelve a él, que es
+ * lo que pide CU-19.
+ */
+.viewer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: var(--surface-sunken);
+}
+
+.viewer:focus-visible {
+  outline: none;
+}
+
+.padded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+/* El cuerpo aloja la barra de marcas, que se coloca fuera del flujo sobre su
+   borde derecho; por eso está posicionado y por eso el scroll es de dentro. */
+.body {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  overflow: auto;
+  background-color: var(--surface-sunken);
+  /* El hueco de la barra de marcas, para que ninguna línea quede debajo. */
+  padding-inline-end: var(--icon-md);
+}
+
+/* El diff reparte el eje horizontal entre sus columnas; el archivo sin marcas
+   sigue usando el scroll normal de `.scroll`. */
+.diffScroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/*
+ * Un archivo completo dividido no deja que un ancestro haga el scroll de dos
+ * CodeMirror virtualizados. WebKit puede medir una columna antes que la otra y
+ * mantener la segunda sin líneas hasta que llegue una rueda real. Aquí el
+ * contenedor solo reparte el alto: cada editor desplaza su propio viewport y
+ * `SyncScroll` copia la posición entre ambos.
+ */
+.ownedDiffScroll {
+  overflow: hidden;
+}
+
+.ownedContext,
+.ownedContext > .context {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Si el diff es más corto que el panel, su último bloque conserva el fondo y
+   la superficie de código hasta el borde inferior. Cuando el contenido es más
+   alto no encoge: el desplazamiento sigue perteneciendo a `.scroll`. */
+.scroll:not(.ownedDiffScroll) > .block:last-child,
+.scroll:not(.ownedDiffScroll) > .context:last-child,
+.scroll:not(.ownedDiffScroll) > .surface:last-child {
+  flex: 1 0 auto;
+}
+
+.scroll:not(.ownedDiffScroll) > .block:last-child > .surface,
+.scroll:not(.ownedDiffScroll) > .block:last-child > .sides,
+.scroll:not(.ownedDiffScroll) > .block:last-child > .horizontalPane,
+.scroll:not(.ownedDiffScroll) > .context:last-child > .surface,
+.scroll:not(.ownedDiffScroll) > .context:last-child > .sides,
+.scroll:not(.ownedDiffScroll) > .context:last-child > .horizontalPane {
+  flex: 1 0 auto;
+}
+
+.truncated {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-warning);
+  font-size: var(--text-xs);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.context {
+  display: flex;
+  flex-direction: column;
+}
+
+/* El diff solo usa la acción de línea; no reserva espacio para una casilla de bloque. */
+.surface :global(.cm-editor .cm-choiceGutter .cm-gutterElement) {
+  min-width: 20px;
+}
+
+.surface :global(.cm-editor .gitthul-line-choice) {
+  opacity: 1;
+}
+
+/*
+ * La cabecera del hunk. Los botones están siempre, no aparecen con el puntero:
+ * lo que aparece con hover reserva su caja o desplaza la interfaz — invariante 1
+ * —, y un botón de stage que hay que descubrir pasando por encima no es un
+ * camino natural.
+ */
+.hunkHeader {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-raised);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  background-color: var(--surface-panel);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.hunkRange {
+  flex: none;
+  color: var(--text-muted);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+}
+
+.hunkContext {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+/*
+ * Las dos columnas. Cada una es la mitad exacta y ninguna puede empujar a la
+ * otra: con `1fr 1fr` y `min-width: 0`, una línea larguísima scrollea dentro de
+ * su columna en vez de correr la de al lado.
+ */
+.sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--border-width);
+  background-color: var(--border-subtle);
+}
+
+.sides > * {
+  min-width: 0;
+}
+
+/*
+ * El cuerpo comparte únicamente el desplazamiento vertical. Cada columna
+ * recorta en su propio borde y desplaza sus líneas largas por separado; los
+ * `SyncScrollPane` copian ese `scrollLeft` a la columna hermana. Así el margen
+ * y la mitad opuesta no desaparecen cuando una línea se desborda.
+ *
+ * La altura queda libre: CodeMirror crece con el documento (`fitContent`) y el
+ * scroll vertical sigue perteneciendo a `.scroll`. `overflow-y: hidden` evita
+ * que WebKit fabrique una segunda superficie vertical alrededor del editor.
+ */
+.horizontalPane {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background-color: var(--editor-bg);
+}
+
+.horizontalPane > .surface {
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.ownedPane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--editor-bg);
+}
+
+.ownedDiffScroll .sides,
+.ownedSurface {
+  height: 100%;
+  min-height: 0;
+}
+
+.ownedSurface {
+  flex: 1 1 auto;
+}
+
+/* Los visores apilados no llevan borde ni radio propios: el marco lo pone el
+   bloque, y un recuadro por hunk convertiría el archivo en una lista de fichas. */
+.surface {
+  border: none;
+  border-radius: 0;
+}
+
+.surface:focus-within {
+  outline: none;
+}
+
+/* A flex child with an automatic minimum grows beyond a short document. */
+.horizontalPane {
+  display: flex;
+}
+.horizontalPane > .surface {
+  flex: 1 0 auto;
+}
+.wrappedPane > .surface {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Whole-file stage menus wrap the context in another flex container. */
+.scroll:not(.ownedDiffScroll) .context > .context,
+.scroll:not(.ownedDiffScroll) .context > .horizontalPane,
+.scroll:not(.ownedDiffScroll) .context > .sides,
+.scroll:not(.ownedDiffScroll) .context > .surface {
+  flex: 1 0 auto;
+}
+
+/* In split whole-file diffs the editors own the scroll. Constrain their
+   wrappers to the viewport instead of using the document's natural height. */
+.ownedDiffScroll .context {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.ownedDiffScroll .sides {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 0;
+}

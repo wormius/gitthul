@@ -1,0 +1,129 @@
+/*
+ * Capa 3 del sistema de tokens: densidad.
+ *
+ * La densidad decide cuánto aire hay entre las cosas; la escala tipográfica
+ * decide cuán grandes son. Son ajustes distintos y se combinan: «compacto» con
+ * la interfaz grande es una petición legítima, y funciona, porque los altos de
+ * control y de fila se calculan a partir de --font-size-ui en vez de fijarse en
+ * píxeles. Lo que la densidad fija en píxeles es solo el espaciado.
+ *
+ * «cómodo» es el valor por defecto y vive también en :root para que cualquier
+ * árbol sin data-density — una prueba, la galería — se pinte bien igualmente.
+ *
+ * --window-grip y --window-grip-corner son la excepción a lo de arriba: no son
+ * aire, son blancos para el ratón. Compacto no los reduce como reduce el
+ * espaciado, porque una asa de tres píxeles para redimensionar la ventana no se
+ * acierta, y esa es la única forma de redimensionarla sin decoración del sistema.
+ */
+
+:root,
+[data-density='cozy'] {
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+  --space-7: 32px;
+
+  --control-height-sm: calc(var(--font-size-ui) * 1.75);
+  --control-height-md: calc(var(--font-size-ui) * 2.15);
+  --control-height-lg: calc(var(--font-size-ui) * 2.6);
+
+  --row-height: calc(var(--font-size-ui) * 2.05);
+  --row-height-lg: calc(var(--font-size-ui) * 2.7);
+
+  --icon-sm: 14px;
+  --icon-md: 16px;
+  --icon-lg: 20px;
+
+  --graph-lane-width: 16px;
+  --graph-node-radius: 5px;
+  --graph-node-avatar: 18px;
+  --graph-line-width: 2px;
+  --graph-corner-radius: 6px;
+
+  --heat-cell-size: 12px;
+  --heat-cell-gap: 3px;
+  --divider-thickness: 6px;
+
+  --window-grip: 5px;
+  --window-grip-corner: 14px;
+
+  --line-height-ui: 1.5;
+  --line-height-code: 1.5;
+}
+
+[data-density='compact'] {
+  --space-1: 2px;
+  --space-2: 3px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 24px;
+
+  --control-height-sm: calc(var(--font-size-ui) * 1.55);
+  --control-height-md: calc(var(--font-size-ui) * 1.85);
+  --control-height-lg: calc(var(--font-size-ui) * 2.25);
+
+  --row-height: calc(var(--font-size-ui) * 1.7);
+  --row-height-lg: calc(var(--font-size-ui) * 2.3);
+
+  --icon-sm: 12px;
+  --icon-md: 14px;
+  --icon-lg: 18px;
+
+  --graph-lane-width: 12px;
+  --graph-node-radius: 4px;
+  --graph-node-avatar: 14px;
+  --graph-line-width: 1.5px;
+  --graph-corner-radius: 5px;
+
+  --heat-cell-size: 10px;
+  --heat-cell-gap: 2px;
+  --divider-thickness: 5px;
+
+  --window-grip: 5px;
+  --window-grip-corner: 12px;
+
+  --line-height-ui: 1.35;
+  --line-height-code: 1.35;
+}
+
+[data-density='spacious'] {
+  --space-1: 3px;
+  --space-2: 6px;
+  --space-3: 10px;
+  --space-4: 16px;
+  --space-5: 22px;
+  --space-6: 32px;
+  --space-7: 44px;
+
+  --control-height-sm: calc(var(--font-size-ui) * 2);
+  --control-height-md: calc(var(--font-size-ui) * 2.5);
+  --control-height-lg: calc(var(--font-size-ui) * 3);
+
+  --row-height: calc(var(--font-size-ui) * 2.5);
+  --row-height-lg: calc(var(--font-size-ui) * 3.2);
+
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+
+  --graph-lane-width: 20px;
+  --graph-node-radius: 6px;
+  --graph-node-avatar: 22px;
+  --graph-line-width: 2px;
+  --graph-corner-radius: 7px;
+
+  --heat-cell-size: 14px;
+  --heat-cell-gap: 4px;
+  --divider-thickness: 8px;
+
+  --window-grip: 7px;
+  --window-grip-corner: 18px;
+
+  --line-height-ui: 1.65;
+  --line-height-code: 1.6;
+}

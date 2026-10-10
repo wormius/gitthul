@@ -1,0 +1,78 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.addButton {
+  align-self: flex-start;
+}
+
+/* Formulario de edición de un perfil. */
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.editFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.editActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Bloque de selección de avatar dentro del formulario. */
+.avatarField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.avatarFieldLabel {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.avatarToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: none;
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: default;
+}
+
+.avatarToggle:hover {
+  background-color: var(--surface-hover);
+}
+
+.avatarToggle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Panel de selección expandido. */
+.avatarPicker {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}

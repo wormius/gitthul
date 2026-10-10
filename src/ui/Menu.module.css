@@ -1,0 +1,146 @@
+.layer {
+  display: flex;
+  flex-direction: column;
+  /* Crece con el contenido; las referencias largas se leen completas al envolver. */
+  width: max-content;
+  min-width: min(14ch, calc(100vw - 16px));
+  max-width: min(80ch, calc(100vw - 16px));
+  padding: var(--space-1);
+  background-color: var(--surface-raised);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+}
+
+.description {
+  flex: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.item {
+  position: relative;
+}
+
+.separator {
+  height: var(--border-width);
+  margin: var(--space-1) var(--space-2);
+  background-color: var(--border-subtle);
+}
+
+.button {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  min-height: var(--control-height-sm);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* Solo color: el resaltado nunca cambia caja ni peso. */
+.button:hover:not(:disabled),
+.button:focus-visible {
+  background-color: var(--surface-hover);
+}
+
+.button:disabled {
+  color: var(--text-disabled);
+  background-image: var(--disabled-pattern);
+  cursor: not-allowed;
+}
+
+.danger {
+  color: var(--text-danger);
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  min-width: var(--icon-md);
+  min-height: var(--icon-md);
+}
+
+/* La marca puede contener a la vez el estado seleccionado y un avatar. */
+.mark > svg {
+  flex: none;
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+/* El motivo de anillo del logotipo, el mismo del checkbox y del nodo del grafo. */
+.ring,
+.ringOn {
+  display: block;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.ringOn {
+  background-color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.itemDescription {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.shortcut {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-1);
+  align-items: center;
+  margin-left: var(--space-5);
+}
+
+.plus {
+  padding: 0 var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.caret {
+  display: inline-flex;
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--text-secondary);
+}

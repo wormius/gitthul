@@ -1,0 +1,82 @@
+.tree,
+.pane {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.pane[data-active] {
+  border-color: var(--border-accent);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-height-sm);
+  gap: var(--space-1);
+  padding: 0 var(--space-1) 0 var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+}
+
+.name {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  border: 0;
+  padding: var(--space-1) 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: text;
+}
+
+.name > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active {
+  flex-shrink: 0;
+  color: var(--text-accent);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.nameInput {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-height-sm);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.emulator {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}

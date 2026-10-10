@@ -1,0 +1,15 @@
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2ch;
+  height: calc(var(--control-height-sm) * 0.8);
+  padding: 0 var(--space-2);
+  color: var(--text-secondary);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+  background-color: var(--surface-raised);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-raised);
+}

@@ -1,0 +1,275 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to validate
+        type: string
+        default: ''
+      release-tag:
+        description: Version tag that must match the application
+        type: string
+        default: ''
+      packages:
+        description: Build installers and save workflow artifacts
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web, versions and notices
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify versions and third-party notices
+        env:
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          import assert from 'node:assert/strict';
+          const read = file => fs.readFileSync(file, 'utf8');
+          const json = file => JSON.parse(read(file));
+          const pkg = json('package.json');
+          const lock = json('package-lock.json');
+          const cargo = read('src-tauri/Cargo.toml');
+          const cargoLock = read('src-tauri/Cargo.lock');
+          assert.match(pkg.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
+          assert.equal(lock.version, pkg.version);
+          assert.equal(lock.packages[''].version, pkg.version);
+          assert.equal(cargo.match(/^version = "([^"]+)"/m)?.[1], pkg.version);
+          const blocks = cargoLock.split('[[package]]').slice(1);
+          const own = blocks.find(b => /^name = "gitthul"$/m.test(b));
+          assert.equal(own?.match(/^version = "([^"]+)"/m)?.[1], pkg.version);
+          assert.equal(json('src-tauri/tauri.conf.json').version, '../package.json');
+          if (process.env.RELEASE_TAG) {
+            assert.equal(process.env.RELEASE_TAG, `v${pkg.version}`);
+            assert.ok(fs.existsSync(`docs/releases/${pkg.version}.md`), 'Missing release notes');
+          }
+          const notices = json('licenses/manifest.json').files;
+          const covered = new Set();
+          const paths = new Set();
+          for (const notice of notices) {
+            assert.ok(notice.copied_file.startsWith('licenses/'));
+            assert.ok(!notice.copied_file.split('/').includes('..'));
+            assert.ok(!paths.has(notice.copied_file), `Duplicate notice: ${notice.copied_file}`);
+            paths.add(notice.copied_file);
+            assert.ok(fs.lstatSync(notice.copied_file).isFile());
+            const hash = crypto.createHash('sha256').update(fs.readFileSync(notice.copied_file)).digest('hex');
+            assert.equal(hash, notice.sha256, `Changed notice: ${notice.copied_file}`);
+            covered.add(`${notice.ecosystem}:${notice.package}@${notice.version}`);
+          }
+          for (const block of blocks.filter(b => /^source = /m.test(b))) {
+            const name = block.match(/^name = "([^"]+)"/m)[1];
+            const version = block.match(/^version = "([^"]+)"/m)[1];
+            assert.ok(covered.has(`cargo:${name}@${version}`), `Missing Cargo notice: ${name}@${version}`);
+          }
+          for (const [location, item] of Object.entries(lock.packages)) {
+            if (!location || item.dev) continue;
+            const name = item.name || location.split('node_modules/').at(-1);
+            assert.ok(covered.has(`npm:${name}@${item.version}`), `Missing npm notice: ${name}@${item.version}`);
+          }
+          for (const file of ['licenses/cargo.md', 'licenses/npm.md']) {
+            assert.ok(!read(file).includes('Texto no disponible'), `Incomplete inventory: ${file}`);
+          }
+          console.log(`Version ${pkg.version}; ${notices.length} notices verified.`);
+          NODE
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+
+  native:
+    name: Native / ${{ matrix.platform }}
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+          - platform: windows-x64
+            os: windows-2022
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+          - platform: macos-arm64
+            os: macos-15
+            target: aarch64-apple-darwin
+            bundles: dmg
+          - platform: macos-x64
+            os: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: dmg
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 rpm xdg-utils
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install pinned Rust toolchain
+        run: |
+          toolchain=$(node -e 'console.log(require("fs").readFileSync("rust-toolchain.toml", "utf8").match(/^channel = "([^"]+)"/m)[1])')
+          rustup toolchain install "$toolchain" --profile minimal --component rustfmt
+          rustup target add '${{ matrix.target }}' --toolchain "$toolchain"
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+          save-if: ${{ github.event_name != 'pull_request' }}
+      - run: npm ci
+      - run: npm run build
+      - name: Identity for disposable Git test repositories
+        run: |
+          git config --global user.name 'GitThul CI'
+          git config --global user.email 'ci@example.invalid'
+          git config --global init.defaultBranch main
+      - name: Rust format
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+      - name: Rust check
+        working-directory: src-tauri
+        run: cargo check --locked
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+      - name: Build installers
+        if: inputs.packages
+        env:
+          APPLE_SIGNING_IDENTITY: '-'
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: npm run tauri build -- --ci --target '${{ matrix.target }}' --bundles '${{ matrix.bundles }}' -- --locked
+      - name: Collect installers
+        if: inputs.packages
+        env:
+          BUNDLE_ROOT: src-tauri/target/${{ matrix.target }}/release/bundle
+          BUNDLE_FORMATS: ${{ matrix.bundles }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import assert from 'node:assert/strict';
+          const extensions = { deb: '.deb', rpm: '.rpm', appimage: '.AppImage', nsis: '.exe', msi: '.msi', dmg: '.dmg' };
+          const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+          const formats = process.env.BUNDLE_FORMATS.split(',');
+          fs.mkdirSync('release-assets', { recursive: true });
+          const found = new Set();
+          function collect(dir) {
+            for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+              const file = path.join(dir, item.name);
+              if (item.isDirectory()) collect(file);
+              else if (item.isFile()) {
+                const format = formats.find(f => item.name.endsWith(extensions[f]));
+                if (!format) continue;
+                if (!item.name.includes(`_${version}_`) && !item.name.includes(`-${version}-`)) continue;
+                const dest = path.join('release-assets', item.name);
+                assert.ok(!fs.existsSync(dest), `Duplicate installer: ${item.name}`);
+                fs.copyFileSync(file, dest);
+                found.add(format);
+              }
+            }
+          }
+          collect(process.env.BUNDLE_ROOT);
+          for (const format of formats) assert.ok(found.has(format), `Missing ${format} installer`);
+          NODE
+      - name: Inventory AppImage libraries and system notices
+        if: inputs.packages && runner.os == 'Linux'
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import os from 'node:os';
+          import path from 'node:path';
+          import { execFileSync } from 'node:child_process';
+          const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+          const image = fs.readdirSync('release-assets').find(name => name.endsWith('.AppImage'));
+          if (!image) throw new Error('Missing AppImage');
+          const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'gitthul-appimage-'));
+          const noticeDir = path.join(temp, 'system-notices');
+          fs.mkdirSync(noticeDir);
+          fs.chmodSync(path.resolve('release-assets', image), 0o755);
+          execFileSync(path.resolve('release-assets', image), ['--appimage-extract'], { cwd: temp, stdio: 'ignore' });
+          const installed = new Map(execFileSync('dpkg-query', ['-W', '-f=${binary:Package}\t${Version}\t${source:Package}\t${source:Version}\n'], { encoding: 'utf8' }).trim().split('\n').map(line => {
+            const [name, version, source, sourceVersion] = line.split('\t');
+            return [name, { name, version, source, sourceVersion }];
+          }));
+          const report = { image, libraries: [], packages: [], unmapped: [], reviewRequired: true };
+          const packages = new Set();
+          const appDir = path.join(temp, 'squashfs-root');
+          function walk(dir) {
+            for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+              const file = path.join(dir, item.name);
+              if (item.isDirectory()) walk(file);
+              else if (item.isFile() && /\.so(?:\.\d+)*$/.test(item.name)) {
+                let owners = [];
+                try {
+                  const matches = execFileSync('dpkg-query', ['-S', `*/${item.name}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+                  owners = [...new Set(matches.trim().split('\n').flatMap(line => line.split(': /')[0].split(', ')).filter(name => installed.has(name)))];
+                } catch {}
+                const relative = path.relative(appDir, file);
+                report.libraries.push({ path: relative, packages: owners });
+                if (!owners.length) report.unmapped.push(relative);
+                for (const owner of owners) packages.add(owner);
+              }
+            }
+          }
+          walk(appDir);
+          for (const name of [...packages].sort()) {
+            const pkg = installed.get(name);
+            const copyright = path.join('/usr/share/doc', name.split(':')[0], 'copyright');
+            const target = path.join(noticeDir, name.replaceAll(':', '_'));
+            fs.mkdirSync(target);
+            if (fs.existsSync(copyright)) fs.copyFileSync(copyright, path.join(target, 'copyright.txt'));
+            else report.unmapped.push(`Missing copyright: ${name}`);
+            report.packages.push({ ...pkg, sourceUrl: `https://launchpad.net/ubuntu/+source/${pkg.source}/${pkg.sourceVersion}` });
+          }
+          fs.cpSync('/usr/share/common-licenses', path.join(noticeDir, 'common-licenses'), { recursive: true, dereference: true });
+          fs.writeFileSync(path.join(noticeDir, 'inventory.json'), JSON.stringify(report, null, 2) + '\n');
+          fs.writeFileSync(path.join(noticeDir, 'README.txt'), 'Notices for system libraries found in the AppImage, mapped to the build runner packages. Review unmapped entries and corresponding source availability before publishing. This inventory does not include every possible bundled executable or static component.\n');
+          const archive = `GitThul_${version}_linux-x64-system-notices.tar.gz`;
+          execFileSync('tar', ['-czf', path.resolve('release-assets', archive), '-C', temp, 'system-notices']);
+          fs.rmSync(temp, { recursive: true, force: true });
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `AppImage: ${report.libraries.length} library files; ${report.packages.length} system packages; ${report.unmapped.length} entries require review. System notices and source locations are attached.\n`);
+          NODE
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: inputs.packages
+        with:
+          name: gitthul-${{ matrix.platform }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

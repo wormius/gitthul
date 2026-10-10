@@ -1,0 +1,128 @@
+.composer {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-top: var(--border-width) solid var(--border-subtle);
+  background-color: var(--surface-panel);
+  min-height: min-content;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.profile {
+  flex: none;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+/*
+ * Resumen y detalle se distinguen por tamaño, no por etiqueta — CU-7. Es la
+ * misma diferencia que la tabla de commits ya enseña entre la primera línea y el
+ * resto del mensaje.
+ */
+.message {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 140px;
+  overflow: hidden;
+  background-color: var(--surface-sunken);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.message:hover {
+  border-color: var(--border-strong);
+}
+
+.summaryField {
+  flex: none;
+}
+
+.summary {
+  flex: none;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Solo el detalle absorbe el espacio que deja la parte fija del compositor. */
+.bodyField {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.body {
+  flex: 1 1 auto;
+  height: 0;
+  min-height: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-top: var(--border-width) solid var(--border-subtle);
+  border-radius: 0;
+}
+
+/* El límite es físico, no un error de validación: el borde y el cursor cambian
+   al llenarse para comunicar que el campo ya no admite otro carácter. */
+.atLimit {
+  border-top-color: var(--border-warning);
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-warning);
+  caret-color: var(--text-warning);
+}
+
+.warnings {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--text-warning);
+  font-size: var(--text-xs);
+}
+
+.amend {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.published {
+  margin: 0;
+  color: var(--text-warning);
+  font-size: var(--text-xs);
+}
+
+.footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}

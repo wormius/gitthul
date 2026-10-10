@@ -1,0 +1,80 @@
+/*
+ * La etiqueta no cambia de caja nunca: ni al pasar el ratón, ni al ser la rama
+ * activa. Lo que distingue a la activa es el color y el peso del icono, no un
+ * borde más grueso ni una letra más grande — invariante 1.
+ */
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  height: calc(var(--control-height-sm) * 0.85);
+  padding: 0 var(--space-3);
+  color: var(--ref-color, var(--text-secondary));
+  background-color: var(--ref-color, var(--surface-raised));
+  border: var(--border-width) solid var(--ref-color, var(--border-subtle));
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* Cuando el chip lleva color de rama, el texto va en contraste sobre el fondo
+   sólido y el borde se oscurece ligeramente con una mezcla. */
+.label[style] {
+  color: var(--text-on-accent);
+  border-color: color-mix(in oklch, var(--ref-color) 70%, black);
+}
+
+.label:hover {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-strong);
+}
+
+.label:not([style]):hover {
+  color: var(--text-primary);
+}
+
+.head {
+  color: var(--text-on-accent);
+  background-color: var(--ref-color, var(--accent));
+  border-color: color-mix(in oklch, var(--ref-color, var(--accent)) 70%, black);
+}
+
+.label[data-kind='tag'] {
+  border-radius: var(--radius-sm);
+}
+
+.icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+
+.icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: currentcolor;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: var(--font-weight-medium);
+}
+
+/* Arrastre y suelta — F2.7 */
+.label[data-ghost] {
+  opacity: 0.4;
+}
+
+.label[data-drop='valid'][data-over] {
+  color: var(--text-primary);
+  background-color: var(--accent-wash);
+  outline: calc(var(--border-width) * 2) solid var(--border-accent);
+  outline-offset: calc(-1 * var(--border-width));
+}
+
+.label[data-drop='invalid'][data-over] {
+  opacity: 0.5;
+}

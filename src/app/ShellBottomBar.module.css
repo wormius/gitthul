@@ -1,0 +1,44 @@
+.group {
+  display: flex;
+  flex: none;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.version {
+  flex: none;
+  padding: 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* Apoyar es lo único de la barra que se pinta en acento: es una invitación, no
+   una operación de git. Solo color, así que el hover no mueve nada. */
+.support {
+  color: var(--text-accent);
+}
+
+.unread {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-accent);
+  color: var(--text-accent);
+}
+
+/*
+ * El lanzador que además es el sitio donde se está — Repositorios, que no tiene
+ * pestaña. Ahora usa acento sólido para equipararse con las pestañas activas y
+ * los chips seleccionados: un elemento de navegación activo entre pocos, siempre
+ * a la vista. El borde va por `box-shadow: inset` y no por `border`, que
+ * cambiaría la caja del botón.
+ */
+.current {
+  background-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--border-accent);
+  color: var(--text-on-accent);
+}
+
+/* El hover del botón activo se queda en la familia del acento, igual que en las
+   pestañas: el gris de `--surface-hover` lo apagaría justo al apuntarlo. */
+.current:hover {
+  background-color: var(--accent-hover);
+}

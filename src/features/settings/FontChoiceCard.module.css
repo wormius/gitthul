@@ -1,0 +1,162 @@
+/*
+ * Cada ficha se tipografía con la familia que lleva puesta por atributo. La
+ * tarjeta de código usa además la escala de los visores, que es un ajuste
+ * distinto del de la interfaz.
+ *
+ * Las cuatro filas —cabecera, familias, tamaño, espécimen— las declara la
+ * rejilla de `AppearanceSection` y la tarjeta las hereda con `subgrid`, que es lo
+ * que hace que las dos tarjetas alineen sus filas aunque una tenga cinco
+ * familias y la otra cuatro.
+ */
+
+.card {
+  display: grid;
+  grid-row: span 4;
+  grid-template-rows: subgrid;
+  align-content: start;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.families {
+  display: flex;
+  flex-direction: column;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.family {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+
+  /* Alto en rem: una ficha que crece con el tamaño de interfaz movería la lista
+     entera mientras se elige ese mismo tamaño. */
+  min-block-size: 2.25rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  text-align: start;
+  cursor: pointer;
+
+  outline: var(--focus-ring-width) solid transparent;
+  outline-offset: var(--focus-ring-offset);
+  transition: outline-color var(--duration-fast) ease;
+}
+
+.family:hover {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.family:focus-visible {
+  outline-color: var(--focus-ring-color);
+}
+
+.family[data-selected] {
+  outline-color: var(--accent);
+}
+
+.sample {
+  flex: 0 0 auto;
+  min-inline-size: 2.5rem;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+}
+
+.name {
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.card[data-kind='ui'] .sample,
+.card[data-kind='ui'] .name {
+  font-family: var(--font-family-ui);
+}
+
+.card[data-kind='code'] .sample,
+.card[data-kind='code'] .name {
+  font-family: var(--font-family-code);
+}
+
+/* La palomita reserva su caja desde el inicio: invariante 1. */
+.check {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--icon-md);
+  block-size: var(--icon-md);
+  color: var(--text-accent);
+  opacity: 0;
+}
+
+.check svg {
+  inline-size: var(--icon-md);
+  block-size: var(--icon-md);
+}
+
+.family[data-selected] .check {
+  opacity: 1;
+}
+
+.size {
+  display: flex;
+  flex-direction: column;
+  align-content: start;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.sizeLabel {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* El espécimen es el único que crece con el ajuste, y va al final de la tarjeta
+   a propósito: creciendo no empuja a nada que se esté usando. */
+.specimen {
+  overflow: hidden;
+  align-self: start;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.card[data-kind='ui'] .specimen {
+  font-family: var(--font-family-ui);
+  font-size: var(--text-md);
+  line-height: var(--line-height-ui);
+}
+
+.card[data-kind='code'] .specimen {
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-md);
+  line-height: var(--line-height-code);
+}

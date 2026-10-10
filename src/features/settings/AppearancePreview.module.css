@@ -1,0 +1,243 @@
+/*
+ * La maqueta se pinta con los tokens del tema que lleva puesto en `data-theme`,
+ * así que aquí no hay un solo color propio: cambiar de tema o de densidad cambia
+ * la miniatura sin tocar esta hoja.
+ *
+ * Nada de alto fijo: el aire lo pone la densidad, y así la maqueta crece y se
+ * aprieta enseñando justo lo que se está eligiendo.
+ */
+
+.frame {
+  container-type: inline-size;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-app);
+  color: var(--text-primary);
+  font-family: var(--font-family-ui);
+  font-size: var(--text-sm);
+  line-height: var(--line-height-ui);
+
+  /* La maqueta no reacciona al puntero: es un dibujo, no un control. */
+  user-select: none;
+}
+
+.window {
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Cuerpo --- */
+
+.body {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.rail {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  inline-size: 34%;
+  padding: var(--space-3);
+  border-inline-end: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+}
+
+.railRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--row-height);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.railRow[data-current='true'] {
+  background: var(--surface-selected);
+  color: var(--text-primary);
+}
+
+.railDot,
+.node {
+  flex: 0 0 auto;
+  inline-size: calc(var(--graph-node-radius) * 2);
+  block-size: calc(var(--graph-node-radius) * 2);
+  border-radius: var(--radius-pill);
+}
+
+.railDot[data-lane='1'],
+.node[data-lane='1'] {
+  background: var(--graph-branch-1);
+}
+
+.railDot[data-lane='2'],
+.node[data-lane='2'] {
+  background: var(--graph-branch-2);
+}
+
+.railDot[data-lane='3'],
+.node[data-lane='3'] {
+  background: var(--graph-branch-3);
+}
+
+.main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding: var(--space-3);
+}
+
+.graph {
+  display: flex;
+  flex-direction: column;
+}
+
+.commit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--row-height);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.commit[data-selected='true'] {
+  background: var(--surface-selected);
+}
+
+.subject {
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sha {
+  color: var(--text-muted);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+}
+
+/* --- Diff --- */
+
+.diff {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+  line-height: var(--line-height-code);
+}
+
+.diffLine {
+  display: flex;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  white-space: nowrap;
+}
+
+.diffLine[data-kind='added'] {
+  background: var(--diff-added-bg);
+  box-shadow: inset 2px 0 var(--diff-added-ink);
+}
+
+.diffLine[data-kind='removed'] {
+  background: var(--diff-removed-bg);
+  box-shadow: inset 2px 0 var(--diff-removed-ink);
+}
+
+.gutter {
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+/* --- Botones --- */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--control-height-sm);
+  padding-inline: var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+}
+
+.button[data-variant='primary'] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.button[data-variant='ghost'] {
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.syntaxKeyword {
+  color: var(--syntax-keyword);
+}
+.syntaxNumber {
+  color: var(--syntax-number);
+}
+.syntaxProperty {
+  color: var(--syntax-property);
+}
+
+.caption {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.terminal {
+  overflow: hidden;
+  padding: var(--space-3);
+  border-block-start: 1px solid var(--border-strong);
+  background: var(--terminal-bg);
+  color: var(--terminal-foreground);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.terminalCaption {
+  margin-block-end: var(--space-2);
+  color: var(--terminal-muted);
+  font-size: var(--code-size-sm);
+}
+
+.prompt {
+  color: var(--terminal-prompt);
+}
+.terminalInfo {
+  color: var(--terminal-info);
+}
+.terminalAdded {
+  color: var(--terminal-green);
+}
+
+@container (max-width: 420px) {
+  .rail {
+    display: none;
+  }
+}

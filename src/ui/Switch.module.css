@@ -1,0 +1,60 @@
+.wrapper {
+  display: inline-flex;
+  gap: var(--space-3);
+  align-items: center;
+  cursor: pointer;
+}
+
+.input {
+  position: absolute;
+  width: calc(var(--icon-lg) * 2);
+  height: var(--icon-lg);
+  margin: 0;
+  opacity: 0;
+}
+
+.track {
+  position: relative;
+  flex: none;
+  width: calc(var(--icon-lg) * 2);
+  height: var(--icon-lg);
+  background-color: var(--surface-sunken);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.thumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: calc(var(--icon-lg) - 4px);
+  height: calc(var(--icon-lg) - 4px);
+  background-color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  transition: transform var(--duration-fast);
+}
+
+.input:checked ~ .track {
+  background-color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+.input:checked ~ .track .thumb {
+  background-color: var(--text-on-accent);
+  transform: translateX(calc(var(--icon-lg) + 2px));
+}
+
+.input:disabled ~ .track {
+  background-image: var(--disabled-pattern);
+  opacity: var(--disabled-opacity);
+}
+
+.input:focus-visible ~ .track {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.label {
+  color: var(--text-primary);
+  font-size: var(--text-md);
+}

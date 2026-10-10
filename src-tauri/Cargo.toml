@@ -1,0 +1,58 @@
+[package]
+name = "gitthul"
+version = "1.0.0"
+description = "Cliente gráfico de git multiplataforma, libre y claro."
+authors = ["GitThul"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.88"
+
+# El binario y la librería comparten nombre; `gitthul_lib` evita el choque en Windows.
+[lib]
+name = "gitthul_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+encoding_rs = "=0.8.35"
+chardetng = "=0.1.17"
+getrandom = "=0.2.17"
+sha2 = "=0.10.9"
+gix = { version = "0.86.0", default-features = false, features = ["sha1"] }
+keyring = { version = "=3.6.3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+notify = "8.2.0"
+portable-pty = "0.9.0"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "=0.13.4", default-features = false, features = ["rustls", "json", "system-proxy"] }
+semver = "1"
+zeroize = "=1.8.2"
+
+tempfile = "3.27.0"
+tauri-plugin-clipboard-manager = "=2.3.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
+[target.'cfg(any(target_os = "linux", target_os = "macos", windows))'.dependencies]
+tauri-plugin-single-instance = "2"
+
+# Los checkpoints verifican archivos grandes varias veces. Mantener los hashes
+# optimizados también en `tauri dev` evita que esa protección bloquee la interfaz.
+[profile.dev.package.sha1]
+opt-level = 3
+
+[profile.dev.package.sha1-checked]
+opt-level = 3
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

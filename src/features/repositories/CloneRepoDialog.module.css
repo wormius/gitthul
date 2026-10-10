@@ -1,0 +1,24 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.preview {
+  margin: 0;
+  color: var(--text-secondary);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.pathRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+
+.pathInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}

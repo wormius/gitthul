@@ -1,0 +1,15 @@
+.group {
+  position: relative;
+  display: inline-flex;
+}
+
+.primary {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.caret {
+  margin-left: calc(var(--border-width) * -1);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}

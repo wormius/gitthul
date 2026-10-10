@@ -1,0 +1,154 @@
+/*
+ * `position: relative` es lo que ancla las superposiciones de la vista — el
+ * resolutor de conflictos, que cubre todo menos las dos barras del shell.
+ * Sin él, un `inset: 0` se mide contra la ventana y el resolutor tapaba también
+ * la barra de título, que es del sistema y no de la vista.
+ */
+.view {
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.view > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* La superposición no participa del reparto horizontal: está fuera del flujo. */
+.view > [class*='overlay'] {
+  flex: none;
+}
+
+.left {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.leftPane {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.leftError {
+  height: 100%;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.actionBarSlot {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+
+.conflictBanner {
+  flex: none;
+  padding: var(--space-2);
+  border-bottom: var(--border-width) solid var(--border-warning);
+  background-color: var(--surface-warning);
+}
+
+.operationBanner {
+  flex: none;
+}
+
+.conflictBanner > * {
+  border-radius: var(--radius-sm);
+}
+
+.conflictActions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.dangerAction {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+  border-color: var(--border-danger);
+}
+
+.dangerAction:hover:not(:disabled),
+.dangerAction:active:not(:disabled) {
+  color: var(--text-primary);
+  background-color: var(--surface-danger);
+}
+
+/*
+ * La caja sobre la que se superponen los paneles que cubren la tabla — hoy el
+ * historial de un archivo, en F2.6 el visor de diff. Empieza debajo de la barra
+ * de acciones y llega al fondo, que es la geometría de la decisión 2.
+ */
+.body {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* El vacío se centra; la lista de archivos ocupa el panel entero. */
+.centered {
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+/*
+ * La columna central mientras Resolver la bloquea — decisión 4 del subplan de
+ * Resolver. El atributo `inert` la saca del ratón, del teclado y del árbol de
+ * accesibilidad; aquí solo se dice que ocupa lo mismo que ocupaba, para que
+ * bloquear no mueva nada de sitio.
+ */
+.centerPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.centerContent {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/*
+ * `inert` aporta el bloqueo real; esta atenuación aporta la señal visual que
+ * faltaba. Resolver permanece fuera de esta clase, así que conserva contraste
+ * y deja claro dónde continúa la tarea.
+ */
+.leftPane.blockedSurface > *,
+.actionBarSlot.blockedSurface,
+.body.blockedSurface {
+  opacity: var(--blocked-surface-opacity);
+  filter: grayscale(0.85);
+  transition: opacity var(--duration-fast) ease;
+}
+
+[data-theme='contraste'] .leftPane.blockedSurface > *,
+[data-theme='contraste'] .actionBarSlot.blockedSurface,
+[data-theme='contraste'] .body.blockedSurface {
+  filter: none;
+}

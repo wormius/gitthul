@@ -1,0 +1,73 @@
+.layout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.sidebar {
+  display: flex;
+  flex: 0 0 200px;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border-subtle);
+}
+
+/*
+ * El contenido se centra en el ancho disponible en vez de pegarse al rail de
+ * tabs. Cada sección se mide sola —`SettingsSection` y su variante ancha—, así
+ * que aquí solo se decide dónde queda esa columna: centrada, y anclada arriba
+ * para que una sección corta no flote a media altura.
+ */
+.content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  overflow-y: auto;
+  padding: var(--space-5) var(--space-6);
+}
+
+.back {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--control-height-lg);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: calc(var(--text-md) + 1px);
+  font-weight: var(--font-weight-medium);
+  text-align: start;
+  cursor: pointer;
+}
+
+.back:hover {
+  background: var(--surface-hover);
+}
+
+.back:active {
+  background: var(--surface-active);
+}
+
+.backIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-accent);
+}
+
+.backIcon svg {
+  width: calc(var(--icon-lg) + 2px);
+  height: calc(var(--icon-lg) + 2px);
+}
+
+.section {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}

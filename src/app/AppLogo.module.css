@@ -1,0 +1,19 @@
+.logo {
+  display: block;
+  width: auto;
+  height: 100%;
+}
+
+/* Monocromo y heredado: el Cthulhu se invierte con el modo porque toma el color
+   del texto que lo rodea, no uno propio. */
+.cthulhu {
+  fill: currentColor;
+}
+
+.git {
+  fill: var(--text-secondary);
+}
+
+.thul {
+  fill: var(--accent);
+}

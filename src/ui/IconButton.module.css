@@ -1,0 +1,103 @@
+.button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  background-image: var(--disabled-pattern);
+  opacity: var(--disabled-opacity);
+}
+
+.sm {
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+}
+
+.md {
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+}
+
+.lg {
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+}
+
+.primary {
+  color: var(--text-on-accent);
+  background-color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+.primary:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+
+.primary:active:not(:disabled) {
+  background-color: var(--accent-active);
+}
+
+.secondary {
+  color: var(--text-primary);
+  background-color: var(--surface-raised);
+  border-color: var(--border-subtle);
+}
+
+.secondary:hover:not(:disabled) {
+  background-color: var(--surface-hover);
+}
+
+.secondary:active:not(:disabled) {
+  background-color: var(--surface-active);
+}
+
+.ghost {
+  color: var(--text-secondary);
+}
+
+.ghost:hover:not(:disabled) {
+  color: var(--text-primary);
+  background-color: var(--surface-hover);
+}
+
+.ghost:active:not(:disabled) {
+  background-color: var(--surface-active);
+}
+
+.ghost[aria-pressed='true'] {
+  color: var(--text-on-accent);
+  background-color: var(--accent);
+}
+
+/* El hover del botón fantasma presionado usa el hover del acento. */
+.ghost[aria-pressed='true']:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+
+.ghost[aria-pressed='true']:active:not(:disabled) {
+  background-color: var(--accent-active);
+}
+
+.icon {
+  display: inline-flex;
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.sm .icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.lg .icon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}

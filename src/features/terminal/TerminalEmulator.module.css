@@ -1,0 +1,70 @@
+.emulator {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--terminal-bg);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.searchBar {
+  position: absolute;
+  z-index: var(--z-raised);
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: calc(100% - var(--space-6));
+  padding: var(--space-1);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+}
+
+.searchInput {
+  width: min(18rem, 55vw);
+}
+
+.linkPrompt {
+  position: absolute;
+  z-index: var(--z-modal);
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(26rem, calc(100% - var(--space-6)));
+  padding: var(--space-4);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  transform: translate(-50%, -50%);
+}
+
+.linkActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.pty {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--terminal-bg);
+  color: var(--terminal-foreground);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-md);
+}
+
+.pty :global(.xterm) {
+  height: 100%;
+}

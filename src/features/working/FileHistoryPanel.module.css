@@ -1,0 +1,173 @@
+/* Ocupa el panel derecho completo; el diff puede permanecer abierto al centro. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background-color: var(--surface-panel);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3);
+}
+
+.fileSummary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  background-color: var(--surface-raised);
+  border-bottom: var(--border-width) solid var(--border-strong);
+}
+
+.fileName {
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+}
+
+.filePath {
+  color: var(--text-muted);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+}
+
+.facts > div {
+  min-width: 0;
+}
+
+.facts dt {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.card,
+.row {
+  display: flex;
+  border-radius: var(--radius-sm);
+}
+
+.card {
+  border: var(--border-width) solid var(--border-subtle);
+  background-color: var(--surface-panel);
+}
+
+.card[data-current] {
+  background-color: var(--surface-selected);
+  border-color: var(--border-accent);
+  box-shadow: inset var(--space-1) 0 0 var(--accent);
+}
+
+.card > .row {
+  flex: 1 1 auto;
+}
+
+.row:hover {
+  background-color: var(--surface-hover);
+}
+
+/* El botón que ocupa la fila entera. Sin fondo ni borde propios: el resalte lo
+   pinta la fila, así que pulsar no cambia ninguna caja — invariante 1. */
+.open {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.open:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.current {
+  color: var(--text-accent);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.meta {
+  grid-row: 2;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.sha {
+  color: var(--text-muted);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+}
+
+.order {
+  grid-row: 2;
+  grid-column: 3;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}

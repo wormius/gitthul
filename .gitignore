@@ -1,0 +1,34 @@
+# Dependencias
+node_modules/
+
+# Construcción
+dist/
+dist-ssr/
+build/
+src-tauri/target/
+src-tauri/gen/
+
+# Entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Cachés de herramientas
+.vite/
+.eslintcache
+coverage/
+*.tsbuildinfo
+
+# Artefactos de los workflows
+release-assets/
+release-upload/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp

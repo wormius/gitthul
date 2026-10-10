@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag, for example v1.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve existing version tag
+        id: version
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { execFileSync } from 'node:child_process';
+          import assert from 'node:assert/strict';
+          const tag = process.env.RELEASE_TAG;
+          assert.match(tag, /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
+          const commit = execFileSync('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], { encoding: 'utf8' }).trim();
+          assert.match(commit, /^[a-f0-9]{40}$/);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\ncommit=${commit}\n`);
+          NODE
+
+  packages:
+    needs: version
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.version.outputs.commit }}
+      release-tag: ${{ needs.version.outputs.tag }}
+      packages: true
+
+  draft:
+    name: Draft release with all installers
+    needs: [version, packages]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: gitthul-*
+          path: release-assets
+      - name: Prepare release assets and checksums
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import crypto from 'node:crypto';
+          import assert from 'node:assert/strict';
+          const platforms = ['linux-x64', 'windows-x64', 'macos-arm64', 'macos-x64'];
+          fs.mkdirSync('release-upload');
+          for (const platform of platforms) {
+            const dir = path.join('release-assets', `gitthul-${platform}`);
+            const files = fs.readdirSync(dir);
+            assert.ok(files.length, `No installers for ${platform}`);
+            for (const name of files) {
+              const dest = path.join('release-upload', name);
+              assert.ok(fs.lstatSync(path.join(dir, name)).isFile());
+              assert.ok(!fs.existsSync(dest), `Duplicate asset: ${name}`);
+              fs.copyFileSync(path.join(dir, name), dest);
+            }
+          }
+          const sums = fs.readdirSync('release-upload').sort().map(name => {
+            const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join('release-upload', name))).digest('hex');
+            return `${hash}  ${name}`;
+          });
+          fs.writeFileSync('release-upload/SHA256SUMS.txt', sums.join('\n') + '\n');
+          NODE
+      - name: Create or update draft
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const { owner, repo } = context.repo;
+            const tag = process.env.RELEASE_TAG;
+            const version = tag.slice(1);
+            const tagCommit = (await github.rest.repos.getCommit({ owner, repo, ref: tag })).data.sha;
+            if (tagCommit !== process.env.RELEASE_COMMIT) throw new Error('The version tag moved while building.');
+            const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 });
+            let release = releases.find(item => item.tag_name === tag);
+            if (release && !release.draft) throw new Error('Refusing to modify an already published release.');
+            const details = {
+              owner, repo, name: `GitThul ${version}`,
+              body: fs.readFileSync(`docs/releases/${version}.md`, 'utf8'),
+              draft: true, prerelease: version.includes('-'),
+            };
+            if (release) {
+              release = (await github.rest.repos.updateRelease({ ...details, release_id: release.id })).data;
+            } else {
+              release = (await github.rest.repos.createRelease({ ...details, tag_name: tag, target_commitish: process.env.RELEASE_COMMIT })).data;
+            }
+            const oldAssets = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: release.id, per_page: 100 });
+            for (const name of fs.readdirSync('release-upload').sort()) {
+              const old = oldAssets.find(item => item.name === name);
+              if (old) await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: old.id });
+              await github.rest.repos.uploadReleaseAsset({
+                owner, repo, release_id: release.id, name,
+                data: fs.readFileSync(path.join('release-upload', name)),
+              });
+            }
+            await core.summary.addLink('Review draft release', release.html_url).write();

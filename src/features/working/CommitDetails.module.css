@@ -1,0 +1,90 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+
+.summary {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* El cuerpo del mensaje conserva sus saltos de línea: es texto escrito a mano. */
+.body {
+  margin: 0;
+  max-height: 8lh;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.author {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.authorText {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.name {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.email {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.date {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sha {
+  color: var(--text-muted);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.error {
+  padding: var(--space-3);
+  overflow-y: auto;
+}

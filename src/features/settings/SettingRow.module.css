@@ -1,0 +1,32 @@
+.row {
+  display: grid;
+  grid-template-columns: var(--settings-label-column, 14rem) minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-5);
+  min-block-size: var(--control-height-md);
+  padding: var(--space-2) 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.control {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--space-2);
+}
+
+@media (max-width: 800px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-1);
+  }
+}

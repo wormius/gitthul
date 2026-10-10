@@ -1,0 +1,48 @@
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+  text-align: center;
+}
+
+.logo {
+  height: 8rem;
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+}
+
+.version {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--text-primary);
+}
+
+.license,
+.tagline {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.trademark {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Envuelve porque el diálogo es estrecho y los dos rótulos crecen con el
+   idioma: en alemán no caben en una línea y no van a empujar el ancho. */
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  margin-top: var(--space-3);
+}
+
+.offline {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

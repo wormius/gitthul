@@ -1,0 +1,106 @@
+.button {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-family: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-ui);
+  background-color: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  min-height: var(--control-height-md);
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Solo color: cambiar padding o border-width en :hover desplazaría la caja. */
+.button:disabled {
+  cursor: not-allowed;
+  background-image: var(--disabled-pattern);
+  opacity: var(--disabled-opacity);
+}
+
+.sm {
+  min-height: var(--control-height-sm);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.md {
+  min-height: var(--control-height-md);
+}
+
+.lg {
+  min-height: var(--control-height-lg);
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-lg);
+}
+
+.primary {
+  color: var(--text-on-accent);
+  background-color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+.primary:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+
+.primary:active:not(:disabled) {
+  background-color: var(--accent-active);
+}
+
+.secondary {
+  color: var(--text-primary);
+  background-color: var(--surface-raised);
+  border-color: var(--border-subtle);
+}
+
+.secondary:hover:not(:disabled) {
+  background-color: var(--surface-hover);
+}
+
+.secondary:active:not(:disabled) {
+  background-color: var(--surface-active);
+}
+
+.ghost {
+  color: var(--text-primary);
+  border-color: transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  background-color: var(--surface-hover);
+}
+
+.ghost:active:not(:disabled) {
+  background-color: var(--surface-active);
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--icon-md);
+  min-height: var(--icon-md);
+}
+
+/* Los avatares conservan su tamaño; un SVG decorativo usa el tamaño de icono. */
+.icon > svg {
+  flex: none;
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.label {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  text-align: center;
+  min-width: 0;
+}

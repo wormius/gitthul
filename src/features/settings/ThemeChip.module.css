@@ -1,0 +1,141 @@
+/*
+ * El chip se pinta con los tokens del tema que lleva puesto, no con los del
+ * tema activo. Ver la cabecera de `roles.css`: la capa de roles se declara
+ * también para `[data-theme]`, y eso es lo que hace que este subárbol resuelva
+ * sus propias superficies.
+ */
+
+.chip {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font: inherit;
+  font-family: var(--font-family-ui);
+  text-align: start;
+  cursor: pointer;
+
+  /* El anillo de lo elegido va en `outline`, que no ocupa espacio; el hover solo
+     lo insinúa con una sombra interior. Ni el borde ni el relleno cambian nunca:
+     invariante 1. */
+  outline: var(--focus-ring-width) solid transparent;
+  outline-offset: var(--focus-ring-offset);
+  transition: outline-color var(--duration-fast) ease;
+}
+
+.chip:hover {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.chip:focus-visible {
+  outline-color: var(--focus-ring-color);
+}
+
+.chip[data-selected] {
+  outline-color: var(--accent);
+}
+
+/*
+ * La muestra se mide en `rem` y no con los tokens de espaciado a propósito.
+ * Con las medidas de la densidad, en «amplio» el cuadro de color se comía el
+ * ancho del chip y el nombre del tema desaparecía tras los puntos suspensivos —
+ * que es justo lo que hay que leer para elegir. El aire alrededor sí es de la
+ * densidad; lo que no puede crecer es el dibujo.
+ */
+.swatches {
+  display: flex;
+  flex: 0 0 auto;
+  inline-size: 4.5rem;
+  block-size: 3.4rem;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-app);
+}
+
+.miniRail {
+  inline-size: 25%;
+  border-inline-end: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+}
+
+.miniMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-inline-size: 0;
+  padding: 0.35rem;
+}
+
+.accent {
+  block-size: 0.4rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+}
+
+.miniRow {
+  block-size: 0.25rem;
+  inline-size: 80%;
+  background: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.miniRow + .miniRow {
+  inline-size: 55%;
+}
+
+.miniTerminal {
+  margin-block-start: auto;
+  padding-inline: 0.2rem;
+  border-radius: var(--radius-sm);
+  background: var(--terminal-bg);
+  color: var(--terminal-prompt);
+  font-family: var(--font-family-code);
+  font-size: 0.65rem;
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+/* Envuelve en vez de recortarse: un nombre de tema a medias no sirve de nada. */
+.label {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* La caja de la palomita existe siempre; solo cambia de opacidad. */
+.check {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--icon-md);
+  block-size: var(--icon-md);
+  color: var(--text-accent);
+  opacity: 0;
+}
+
+.check svg {
+  inline-size: var(--icon-md);
+  block-size: var(--icon-md);
+}
+
+.chip[data-selected] .check {
+  opacity: 1;
+}

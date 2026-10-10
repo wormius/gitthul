@@ -1,0 +1,57 @@
+/*
+ * La ficha de las dos versiones. Centrada y estrecha a propósito: lo que se
+ * decide aquí son dos botones, y una ficha a todo lo ancho haría buscar dónde
+ * está la decisión.
+ */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(560px, 100%);
+  margin: auto;
+  padding: var(--space-5);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--font-family-code);
+  font-size: var(--text-md);
+}
+
+.reason {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.sides {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.side {
+  flex: 1 1 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.side dt {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.side dd {
+  margin: var(--space-1) 0 0;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

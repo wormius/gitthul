@@ -1,0 +1,95 @@
+/*
+ * Tipografía: familias y las dos escalas de tamaño.
+ *
+ * La interfaz y los visores de archivo son ajustes independientes, porque no
+ * responden a lo mismo: quien agranda la interfaz para leer los menús no
+ * necesariamente quiere menos líneas de código a la vista, y al revés. Por eso
+ * hay --font-size-ui y --font-size-code, y cada uno tiene su familia.
+ *
+ * Los pasos de la escala se calculan sumando píxeles, no multiplicando: a
+ * tamaños grandes un factor exagera las diferencias y a tamaños pequeños las
+ * borra. Sumar mantiene el mismo salto perceptible en todo el rango del ajuste.
+ */
+
+:root {
+  --font-family-ui: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-family-code: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+
+  --font-size-ui: 13px;
+  --font-size-code: 13px;
+
+  /* Tres pesos. El peso nunca señala estado ni hover: eso desplazaría el texto. */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+
+  --letter-spacing-tight: -0.01em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.04em;
+}
+
+/*
+ * Las dos escalas, derivadas de su propio ajuste.
+ *
+ * Se declaran también para `[data-type-scale]`, y no solo en `:root`, por lo mismo
+ * que la capa de roles se declara para `[data-theme]`: un token se calcula donde
+ * se declara, así que un subárbol que fije su propio `--font-size-ui` seguiría
+ * heredando el `--text-md` ya resuelto de la raíz. El único que lo usa es la
+ * maqueta de Apariencia, que enseña la interfaz con el tamaño que se está
+ * eligiendo; sin este bloque, cambiar el tamaño no movía una letra de la maqueta y
+ * la vista previa mentía.
+ */
+:root,
+[data-type-scale] {
+  --text-xs: calc(var(--font-size-ui) - 2px);
+  --text-sm: calc(var(--font-size-ui) - 1px);
+  --text-md: var(--font-size-ui);
+  --text-lg: calc(var(--font-size-ui) + 2px);
+  --text-xl: calc(var(--font-size-ui) + 5px);
+  --text-2xl: calc(var(--font-size-ui) + 11px);
+
+  --code-size-sm: calc(var(--font-size-code) - 1px);
+  --code-size-md: var(--font-size-code);
+}
+
+/* Familias de interfaz. Space Grotesk es la de fábrica y está además en :root,
+   pero necesita su propio bloque por atributo para que una ficha de espécimen
+   con data-font-ui puesto se pinte en ella — igual que density.css hace con
+   «cómodo». */
+[data-font-ui='space-grotesk'] {
+  --font-family-ui: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+[data-font-ui='inter'] {
+  --font-family-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+[data-font-ui='ibm-plex-sans'] {
+  --font-family-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+[data-font-ui='atkinson-hyperlegible'] {
+  --font-family-ui:
+    'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+[data-font-ui='source-sans-3'] {
+  --font-family-ui: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Familias de los visores */
+[data-font-code='jetbrains-mono'] {
+  --font-family-code: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+}
+
+[data-font-code='ibm-plex-mono'] {
+  --font-family-code: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+[data-font-code='fira-code'] {
+  --font-family-code: 'Fira Code', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+[data-font-code='cascadia-code'] {
+  --font-family-code: 'Cascadia Code', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+}

@@ -1,0 +1,95 @@
+/*
+ * La barra vive fuera del flujo, pegada al borde derecho de quien la aloja.
+ *
+ * Es lo que garantiza la invariante 1 sin depender de ninguna regla de hover:
+ * lo que está en capa absoluta no empuja a nadie, así que un archivo con veinte
+ * marcas y uno sin ninguna dejan el contenido exactamente en el mismo sitio.
+ */
+
+.scrollbar {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: var(--z-raised);
+  width: var(--icon-md);
+  pointer-events: none;
+}
+
+.scrollbar[data-seekable] {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/*
+ * La ventana visible. Va con `outline` y no con borde para que no haya un caso
+ * en el que sumar el filete cambie la altura de la banda.
+ */
+.viewport {
+  position: absolute;
+  inset-inline: 0;
+  background-color: var(--surface-hover);
+  outline: var(--border-width) solid var(--border-strong);
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+.viewport:active {
+  cursor: grabbing;
+}
+
+/*
+ * Cada marca. Los tonos reutilizan las tintas del diff —las saturadas, no los
+ * lavados de fondo— porque a este ancho un lavado sobre el panel no se ve.
+ */
+.marker {
+  position: absolute;
+  inset-inline: var(--space-1);
+  padding: 0;
+  background-color: var(--text-muted);
+  border: none;
+  border-radius: var(--radius-sm);
+  pointer-events: auto;
+}
+
+.marker[data-tone='added'] {
+  background-color: var(--diff-added-ink);
+}
+
+.marker[data-tone='removed'] {
+  background-color: var(--diff-removed-ink);
+}
+
+.marker[data-tone='mixed'] {
+  background: linear-gradient(
+    to bottom,
+    var(--diff-added-ink) 0 50%,
+    var(--diff-removed-ink) 50% 100%
+  );
+}
+
+.marker[data-tone='changed'] {
+  background-color: var(--accent);
+}
+
+.marker[data-tone='conflict'] {
+  background-color: var(--text-warning);
+}
+
+/* Hover y foco solo con `outline`: ni el ancho ni la posición se tocan, o la
+   marca saltaría justo cuando el puntero va a alcanzarla. */
+.marker:hover {
+  outline: var(--border-width) solid var(--text-primary);
+}
+
+.marker:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.marker[data-tone='ours'] {
+  background-color: var(--conflict-ours-ink);
+}
+.marker[data-tone='theirs'] {
+  background-color: var(--conflict-theirs-ink);
+}

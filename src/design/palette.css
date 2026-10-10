@@ -1,0 +1,1443 @@
+/*
+ * Capa 1 del sistema de tokens: paleta literal.
+ *
+ * Aquí — y solo aquí — se escriben valores de color. Las capas de arriba
+ * (roles.css) nombran para qué sirve cada uno; ningún componente lee estas
+ * variables directamente.
+ *
+ * En modo claro, los fondos principales y el editor son casi blancos; la
+ * identidad de cada familia se concentra en los acentos y estados de interacción.
+ *
+ * Siete temas x dos modos. El modo se aplica siempre por atributo, nunca por
+ * @media: el usuario puede fijarlo desde la interfaz y el shell resuelve
+ * prefers-color-scheme antes de escribir data-mode en <html>.
+ *
+ * Todo par texto/fondo cumple 4.5:1, y 7:1 en «Contraste»; los pares gráficos,
+ * 3:1 y 4.5:1. Lo comprueba tokens.test.ts leyendo este mismo archivo: tocar un
+ * valor a mano y bajar del mínimo rompe la prueba.
+ *
+ * Dos convenciones que explican valores que si no parecerían arbitrarios:
+ * `-hover` y `-active` del acento se alejan del acento hacia el extremo del
+ * modo — aclaran en oscuro, oscurecen en claro — de modo que el estado
+ * presionado nunca vuelve ilegible su etiqueta; y `-text` es la variante del
+ * acento apta para texto, que no siempre puede ser el acento mismo.
+ */
+
+/* Sargazo — musgo, oliva y lima sobre superficies botánicas. */
+
+[data-theme='sargazo'][data-mode='dark'] {
+  /* Superficies */
+  --palette-bg: #101407;
+  --palette-panel: #1a210f;
+  --palette-raised: #242d17;
+  --palette-sunken: #0b0f05;
+  --palette-hover: #2d381b;
+  --palette-active: #323e20;
+  --palette-selected: #354522;
+
+  /* Texto */
+  --palette-ink: #eef1dc;
+  --palette-monochrome: #ffffff;
+  --palette-ink-dim: #c3cbb0;
+  --palette-ink-faint: #a7b58b;
+  --palette-ink-disabled: #73835e;
+
+  /* Bordes */
+  --palette-border: #65744b;
+  --palette-border-strong: #84956c;
+
+  /* Acento */
+  --palette-accent: #bbcf56;
+  --palette-accent-hover: #ccdb78;
+  --palette-accent-active: #dce79b;
+  --palette-accent-text: #c2d765;
+  --palette-accent-ink: #101605;
+  --palette-accent-wash: #303a16;
+  --palette-accent-border: #889b35;
+  --palette-accent-2: #e0ae67;
+
+  /* Estado */
+  --palette-success: #4ade9b;
+  --palette-success-wash: #0f2b21;
+  --palette-success-border: #2a7a5a;
+  --palette-warning: #e8b04a;
+  --palette-warning-wash: #2e2310;
+  --palette-warning-border: #8a6a22;
+  --palette-danger: #ff7681;
+  --palette-danger-wash: #341419;
+  --palette-danger-border: #9e3542;
+  --palette-info: #66b4f8;
+  --palette-info-wash: #0f2334;
+  --palette-info-border: #2a5f8e;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #bbcf56;
+  --palette-graph-2: #e0ae67;
+  --palette-graph-3: #6aa8f0;
+  --palette-graph-4: #75caa1;
+  --palette-graph-5: #e0a63c;
+  --palette-graph-6: #f0616c;
+  --palette-graph-7: #a98ce8;
+  --palette-graph-8: #b7c29d;
+
+  /* Avatares — 16 tonos para el disco con texto blanco/oscuro encima. Los
+     primeros 8 coinciden con las ramas del grafo; los 8 siguientes amplían la
+     paleta sin tocar la semántica del grafo. */
+  --palette-avatar-1: #e05555;
+  --palette-avatar-2: #e88030;
+  --palette-avatar-3: #c8a820;
+  --palette-avatar-4: #58b840;
+  --palette-avatar-5: #28b870;
+  --palette-avatar-6: #20b0a8;
+  --palette-avatar-7: #38a0d8;
+  --palette-avatar-8: #5080e8;
+  --palette-avatar-9: #8878e8;
+  --palette-avatar-10: #b860e0;
+  --palette-avatar-11: #d048a8;
+  --palette-avatar-12: #e04870;
+  --palette-avatar-13: #c07030;
+  --palette-avatar-14: #78a830;
+  --palette-avatar-15: #4898b0;
+  --palette-avatar-16: #a070c0;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #0f2b21b3;
+  --palette-diff-removed-bg: #341419b3;
+  --palette-diff-added-ink: #4ade9b;
+  --palette-diff-removed-ink: #ff7681;
+  --palette-diff-word-added: #1c554099;
+  --palette-diff-word-removed: #66252e99;
+  --palette-conflict-ours-ink: #69b5ff;
+  --palette-conflict-ours: #1761aa40;
+  --palette-conflict-theirs-ink: #ffae68;
+  --palette-conflict-theirs: #b85e2040;
+  --palette-conflict-both: #2e2310b3;
+  --palette-conflict-auto: #0f2b21b3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #131a09;
+  --palette-editor-gutter: #101407;
+  --palette-syntax-keyword: #ccb0f4;
+  --palette-syntax-string: #7dcca3;
+  --palette-syntax-function: #88c1ff;
+  --palette-syntax-number: #e9bd65;
+  --palette-syntax-annotation: #f0a6d0;
+  --palette-syntax-type: #78cbd5;
+  --palette-syntax-property: #b4bfcd;
+  --palette-syntax-comment: #b2bec8;
+}
+
+[data-theme='sargazo'][data-mode='light'] {
+  /* Superficies */
+  --palette-bg: #fcfcf8;
+  --palette-panel: #fefefa;
+  --palette-raised: #fffffc;
+  --palette-sunken: #f8f9f2;
+  --palette-hover: #e2e7c5;
+  --palette-active: #d9dfb8;
+  --palette-selected: #d6dfae;
+
+  /* Texto */
+  --palette-ink: #20280e;
+  --palette-monochrome: #000000;
+  --palette-ink-dim: #495232;
+  --palette-ink-faint: #5e6747;
+  --palette-ink-disabled: #8f9a74;
+
+  /* Bordes */
+  --palette-border: #a3ae7b;
+  --palette-border-strong: #778455;
+
+  /* Acento */
+  --palette-accent: #4d6312;
+  --palette-accent-hover: #40530f;
+  --palette-accent-active: #33420c;
+  --palette-accent-text: #465b0f;
+  --palette-accent-ink: #ffffff;
+  --palette-accent-wash: #e6edc4;
+  --palette-accent-border: #97ab4c;
+  --palette-accent-2: #815214;
+
+  /* Estado */
+  --palette-success: #0a6b47;
+  --palette-success-wash: #e2f5ec;
+  --palette-success-border: #6fbf9c;
+  --palette-warning: #7a5300;
+  --palette-warning-wash: #fcf0d8;
+  --palette-warning-border: #c9a45a;
+  --palette-danger: #b4232f;
+  --palette-danger-wash: #fde7e9;
+  --palette-danger-border: #de8a92;
+  --palette-info: #0b5c9e;
+  --palette-info-wash: #e3f0fb;
+  --palette-info-border: #79abd6;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #4d6312;
+  --palette-graph-2: #815214;
+  --palette-graph-3: #185fa5;
+  --palette-graph-4: #087050;
+  --palette-graph-5: #8a5a00;
+  --palette-graph-6: #b4232f;
+  --palette-graph-7: #6b3fb0;
+  --palette-graph-8: #58633e;
+
+  /* Avatares */
+  --palette-avatar-1: #c02020;
+  --palette-avatar-2: #b06010;
+  --palette-avatar-3: #7a6800;
+  --palette-avatar-4: #2e7518;
+  --palette-avatar-5: #087050;
+  --palette-avatar-6: #0a6070;
+  --palette-avatar-7: #1858a0;
+  --palette-avatar-8: #2840b8;
+  --palette-avatar-9: #5530b8;
+  --palette-avatar-10: #8018a8;
+  --palette-avatar-11: #a81870;
+  --palette-avatar-12: #b81840;
+  --palette-avatar-13: #804020;
+  --palette-avatar-14: #407010;
+  --palette-avatar-15: #1a5870;
+  --palette-avatar-16: #683888;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #e2f5ecb3;
+  --palette-diff-removed-bg: #fde7e9b3;
+  --palette-diff-added-ink: #0a6b47;
+  --palette-diff-removed-ink: #b4232f;
+  --palette-diff-word-added: #b8e8d299;
+  --palette-diff-word-removed: #f8c4ca99;
+  --palette-conflict-ours-ink: #0866be;
+  --palette-conflict-ours: #2487ed24;
+  --palette-conflict-theirs-ink: #a34c09;
+  --palette-conflict-theirs: #f48a2829;
+  --palette-conflict-both: #fcf0d8b3;
+  --palette-conflict-auto: #e2f5ecb3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #fefefa;
+  --palette-editor-gutter: #fcfcf8;
+  --palette-syntax-keyword: #7029ad;
+  --palette-syntax-string: #146335;
+  --palette-syntax-function: #1455a5;
+  --palette-syntax-number: #874600;
+  --palette-syntax-annotation: #98296f;
+  --palette-syntax-type: #00616e;
+  --palette-syntax-property: #484583;
+  --palette-syntax-comment: #505a64;
+}
+
+/* Thul — tema principal: tinta neutra, gris «Git» y magenta «Thul». */
+
+[data-theme='thul'][data-mode='dark'] {
+  /* Superficies */
+  --palette-bg: #0b0b0f;
+  --palette-panel: #131318;
+  --palette-raised: #1c1c24;
+  --palette-sunken: #08080c;
+  --palette-hover: #25252f;
+  --palette-active: #2a2a36;
+  --palette-selected: #40214b;
+
+  /* Texto */
+  --palette-ink: #ececf1;
+  --palette-monochrome: #ffffff;
+  --palette-ink-dim: #a6a6b4;
+  --palette-ink-faint: #8a8a96;
+  --palette-ink-disabled: #6a6a76;
+
+  /* Bordes */
+  --palette-border: #56565f;
+  --palette-border-strong: #67676e;
+
+  /* Acento */
+  --palette-accent: #c24bd6;
+  --palette-accent-hover: #cb64dc;
+  --palette-accent-active: #d37de1;
+  --palette-accent-text: #c759d9;
+  --palette-accent-ink: #0a0510;
+  --palette-accent-wash: #301539;
+  --palette-accent-border: #8b34a0;
+  --palette-accent-2: #7b5be0;
+
+  /* Estado */
+  --palette-success: #4ade9b;
+  --palette-success-wash: #0f2b21;
+  --palette-success-border: #2a7a5a;
+  --palette-warning: #e8b04a;
+  --palette-warning-wash: #2e2310;
+  --palette-warning-border: #8a6a22;
+  --palette-danger: #ff7681;
+  --palette-danger-wash: #341419;
+  --palette-danger-border: #9e3542;
+  --palette-info: #66b4f8;
+  --palette-info-wash: #0f2334;
+  --palette-info-border: #2a5f8e;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #c24bd6;
+  --palette-graph-2: #7b5be0;
+  --palette-graph-3: #4a96ee;
+  --palette-graph-4: #3fcf9b;
+  --palette-graph-5: #e0a63c;
+  --palette-graph-6: #f0616c;
+  --palette-graph-7: #39c9c9;
+  --palette-graph-8: #a8a8bc;
+
+  /* Avatares */
+  --palette-avatar-1: #e05555;
+  --palette-avatar-2: #e88030;
+  --palette-avatar-3: #c8a820;
+  --palette-avatar-4: #58b840;
+  --palette-avatar-5: #28b870;
+  --palette-avatar-6: #20b0a8;
+  --palette-avatar-7: #38a0d8;
+  --palette-avatar-8: #5080e8;
+  --palette-avatar-9: #8878e8;
+  --palette-avatar-10: #b860e0;
+  --palette-avatar-11: #d048a8;
+  --palette-avatar-12: #e04870;
+  --palette-avatar-13: #c07030;
+  --palette-avatar-14: #78a830;
+  --palette-avatar-15: #4898b0;
+  --palette-avatar-16: #a070c0;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #0f2b21b3;
+  --palette-diff-removed-bg: #341419b3;
+  --palette-diff-added-ink: #4ade9b;
+  --palette-diff-removed-ink: #ff7681;
+  --palette-diff-word-added: #1c554099;
+  --palette-diff-word-removed: #66252e99;
+  --palette-conflict-ours-ink: #69b5ff;
+  --palette-conflict-ours: #1761aa40;
+  --palette-conflict-theirs-ink: #ffae68;
+  --palette-conflict-theirs: #b85e2040;
+  --palette-conflict-both: #2e2310b3;
+  --palette-conflict-auto: #0f2b21b3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #0e0e13;
+  --palette-editor-gutter: #0b0b0f;
+  --palette-syntax-keyword: #f1a5d6;
+  --palette-syntax-string: #89cf9c;
+  --palette-syntax-function: #8fbfff;
+  --palette-syntax-number: #f0b879;
+  --palette-syntax-annotation: #cbaeff;
+  --palette-syntax-type: #7cd5d1;
+  --palette-syntax-property: #c5bbdf;
+  --palette-syntax-comment: #c2b9c9;
+}
+
+[data-theme='thul'][data-mode='light'] {
+  /* Superficies */
+  --palette-bg: #f8f8fa;
+  --palette-panel: #ffffff;
+  --palette-raised: #ffffff;
+  --palette-sunken: #f2f2f5;
+  --palette-hover: #e4e4ea;
+  --palette-active: #dedee6;
+  --palette-selected: #e6c8ec;
+
+  /* Texto */
+  --palette-ink: #101014;
+  --palette-monochrome: #000000;
+  --palette-ink-dim: #4e4e58;
+  --palette-ink-faint: #686872;
+  --palette-ink-disabled: #9a9aa4;
+
+  /* Bordes */
+  --palette-border: #aaaab2;
+  --palette-border-strong: #85858c;
+
+  /* Acento */
+  --palette-accent: #8a0c9c;
+  --palette-accent-hover: #770a86;
+  --palette-accent-active: #630970;
+  --palette-accent-text: #8a0c9c;
+  --palette-accent-ink: #ffffff;
+  --palette-accent-wash: #f7e6fa;
+  --palette-accent-border: #c77ad4;
+  --palette-accent-2: #5b3fd9;
+
+  /* Estado */
+  --palette-success: #0a6b47;
+  --palette-success-wash: #e2f5ec;
+  --palette-success-border: #6fbf9c;
+  --palette-warning: #7a5300;
+  --palette-warning-wash: #fcf0d8;
+  --palette-warning-border: #c9a45a;
+  --palette-danger: #b4232f;
+  --palette-danger-wash: #fde7e9;
+  --palette-danger-border: #de8a92;
+  --palette-info: #0b5c9e;
+  --palette-info-wash: #e3f0fb;
+  --palette-info-border: #79abd6;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #8a0c9c;
+  --palette-graph-2: #5b3fd9;
+  --palette-graph-3: #185fa5;
+  --palette-graph-4: #0a6b47;
+  --palette-graph-5: #8a5a00;
+  --palette-graph-6: #b4232f;
+  --palette-graph-7: #0a6e70;
+  --palette-graph-8: #55555f;
+
+  /* Avatares */
+  --palette-avatar-1: #c02020;
+  --palette-avatar-2: #b06010;
+  --palette-avatar-3: #7a6800;
+  --palette-avatar-4: #2e7518;
+  --palette-avatar-5: #087050;
+  --palette-avatar-6: #0a6070;
+  --palette-avatar-7: #1858a0;
+  --palette-avatar-8: #2840b8;
+  --palette-avatar-9: #5530b8;
+  --palette-avatar-10: #8018a8;
+  --palette-avatar-11: #a81870;
+  --palette-avatar-12: #b81840;
+  --palette-avatar-13: #804020;
+  --palette-avatar-14: #407010;
+  --palette-avatar-15: #1a5870;
+  --palette-avatar-16: #683888;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #e2f5ecb3;
+  --palette-diff-removed-bg: #fde7e9b3;
+  --palette-diff-added-ink: #0a6b47;
+  --palette-diff-removed-ink: #b4232f;
+  --palette-diff-word-added: #b8e8d299;
+  --palette-diff-word-removed: #f8c4ca99;
+  --palette-conflict-ours-ink: #0866be;
+  --palette-conflict-ours: #2487ed24;
+  --palette-conflict-theirs-ink: #a34c09;
+  --palette-conflict-theirs: #f48a2829;
+  --palette-conflict-both: #fcf0d8b3;
+  --palette-conflict-auto: #e2f5ecb3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #ffffff;
+  --palette-editor-gutter: #f8f8fa;
+  --palette-syntax-keyword: #92216f;
+  --palette-syntax-string: #226332;
+  --palette-syntax-function: #174fa5;
+  --palette-syntax-number: #894100;
+  --palette-syntax-annotation: #6c2fb0;
+  --palette-syntax-type: #006269;
+  --palette-syntax-property: #554080;
+  --palette-syntax-comment: #605361;
+}
+
+/* Abismo — azul oceánico profundo y cian glacial. */
+
+[data-theme='abismo'][data-mode='dark'] {
+  /* Superficies */
+  --palette-bg: #031320;
+  --palette-panel: #082336;
+  --palette-raised: #0e2d42;
+  --palette-sunken: #020d18;
+  --palette-hover: #12374b;
+  --palette-active: #164055;
+  --palette-selected: #13445d;
+
+  /* Texto */
+  --palette-ink: #e4f5ff;
+  --palette-monochrome: #ffffff;
+  --palette-ink-dim: #afd0e2;
+  --palette-ink-faint: #95bacc;
+  --palette-ink-disabled: #607f94;
+
+  /* Bordes */
+  --palette-border: #486b83;
+  --palette-border-strong: #7897af;
+
+  /* Acento */
+  --palette-accent: #45d7ff;
+  --palette-accent-hover: #6ae1ff;
+  --palette-accent-active: #8feaff;
+  --palette-accent-text: #5adcff;
+  --palette-accent-ink: #02111d;
+  --palette-accent-wash: #0b374d;
+  --palette-accent-border: #2b9abd;
+  --palette-accent-2: #70a5ff;
+
+  /* Estado */
+  --palette-success: #4ade9b;
+  --palette-success-wash: #0c2b20;
+  --palette-success-border: #2a7a5a;
+  --palette-warning: #e8b04a;
+  --palette-warning-wash: #2b2412;
+  --palette-warning-border: #8a6a22;
+  --palette-danger: #ff7681;
+  --palette-danger-wash: #331619;
+  --palette-danger-border: #9e3542;
+  --palette-info: #66b4f8;
+  --palette-info-wash: #0d2432;
+  --palette-info-border: #2a5f8e;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #45d7ff;
+  --palette-graph-2: #70a5ff;
+  --palette-graph-3: #bca2ff;
+  --palette-graph-4: #e0c64a;
+  --palette-graph-5: #f0616c;
+  --palette-graph-6: #5fdb6e;
+  --palette-graph-7: #c77ae0;
+  --palette-graph-8: #aac8dc;
+
+  /* Avatares */
+  --palette-avatar-1: #e05555;
+  --palette-avatar-2: #e88030;
+  --palette-avatar-3: #c8a820;
+  --palette-avatar-4: #58b840;
+  --palette-avatar-5: #28b870;
+  --palette-avatar-6: #20b0a8;
+  --palette-avatar-7: #38a0d8;
+  --palette-avatar-8: #5080e8;
+  --palette-avatar-9: #8878e8;
+  --palette-avatar-10: #b860e0;
+  --palette-avatar-11: #d048a8;
+  --palette-avatar-12: #e04870;
+  --palette-avatar-13: #c07030;
+  --palette-avatar-14: #78a830;
+  --palette-avatar-15: #4898b0;
+  --palette-avatar-16: #a070c0;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #0c2b20b3;
+  --palette-diff-removed-bg: #331619b3;
+  --palette-diff-added-ink: #4ade9b;
+  --palette-diff-removed-ink: #ff7681;
+  --palette-diff-word-added: #1a554099;
+  --palette-diff-word-removed: #66252e99;
+  --palette-conflict-ours-ink: #69b5ff;
+  --palette-conflict-ours: #1761aa40;
+  --palette-conflict-theirs-ink: #ffae68;
+  --palette-conflict-theirs: #b85e2040;
+  --palette-conflict-both: #2b2412b3;
+  --palette-conflict-auto: #0c2b20b3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #051c2c;
+  --palette-editor-gutter: #031320;
+  --palette-syntax-keyword: #ceaefb;
+  --palette-syntax-string: #8dd6a5;
+  --palette-syntax-function: #75c6ff;
+  --palette-syntax-number: #ffbd7c;
+  --palette-syntax-annotation: #f2a7c2;
+  --palette-syntax-type: #66d9d0;
+  --palette-syntax-property: #accae1;
+  --palette-syntax-comment: #a6c0cb;
+}
+
+[data-theme='abismo'][data-mode='light'] {
+  /* Superficies */
+  --palette-bg: #f8fbfe;
+  --palette-panel: #fafdff;
+  --palette-raised: #ffffff;
+  --palette-sunken: #f2f7fb;
+  --palette-hover: #d4e7f3;
+  --palette-active: #cbdfea;
+  --palette-selected: #bfdeef;
+
+  /* Texto */
+  --palette-ink: #09273c;
+  --palette-monochrome: #000000;
+  --palette-ink-dim: #38546b;
+  --palette-ink-faint: #50677a;
+  --palette-ink-disabled: #859cad;
+
+  /* Bordes */
+  --palette-border: #97b2c5;
+  --palette-border-strong: #6c8a9f;
+
+  /* Acento */
+  --palette-accent: #006382;
+  --palette-accent-hover: #00546f;
+  --palette-accent-active: #00465c;
+  --palette-accent-text: #005f7c;
+  --palette-accent-ink: #ffffff;
+  --palette-accent-wash: #d8edf7;
+  --palette-accent-border: #55a9c5;
+  --palette-accent-2: #2255ac;
+
+  /* Estado */
+  --palette-success: #0a6b47;
+  --palette-success-wash: #e2f5ec;
+  --palette-success-border: #6fbf9c;
+  --palette-warning: #7a5300;
+  --palette-warning-wash: #fcf0d8;
+  --palette-warning-border: #c9a45a;
+  --palette-danger: #b4232f;
+  --palette-danger-wash: #fde7e9;
+  --palette-danger-border: #de8a92;
+  --palette-info: #0b5c9e;
+  --palette-info-wash: #e3f0fb;
+  --palette-info-border: #79abd6;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #006382;
+  --palette-graph-2: #2255ac;
+  --palette-graph-3: #6243ac;
+  --palette-graph-4: #8a5a00;
+  --palette-graph-5: #b4232f;
+  --palette-graph-6: #2f7a1e;
+  --palette-graph-7: #8a0c9c;
+  --palette-graph-8: #42677e;
+
+  /* Avatares */
+  --palette-avatar-1: #c02020;
+  --palette-avatar-2: #b06010;
+  --palette-avatar-3: #7a6800;
+  --palette-avatar-4: #2e7518;
+  --palette-avatar-5: #087050;
+  --palette-avatar-6: #0a6070;
+  --palette-avatar-7: #1858a0;
+  --palette-avatar-8: #2840b8;
+  --palette-avatar-9: #5530b8;
+  --palette-avatar-10: #8018a8;
+  --palette-avatar-11: #a81870;
+  --palette-avatar-12: #b81840;
+  --palette-avatar-13: #804020;
+  --palette-avatar-14: #407010;
+  --palette-avatar-15: #1a5870;
+  --palette-avatar-16: #683888;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #e2f5ecb3;
+  --palette-diff-removed-bg: #fde7e9b3;
+  --palette-diff-added-ink: #0a6b47;
+  --palette-diff-removed-ink: #b4232f;
+  --palette-diff-word-added: #b8e8d299;
+  --palette-diff-word-removed: #f8c4ca99;
+  --palette-conflict-ours-ink: #0866be;
+  --palette-conflict-ours: #2487ed24;
+  --palette-conflict-theirs-ink: #a34c09;
+  --palette-conflict-theirs: #f48a2829;
+  --palette-conflict-both: #fcf0d8b3;
+  --palette-conflict-auto: #e2f5ecb3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #fafdff;
+  --palette-editor-gutter: #f8fbfe;
+  --palette-syntax-keyword: #7227b0;
+  --palette-syntax-string: #246537;
+  --palette-syntax-function: #065b9e;
+  --palette-syntax-number: #904000;
+  --palette-syntax-annotation: #992958;
+  --palette-syntax-type: #006368;
+  --palette-syntax-property: #3d4e87;
+  --palette-syntax-comment: #4a5b69;
+}
+
+/* Dual — grafito y marfil con acentos gemelos bermellón y azul. */
+
+[data-theme='dual'][data-mode='dark'] {
+  /* Superficies */
+  --palette-bg: #161617;
+  --palette-panel: #222224;
+  --palette-raised: #2d2d30;
+  --palette-sunken: #101011;
+  --palette-hover: #353538;
+  --palette-active: #3b3b3e;
+  --palette-selected: #4b302c;
+
+  /* Texto */
+  --palette-ink: #f3f1ef;
+  --palette-monochrome: #ffffff;
+  --palette-ink-dim: #c9c5c1;
+  --palette-ink-faint: #aba7a4;
+  --palette-ink-disabled: #7f7c79;
+
+  /* Bordes */
+  --palette-border: #6c6865;
+  --palette-border-strong: #8e8985;
+
+  /* Acento */
+  --palette-accent: #ff886e;
+  --palette-accent-hover: #ff9e87;
+  --palette-accent-active: #ffb4a1;
+  --palette-accent-text: #ff9981;
+  --palette-accent-ink: #1a0b07;
+  --palette-accent-wash: #452821;
+  --palette-accent-border: #ba6250;
+  --palette-accent-2: #73b3f9;
+
+  /* Estado */
+  --palette-success: #4ade9b;
+  --palette-success-wash: #0e2a21;
+  --palette-success-border: #2a7a5a;
+  --palette-warning: #e8b04a;
+  --palette-warning-wash: #2c2413;
+  --palette-warning-border: #8a6a22;
+  --palette-danger: #ff7681;
+  --palette-danger-wash: #33161b;
+  --palette-danger-border: #9e3542;
+  --palette-info: #66b4f8;
+  --palette-info-wash: #0f2434;
+  --palette-info-border: #2a5f8e;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #ff886e;
+  --palette-graph-2: #73b3f9;
+  --palette-graph-3: #c7a4f2;
+  --palette-graph-4: #e0c64a;
+  --palette-graph-5: #f0616c;
+  --palette-graph-6: #5fdb6e;
+  --palette-graph-7: #e07ac7;
+  --palette-graph-8: #c3bdb7;
+
+  /* Avatares */
+  --palette-avatar-1: #e05555;
+  --palette-avatar-2: #e88030;
+  --palette-avatar-3: #c8a820;
+  --palette-avatar-4: #58b840;
+  --palette-avatar-5: #28b870;
+  --palette-avatar-6: #20b0a8;
+  --palette-avatar-7: #38a0d8;
+  --palette-avatar-8: #5080e8;
+  --palette-avatar-9: #8878e8;
+  --palette-avatar-10: #b860e0;
+  --palette-avatar-11: #d048a8;
+  --palette-avatar-12: #e04870;
+  --palette-avatar-13: #c07030;
+  --palette-avatar-14: #78a830;
+  --palette-avatar-15: #4898b0;
+  --palette-avatar-16: #a070c0;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #0e2a21b3;
+  --palette-diff-removed-bg: #33161bb3;
+  --palette-diff-added-ink: #4ade9b;
+  --palette-diff-removed-ink: #ff7681;
+  --palette-diff-word-added: #1c554099;
+  --palette-diff-word-removed: #66252e99;
+  --palette-conflict-ours-ink: #69b5ff;
+  --palette-conflict-ours: #1761aa40;
+  --palette-conflict-theirs-ink: #ffae68;
+  --palette-conflict-theirs: #b85e2040;
+  --palette-conflict-both: #2c2413b3;
+  --palette-conflict-auto: #0e2a21b3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #1b1b1d;
+  --palette-editor-gutter: #161617;
+  --palette-syntax-keyword: #c8afff;
+  --palette-syntax-string: #83d5a0;
+  --palette-syntax-function: #83c2ff;
+  --palette-syntax-number: #f7bc78;
+  --palette-syntax-annotation: #f4a5cb;
+  --palette-syntax-type: #6cd8d0;
+  --palette-syntax-property: #b6c9e3;
+  --palette-syntax-comment: #b0bdcf;
+}
+
+[data-theme='dual'][data-mode='light'] {
+  /* Superficies */
+  --palette-bg: #fbfaf8;
+  --palette-panel: #fffefa;
+  --palette-raised: #ffffff;
+  --palette-sunken: #f7f5f2;
+  --palette-hover: #e9e4dc;
+  --palette-active: #e1dbd1;
+  --palette-selected: #f0d1c6;
+
+  /* Texto */
+  --palette-ink: #252322;
+  --palette-monochrome: #000000;
+  --palette-ink-dim: #55504c;
+  --palette-ink-faint: #6b635d;
+  --palette-ink-disabled: #a2978e;
+
+  /* Bordes */
+  --palette-border: #b8aca1;
+  --palette-border-strong: #90857b;
+
+  /* Acento */
+  --palette-accent: #ad331c;
+  --palette-accent-hover: #932b17;
+  --palette-accent-active: #792313;
+  --palette-accent-text: #a02b17;
+  --palette-accent-ink: #ffffff;
+  --palette-accent-wash: #fae7df;
+  --palette-accent-border: #cf8b73;
+  --palette-accent-2: #205da9;
+
+  /* Estado */
+  --palette-success: #0a6b47;
+  --palette-success-wash: #e2f5ec;
+  --palette-success-border: #6fbf9c;
+  --palette-warning: #7a5300;
+  --palette-warning-wash: #fcf0d8;
+  --palette-warning-border: #c9a45a;
+  --palette-danger: #b4232f;
+  --palette-danger-wash: #fde7e9;
+  --palette-danger-border: #de8a92;
+  --palette-info: #0b5c9e;
+  --palette-info-wash: #e3f0fb;
+  --palette-info-border: #79abd6;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #ad331c;
+  --palette-graph-2: #205da9;
+  --palette-graph-3: #6f43b0;
+  --palette-graph-4: #8a5a00;
+  --palette-graph-5: #b4232f;
+  --palette-graph-6: #2f7a1e;
+  --palette-graph-7: #a81e86;
+  --palette-graph-8: #665d55;
+
+  /* Avatares */
+  --palette-avatar-1: #c02020;
+  --palette-avatar-2: #b06010;
+  --palette-avatar-3: #7a6800;
+  --palette-avatar-4: #2e7518;
+  --palette-avatar-5: #087050;
+  --palette-avatar-6: #0a6070;
+  --palette-avatar-7: #1858a0;
+  --palette-avatar-8: #2840b8;
+  --palette-avatar-9: #5530b8;
+  --palette-avatar-10: #8018a8;
+  --palette-avatar-11: #a81870;
+  --palette-avatar-12: #b81840;
+  --palette-avatar-13: #804020;
+  --palette-avatar-14: #407010;
+  --palette-avatar-15: #1a5870;
+  --palette-avatar-16: #683888;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #e2f5ecb3;
+  --palette-diff-removed-bg: #fde7e9b3;
+  --palette-diff-added-ink: #0a6b47;
+  --palette-diff-removed-ink: #b4232f;
+  --palette-diff-word-added: #b8e8d299;
+  --palette-diff-word-removed: #f8c4ca99;
+  --palette-conflict-ours-ink: #0866be;
+  --palette-conflict-ours: #2487ed24;
+  --palette-conflict-theirs-ink: #a34c09;
+  --palette-conflict-theirs: #f48a2829;
+  --palette-conflict-both: #fcf0d8b3;
+  --palette-conflict-auto: #e2f5ecb3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #fffdfa;
+  --palette-editor-gutter: #fbfaf8;
+  --palette-syntax-keyword: #662ab5;
+  --palette-syntax-string: #15653b;
+  --palette-syntax-function: #1456ae;
+  --palette-syntax-number: #8a4200;
+  --palette-syntax-annotation: #922369;
+  --palette-syntax-type: #00626e;
+  --palette-syntax-property: #384a83;
+  --palette-syntax-comment: #4f5a6d;
+}
+
+/* Grimorio — pergamino, tinta sepia y ámbar. */
+
+[data-theme='grimorio'][data-mode='dark'] {
+  /* Superficies */
+  --palette-bg: #19120b;
+  --palette-panel: #241a10;
+  --palette-raised: #2e2217;
+  --palette-sunken: #110c07;
+  --palette-hover: #392b1c;
+  --palette-active: #40301f;
+  --palette-selected: #493715;
+
+  /* Texto */
+  --palette-ink: #f7ecd6;
+  --palette-monochrome: #ffffff;
+  --palette-ink-dim: #c4b295;
+  --palette-ink-faint: #b3a080;
+  --palette-ink-disabled: #87765a;
+
+  /* Bordes */
+  --palette-border: #746047;
+  --palette-border-strong: #927f67;
+
+  /* Acento */
+  --palette-accent: #e6b65c;
+  --palette-accent-hover: #ecca7f;
+  --palette-accent-active: #f2dca2;
+  --palette-accent-text: #edc373;
+  --palette-accent-ink: #120e02;
+  --palette-accent-wash: #443014;
+  --palette-accent-border: #ab8033;
+  --palette-accent-2: #d18f66;
+
+  /* Estado */
+  --palette-success: #7fc96a;
+  --palette-success-wash: #1b2a14;
+  --palette-success-border: #4e7a3e;
+  --palette-warning: #e8b04a;
+  --palette-warning-wash: #302512;
+  --palette-warning-border: #8a6a22;
+  --palette-danger: #f08a6e;
+  --palette-danger-wash: #331c14;
+  --palette-danger-border: #9e4a34;
+  --palette-info: #9eb8e0;
+  --palette-info-wash: #1b2230;
+  --palette-info-border: #4e6082;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #e6b65c;
+  --palette-graph-2: #d18f66;
+  --palette-graph-3: #7fc96a;
+  --palette-graph-4: #9eb8e0;
+  --palette-graph-5: #d9736e;
+  --palette-graph-6: #b08ad8;
+  --palette-graph-7: #5fbfa8;
+  --palette-graph-8: #d0baa0;
+
+  /* Avatares */
+  --palette-avatar-1: #e05555;
+  --palette-avatar-2: #e88030;
+  --palette-avatar-3: #c8a820;
+  --palette-avatar-4: #58b840;
+  --palette-avatar-5: #28b870;
+  --palette-avatar-6: #20b0a8;
+  --palette-avatar-7: #38a0d8;
+  --palette-avatar-8: #5080e8;
+  --palette-avatar-9: #8878e8;
+  --palette-avatar-10: #b860e0;
+  --palette-avatar-11: #d048a8;
+  --palette-avatar-12: #e04870;
+  --palette-avatar-13: #c07030;
+  --palette-avatar-14: #78a830;
+  --palette-avatar-15: #4898b0;
+  --palette-avatar-16: #a070c0;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #1b2a14b3;
+  --palette-diff-removed-bg: #331c14b3;
+  --palette-diff-added-ink: #7fc96a;
+  --palette-diff-removed-ink: #f08a6e;
+  --palette-diff-word-added: #33522a99;
+  --palette-diff-word-removed: #66352699;
+  --palette-conflict-ours-ink: #69b5ff;
+  --palette-conflict-ours: #1761aa40;
+  --palette-conflict-theirs-ink: #ffae68;
+  --palette-conflict-theirs: #b85e2040;
+  --palette-conflict-both: #302512b3;
+  --palette-conflict-auto: #1b2a14b3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #1c150d;
+  --palette-editor-gutter: #19120b;
+  --palette-syntax-keyword: #d9a9ef;
+  --palette-syntax-string: #a6d18a;
+  --palette-syntax-function: #92bef0;
+  --palette-syntax-number: #f2bd73;
+  --palette-syntax-annotation: #f0a99b;
+  --palette-syntax-type: #7bd0c4;
+  --palette-syntax-property: #d4c3a3;
+  --palette-syntax-comment: #c3baa5;
+}
+
+[data-theme='grimorio'][data-mode='light'] {
+  /* Superficies */
+  --palette-bg: #fdfcf8;
+  --palette-panel: #fffefa;
+  --palette-raised: #fffefc;
+  --palette-sunken: #fbf8f2;
+  --palette-hover: #eee0bd;
+  --palette-active: #e6d5ad;
+  --palette-selected: #e8d3a0;
+
+  /* Texto */
+  --palette-ink: #352512;
+  --palette-monochrome: #000000;
+  --palette-ink-dim: #634b2e;
+  --palette-ink-faint: #705c3b;
+  --palette-ink-disabled: #a38c66;
+
+  /* Bordes */
+  --palette-border: #bca577;
+  --palette-border-strong: #947b51;
+
+  /* Acento */
+  --palette-accent: #865506;
+  --palette-accent-hover: #714705;
+  --palette-accent-active: #5c3a04;
+  --palette-accent-text: #7c4e05;
+  --palette-accent-ink: #fffdf5;
+  --palette-accent-wash: #f8e7bb;
+  --palette-accent-border: #c79d49;
+  --palette-accent-2: #94441f;
+
+  /* Estado */
+  --palette-success: #3f6b14;
+  --palette-success-wash: #eaf3dc;
+  --palette-success-border: #8cb566;
+  --palette-warning: #7a5300;
+  --palette-warning-wash: #fbf0d5;
+  --palette-warning-border: #c9a45a;
+  --palette-danger: #a33818;
+  --palette-danger-wash: #fbe7de;
+  --palette-danger-border: #d08a70;
+  --palette-info: #2b4e8a;
+  --palette-info-wash: #e5eaf6;
+  --palette-info-border: #8298c4;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #865506;
+  --palette-graph-2: #94441f;
+  --palette-graph-3: #3f6b14;
+  --palette-graph-4: #2b4e8a;
+  --palette-graph-5: #a33818;
+  --palette-graph-6: #6b3a9c;
+  --palette-graph-7: #0a6b5c;
+  --palette-graph-8: #706040;
+
+  /* Avatares */
+  --palette-avatar-1: #c02020;
+  --palette-avatar-2: #b06010;
+  --palette-avatar-3: #7a6800;
+  --palette-avatar-4: #2e7518;
+  --palette-avatar-5: #087050;
+  --palette-avatar-6: #0a6070;
+  --palette-avatar-7: #1858a0;
+  --palette-avatar-8: #2840b8;
+  --palette-avatar-9: #5530b8;
+  --palette-avatar-10: #8018a8;
+  --palette-avatar-11: #a81870;
+  --palette-avatar-12: #b81840;
+  --palette-avatar-13: #804020;
+  --palette-avatar-14: #407010;
+  --palette-avatar-15: #1a5870;
+  --palette-avatar-16: #683888;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #eaf3dcb3;
+  --palette-diff-removed-bg: #fbe7deb3;
+  --palette-diff-added-ink: #3f6b14;
+  --palette-diff-removed-ink: #a33818;
+  --palette-diff-word-added: #cde6ae99;
+  --palette-diff-word-removed: #f5c7b499;
+  --palette-conflict-ours-ink: #0866be;
+  --palette-conflict-ours: #2487ed24;
+  --palette-conflict-theirs-ink: #a34c09;
+  --palette-conflict-theirs: #f48a2829;
+  --palette-conflict-both: #fbf0d5b3;
+  --palette-conflict-auto: #eaf3dcb3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #fffefa;
+  --palette-editor-gutter: #fdfcf8;
+  --palette-syntax-keyword: #783096;
+  --palette-syntax-string: #405f17;
+  --palette-syntax-function: #215698;
+  --palette-syntax-number: #854700;
+  --palette-syntax-annotation: #9a3524;
+  --palette-syntax-type: #006355;
+  --palette-syntax-property: #674e2d;
+  --palette-syntax-comment: #5e5542;
+}
+
+/* Arcano — índigo nocturno y azul eléctrico. */
+
+[data-theme='arcano'][data-mode='dark'] {
+  /* Superficies */
+  --palette-bg: #11102a;
+  --palette-panel: #1a1738;
+  --palette-raised: #242046;
+  --palette-sunken: #0b0a1f;
+  --palette-hover: #2c2750;
+  --palette-active: #332d5a;
+  --palette-selected: #303d70;
+
+  /* Texto */
+  --palette-ink: #efedff;
+  --palette-monochrome: #ffffff;
+  --palette-ink-dim: #b7b1d6;
+  --palette-ink-faint: #aba5c8;
+  --palette-ink-disabled: #7c75a2;
+
+  /* Bordes */
+  --palette-border: #655e92;
+  --palette-border-strong: #827da7;
+
+  /* Acento */
+  --palette-accent: #8da2ff;
+  --palette-accent-hover: #a2b3ff;
+  --palette-accent-active: #b7c4ff;
+  --palette-accent-text: #a3b3ff;
+  --palette-accent-ink: #0b102c;
+  --palette-accent-wash: #293260;
+  --palette-accent-border: #6474c7;
+  --palette-accent-2: #cc97ed;
+
+  /* Estado */
+  --palette-success: #4ade9b;
+  --palette-success-wash: #102a22;
+  --palette-success-border: #2a7a5a;
+  --palette-warning: #e8b04a;
+  --palette-warning-wash: #2e2514;
+  --palette-warning-border: #8a6a22;
+  --palette-danger: #ff7681;
+  --palette-danger-wash: #33161e;
+  --palette-danger-border: #9e3542;
+  --palette-info: #66b4f8;
+  --palette-info-wash: #111f36;
+  --palette-info-border: #2a5f8e;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #8da2ff;
+  --palette-graph-2: #cc97ed;
+  --palette-graph-3: #4fb8e8;
+  --palette-graph-4: #4ade9b;
+  --palette-graph-5: #e8b04a;
+  --palette-graph-6: #ff7681;
+  --palette-graph-7: #39c9c9;
+  --palette-graph-8: #bbb6db;
+
+  /* Avatares */
+  --palette-avatar-1: #e05555;
+  --palette-avatar-2: #e88030;
+  --palette-avatar-3: #c8a820;
+  --palette-avatar-4: #58b840;
+  --palette-avatar-5: #28b870;
+  --palette-avatar-6: #20b0a8;
+  --palette-avatar-7: #38a0d8;
+  --palette-avatar-8: #5080e8;
+  --palette-avatar-9: #8878e8;
+  --palette-avatar-10: #b860e0;
+  --palette-avatar-11: #d048a8;
+  --palette-avatar-12: #e04870;
+  --palette-avatar-13: #c07030;
+  --palette-avatar-14: #78a830;
+  --palette-avatar-15: #4898b0;
+  --palette-avatar-16: #a070c0;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #102a22b3;
+  --palette-diff-removed-bg: #33161eb3;
+  --palette-diff-added-ink: #4ade9b;
+  --palette-diff-removed-ink: #ff7681;
+  --palette-diff-word-added: #1c554099;
+  --palette-diff-word-removed: #66252e99;
+  --palette-conflict-ours-ink: #69b5ff;
+  --palette-conflict-ours: #1761aa40;
+  --palette-conflict-theirs-ink: #ffae68;
+  --palette-conflict-theirs: #b85e2040;
+  --palette-conflict-both: #2e2514b3;
+  --palette-conflict-auto: #102a22b3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #15132f;
+  --palette-editor-gutter: #11102a;
+  --palette-syntax-keyword: #daa9ff;
+  --palette-syntax-string: #87d9b0;
+  --palette-syntax-function: #8dc0ff;
+  --palette-syntax-number: #efc17e;
+  --palette-syntax-annotation: #f5a5cd;
+  --palette-syntax-type: #7dd7e5;
+  --palette-syntax-property: #c6bde3;
+  --palette-syntax-comment: #c1b9d0;
+}
+
+[data-theme='arcano'][data-mode='light'] {
+  /* Superficies */
+  --palette-bg: #faf8fe;
+  --palette-panel: #fcfaff;
+  --palette-raised: #fefcff;
+  --palette-sunken: #f5f2fb;
+  --palette-hover: #e0d7f1;
+  --palette-active: #d7cbea;
+  --palette-selected: #cfcff4;
+
+  /* Texto */
+  --palette-ink: #27204c;
+  --palette-monochrome: #000000;
+  --palette-ink-dim: #504573;
+  --palette-ink-faint: #645782;
+  --palette-ink-disabled: #9b8fb6;
+
+  /* Bordes */
+  --palette-border: #aca0c8;
+  --palette-border-strong: #8677a4;
+
+  /* Acento */
+  --palette-accent: #343cc7;
+  --palette-accent-hover: #2d34ad;
+  --palette-accent-active: #252b92;
+  --palette-accent-text: #3037b7;
+  --palette-accent-ink: #ffffff;
+  --palette-accent-wash: #e1e0ff;
+  --palette-accent-border: #9297dc;
+  --palette-accent-2: #7b399f;
+
+  /* Estado */
+  --palette-success: #0a6b47;
+  --palette-success-wash: #e2f5ec;
+  --palette-success-border: #6fbf9c;
+  --palette-warning: #7a5300;
+  --palette-warning-wash: #fcf0d8;
+  --palette-warning-border: #c9a45a;
+  --palette-danger: #b4232f;
+  --palette-danger-wash: #fde7e9;
+  --palette-danger-border: #de8a92;
+  --palette-info: #0b5c9e;
+  --palette-info-wash: #e3f0fb;
+  --palette-info-border: #79abd6;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #343cc7;
+  --palette-graph-2: #7b399f;
+  --palette-graph-3: #0b5c9e;
+  --palette-graph-4: #0a6b47;
+  --palette-graph-5: #8a5a00;
+  --palette-graph-6: #b4232f;
+  --palette-graph-7: #0a6e70;
+  --palette-graph-8: #5c4e7b;
+
+  /* Avatares */
+  --palette-avatar-1: #c02020;
+  --palette-avatar-2: #b06010;
+  --palette-avatar-3: #7a6800;
+  --palette-avatar-4: #2e7518;
+  --palette-avatar-5: #087050;
+  --palette-avatar-6: #0a6070;
+  --palette-avatar-7: #1858a0;
+  --palette-avatar-8: #2840b8;
+  --palette-avatar-9: #5530b8;
+  --palette-avatar-10: #8018a8;
+  --palette-avatar-11: #a81870;
+  --palette-avatar-12: #b81840;
+  --palette-avatar-13: #804020;
+  --palette-avatar-14: #407010;
+  --palette-avatar-15: #1a5870;
+  --palette-avatar-16: #683888;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #e2f5ecb3;
+  --palette-diff-removed-bg: #fde7e9b3;
+  --palette-diff-added-ink: #0a6b47;
+  --palette-diff-removed-ink: #b4232f;
+  --palette-diff-word-added: #b8e8d299;
+  --palette-diff-word-removed: #f8c4ca99;
+  --palette-conflict-ours-ink: #0866be;
+  --palette-conflict-ours: #2487ed24;
+  --palette-conflict-theirs-ink: #a34c09;
+  --palette-conflict-theirs: #f48a2829;
+  --palette-conflict-both: #fcf0d8b3;
+  --palette-conflict-auto: #e2f5ecb3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #fcfaff;
+  --palette-editor-gutter: #faf8fe;
+  --palette-syntax-keyword: #7528ac;
+  --palette-syntax-string: #116342;
+  --palette-syntax-function: #1b53a3;
+  --palette-syntax-number: #844600;
+  --palette-syntax-annotation: #9a246e;
+  --palette-syntax-type: #006272;
+  --palette-syntax-property: #584087;
+  --palette-syntax-comment: #5e526c;
+}
+
+/* Contraste — accesibilidad. Fondos planos, bordes sólidos y 7:1 en todo texto.
+ * El color nunca va solo: el trazo y la forma del nodo del grafo lo acompañan. */
+
+[data-theme='contraste'][data-mode='dark'] {
+  /* Superficies */
+  --palette-bg: #000000;
+  --palette-panel: #000000;
+  --palette-raised: #000000;
+  --palette-sunken: #000000;
+  --palette-hover: #242424;
+  --palette-active: #3a3a3a;
+  --palette-selected: #3a0a3a;
+
+  /* Texto */
+  --palette-ink: #ffffff;
+  --palette-monochrome: #ffffff;
+  --palette-ink-dim: #ffffff;
+  --palette-ink-faint: #e0e0e0;
+  --palette-ink-disabled: #ffffff;
+
+  /* Bordes */
+  --palette-border: #ffffff;
+  --palette-border-strong: #ffffff;
+
+  /* Acento */
+  --palette-accent: #ff6bff;
+  --palette-accent-hover: #ff80ff;
+  --palette-accent-active: #ff94ff;
+  --palette-accent-text: #ff71ff;
+  --palette-accent-ink: #000000;
+  --palette-accent-wash: #3a0a3a;
+  --palette-accent-border: #ff6bff;
+  --palette-accent-2: #00e5ff;
+
+  /* Estado */
+  --palette-success: #00ff87;
+  --palette-success-wash: #00280f;
+  --palette-success-border: #00ff87;
+  --palette-warning: #ffe500;
+  --palette-warning-wash: #2a2400;
+  --palette-warning-border: #ffe500;
+  --palette-danger: #ff8080;
+  --palette-danger-wash: #2e0000;
+  --palette-danger-border: #ff8080;
+  --palette-info: #00e5ff;
+  --palette-info-wash: #002a30;
+  --palette-info-border: #00e5ff;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #ff6bff;
+  --palette-graph-2: #00e5ff;
+  --palette-graph-3: #ffe500;
+  --palette-graph-4: #00ff87;
+  --palette-graph-5: #ff6bff;
+  --palette-graph-6: #00e5ff;
+  --palette-graph-7: #ffe500;
+  --palette-graph-8: #00ff87;
+
+  /* Avatares — en «Contraste» modo oscuro, necesitamos colores brillantes con
+     buen contraste contra --accent-ink (#000000). */
+  --palette-avatar-1: #ff6b6b;
+  --palette-avatar-2: #ffa050;
+  --palette-avatar-3: #ffe040;
+  --palette-avatar-4: #70e858;
+  --palette-avatar-5: #30e890;
+  --palette-avatar-6: #30e8d8;
+  --palette-avatar-7: #50c8ff;
+  --palette-avatar-8: #70a0ff;
+  --palette-avatar-9: #a088ff;
+  --palette-avatar-10: #d070ff;
+  --palette-avatar-11: #ff60c0;
+  --palette-avatar-12: #ff6090;
+  --palette-avatar-13: #e89050;
+  --palette-avatar-14: #98e040;
+  --palette-avatar-15: #50c0d8;
+  --palette-avatar-16: #c090e0;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #00280fb3;
+  --palette-diff-removed-bg: #2e0000b3;
+  --palette-diff-added-ink: #00ff87;
+  --palette-diff-removed-ink: #ff8080;
+  --palette-diff-word-added: #00522699;
+  --palette-diff-word-removed: #5c000099;
+  --palette-conflict-ours-ink: #69b5ff;
+  --palette-conflict-ours: #1761aa40;
+  --palette-conflict-theirs-ink: #ffae68;
+  --palette-conflict-theirs: #b85e2040;
+  --palette-conflict-both: #2a2400b3;
+  --palette-conflict-auto: #00280fb3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #000000;
+  --palette-editor-gutter: #000000;
+  --palette-syntax-keyword: #f2d6ff;
+  --palette-syntax-string: #8affb2;
+  --palette-syntax-function: #c0e4ff;
+  --palette-syntax-number: #ffdc83;
+  --palette-syntax-annotation: #ffd4ea;
+  --palette-syntax-type: #8df0e8;
+  --palette-syntax-property: #e8d9ff;
+  --palette-syntax-comment: #dfdfdf;
+}
+
+[data-theme='contraste'][data-mode='light'] {
+  /* Superficies */
+  --palette-bg: #ffffff;
+  --palette-panel: #ffffff;
+  --palette-raised: #ffffff;
+  --palette-sunken: #ffffff;
+  --palette-hover: #e4e4e4;
+  --palette-active: #cccccc;
+  --palette-selected: #f2daf7;
+
+  /* Texto */
+  --palette-ink: #000000;
+  --palette-monochrome: #000000;
+  --palette-ink-dim: #000000;
+  --palette-ink-faint: #1f1f1f;
+  --palette-ink-disabled: #000000;
+
+  /* Bordes */
+  --palette-border: #000000;
+  --palette-border-strong: #000000;
+
+  /* Acento */
+  --palette-accent: #8a0c9c;
+  --palette-accent-hover: #770a86;
+  --palette-accent-active: #630970;
+  --palette-accent-text: #7c0b8c;
+  --palette-accent-ink: #ffffff;
+  --palette-accent-wash: #f2daf7;
+  --palette-accent-border: #8a0c9c;
+  --palette-accent-2: #0000cc;
+
+  /* Estado */
+  --palette-success: #005a26;
+  --palette-success-wash: #dcf2e4;
+  --palette-success-border: #005a26;
+  --palette-warning: #7a3d00;
+  --palette-warning-wash: #faebda;
+  --palette-warning-border: #7a3d00;
+  --palette-danger: #9b0000;
+  --palette-danger-wash: #fbe0e0;
+  --palette-danger-border: #9b0000;
+  --palette-info: #0000cc;
+  --palette-info-wash: #dedefa;
+  --palette-info-border: #0000cc;
+
+  /* Ramas del grafo */
+  --palette-graph-1: #8a0c9c;
+  --palette-graph-2: #0000cc;
+  --palette-graph-3: #b35a00;
+  --palette-graph-4: #006b2d;
+  --palette-graph-5: #8a0c9c;
+  --palette-graph-6: #0000cc;
+  --palette-graph-7: #b35a00;
+  --palette-graph-8: #006b2d;
+
+  /* Avatares — en «Contraste» modo claro, --accent-ink es #ffffff, así que se
+     necesitan colores oscuros con buen contraste contra blanco. */
+  --palette-avatar-1: #9b0000;
+  --palette-avatar-2: #8a4000;
+  --palette-avatar-3: #5a4a00;
+  --palette-avatar-4: #1a5a00;
+  --palette-avatar-5: #005040;
+  --palette-avatar-6: #004858;
+  --palette-avatar-7: #003c80;
+  --palette-avatar-8: #002a90;
+  --palette-avatar-9: #3a1890;
+  --palette-avatar-10: #5a0880;
+  --palette-avatar-11: #800050;
+  --palette-avatar-12: #900028;
+  --palette-avatar-13: #5a2800;
+  --palette-avatar-14: #2a5000;
+  --palette-avatar-15: #004058;
+  --palette-avatar-16: #481868;
+
+  /* Diff y conflictos */
+  --palette-diff-added-bg: #e0f4e8b3;
+  --palette-diff-removed-bg: #fce8e8b3;
+  --palette-diff-added-ink: #005a26;
+  --palette-diff-removed-ink: #9b0000;
+  --palette-diff-word-added: #aee0c099;
+  --palette-diff-word-removed: #f5bebe99;
+  --palette-conflict-ours-ink: #0866be;
+  --palette-conflict-ours: #2487ed24;
+  --palette-conflict-theirs-ink: #a34c09;
+  --palette-conflict-theirs: #f48a2829;
+  --palette-conflict-both: #faebdab3;
+  --palette-conflict-auto: #dcf2e4b3;
+
+  /* Lienzo y sintaxis: independientes del acento y de los estados de Git. */
+  --palette-editor-bg: #ffffff;
+  --palette-editor-gutter: #ffffff;
+  --palette-syntax-keyword: #5a0f85;
+  --palette-syntax-string: #00431c;
+  --palette-syntax-function: #00367e;
+  --palette-syntax-number: #5a2e00;
+  --palette-syntax-annotation: #730741;
+  --palette-syntax-type: #004048;
+  --palette-syntax-property: #3d2e6e;
+  --palette-syntax-comment: #393939;
+}

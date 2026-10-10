@@ -1,0 +1,10 @@
+Cascadia Code
+Copyright (c) 2019 - Present, Microsoft Corporation, with Reserved Font Name Cascadia Code.
+https://github.com/microsoft/cascadia-code/blob/main/LICENSE
+
+Source Sans 3
+Titular indicado por su fuente: Adobe, copyright 2010-2020; nombre de fuente reservado: Source.
+https://github.com/google/fonts/blob/main/ofl/sourcesans3/OFL.txt
+
+Los textos OFL completos entregados por Fontsource se conservan sin cambios en
+los archivos de cada familia. Estos avisos complementan su atribución genérica.

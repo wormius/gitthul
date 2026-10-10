@@ -1,0 +1,139 @@
+/* La región existe siempre, también vacía, para que el lector de pantalla la
+   tenga desde el principio. Por eso no intercepta el puntero: solo lo hacen
+   los avisos que haya dentro. */
+.region {
+  position: fixed;
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(58ch, calc(100vw - var(--space-7)));
+  pointer-events: none;
+}
+
+.region[data-position^='top'] {
+  top: calc(var(--control-height-md) + var(--space-4));
+}
+
+.region[data-position^='bottom'] {
+  bottom: calc(var(--control-height-md) + var(--space-5));
+}
+
+.region[data-position$='start'] {
+  left: var(--space-5);
+}
+
+.region[data-position$='end'] {
+  right: var(--space-5);
+}
+
+.toast {
+  position: relative;
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: calc(var(--control-height-lg) + var(--space-5));
+  padding: var(--space-4);
+  color: var(--text-primary);
+  background-color: color-mix(
+    in srgb,
+    var(--surface-raised) 86%,
+    var(--toast-color, var(--text-info))
+  );
+  border: var(--border-width) solid var(--toast-border, var(--border-strong));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  pointer-events: auto;
+  animation: toast-in var(--duration-slow) ease-out;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.toast:hover {
+  opacity: 0.88;
+}
+
+.variantIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  color: var(--toast-color, var(--text-info));
+  background: color-mix(in srgb, var(--toast-color, var(--text-info)) 14%, transparent);
+  border-radius: 50%;
+}
+
+.variantIcon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.info {
+  --toast-color: var(--text-info);
+  --toast-border: var(--border-info);
+}
+
+.success {
+  --toast-color: var(--text-success);
+  --toast-border: var(--border-success);
+}
+
+.warning {
+  --toast-color: var(--text-warning);
+  --toast-border: var(--border-warning);
+}
+
+.danger {
+  --toast-color: var(--text-danger);
+  --toast-border: var(--border-danger);
+}
+
+.message {
+  flex: 1 1 auto;
+  margin: 0;
+  line-height: var(--line-height-ui);
+}
+
+.action {
+  flex: none;
+  color: var(--text-accent);
+}
+
+.lifetime {
+  position: absolute;
+  right: var(--space-2);
+  bottom: 0;
+  left: var(--space-2);
+  height: 2px;
+  background: var(--toast-color, var(--text-info));
+  border-radius: var(--radius-pill);
+  transform-origin: left;
+  animation: toast-life var(--toast-duration) linear forwards;
+}
+
+@keyframes toast-life {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

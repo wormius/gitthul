@@ -1,0 +1,57 @@
+.section {
+  --settings-label-column: 14rem;
+
+  inline-size: min(100%, 54rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Apariencia: las maquetas y los ocho chips de tema piden más ancho. Va después
+   de `.section` a propósito: misma especificidad, gana el orden. */
+.wide {
+  inline-size: min(100%, 66rem);
+}
+
+.heading {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-panel);
+}
+
+.actionContent {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (max-width: 800px) {
+  .actions {
+    justify-content: center;
+  }
+}

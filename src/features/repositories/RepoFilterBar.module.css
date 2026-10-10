@@ -1,0 +1,27 @@
+/*
+ * Sin líneas arriba ni abajo: el panel es una columna continua y lo que separa
+ * sus zonas es el aire. El filtro va aquí, casi al principio, porque con decenas
+ * de repositorios es el camino más corto y no algo que haya que ir a buscar al
+ * fondo de la lista.
+ */
+.bar {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.search {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: var(--space-4);
+}
+
+/* Cada pareja etiqueta + control se agrupa en un flex row compacto. Ninguno de
+   los dos se encoge: quien cede el ancho es el campo de filtro, que tiene más. */
+.control {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}

@@ -1,0 +1,102 @@
+.viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* El scroll horizontal de una lista virtualizada oculta filas enteras sin
+     avisar; lo que no cabe se recorta o lo resuelve la columna que lo necesita. */
+  overflow-x: hidden;
+  /* Reserva el hueco de la barra para que la cabecera de `DataGrid` quede
+     alineada con las celdas también cuando la barra ocupa espacio. */
+  scrollbar-gutter: stable;
+  contain: strict;
+}
+
+/*
+ * Cuando el scroll viene de un contenedor padre (`scrollParent`), la lista no
+ * es su propio scroll container: no scrollea, no recorta por alto fijo y no usa
+ * `contain: strict` — que obliga a un tamaño intrínseco y se come las filas
+ * cuando el alto lo decide el contenido, no la caja.
+ */
+.embedded {
+  flex: 0 0 auto;
+  overflow: visible;
+  contain: content;
+  scrollbar-gutter: auto;
+}
+
+.viewport:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.canvas {
+  position: relative;
+  width: 100%;
+}
+
+/*
+ * Cada fila se coloca con `transform`, no con `top`: mover una capa compuesta
+ * no obliga al motor a recalcular el diseño de la lista entera en cada
+ * fotograma de scroll, que es de donde salen los tirones con muchas filas.
+ */
+.row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  color: var(--text-primary);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  padding-block: 2px;
+  box-sizing: border-box;
+}
+
+/*
+ * Dentro de un `DataGrid` la fila no lleva ese aire, y es a propósito.
+ *
+ * Ahí quien manda es la rejilla de celdas, que ocupa la fila de lado a lado y
+ * de arriba abajo; los dos píxeles de relleno solo le quitaban alto útil. Lo
+ * destapó el grafo: su lienzo mide exactamente una fila, y con el relleno la
+ * celda lo recortaba dos píxeles por arriba y dos por abajo, así que cada línea
+ * vertical salía con una costura al cambiar de fila. El resalte no cambia — el
+ * fondo cubre la caja de relleno igual, con relleno o sin él.
+ */
+.inGrid {
+  padding-block: 0;
+}
+
+.row:hover {
+  background-color: var(--surface-hover);
+}
+
+.row[data-selected] {
+  background-color: var(--surface-selected);
+  outline: 1px solid var(--text-accent);
+  outline-offset: -1px;
+}
+
+/*
+ * La fila activa se marca con un filete interior: `box-shadow` no ocupa espacio,
+ * así que señalarla no mueve ni una fila vecina.
+ *
+ * **Solo mientras la lista tenga el foco de teclado.** La fila activa es donde
+ * está el cursor de las flechas, no lo que está seleccionado: pintarla con la
+ * lista apagada dejaba un filete encendido en «Todos» después de pulsar una
+ * tarjeta de un espacio, y ahí ya había otra cosa seleccionada. Con
+ * `:focus-visible` el filete aparece cuando de verdad hay una fila que las
+ * flechas van a mover, y no cuando solo se pulsó con el ratón.
+ */
+.viewport:focus-visible .row[data-active] {
+  box-shadow: inset 0 0 0 var(--border-width) var(--border-accent);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-5);
+}

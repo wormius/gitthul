@@ -1,0 +1,7 @@
+/* La región no impone apariencia: envuelve lo que ya existía — una fila, una
+   tabla, un panel — y solo aporta el gesto. El anillo de foco no se suprime;
+   simplemente no aparece, porque el foco aquí siempre es programático. */
+.region {
+  display: block;
+  min-width: 0;
+}

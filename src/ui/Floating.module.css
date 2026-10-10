@@ -1,0 +1,10 @@
+/* Fija y en el portal: la capa no ocupa sitio en ningún flujo, así que abrirla
+   y cerrarla no puede mover nada de lo que hay debajo. */
+.floating {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--z-overlay);
+  max-width: calc(100vw - var(--space-5));
+  max-height: calc(100vh - var(--space-5));
+}

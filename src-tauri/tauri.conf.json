@@ -1,0 +1,79 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "GitThul",
+  "version": "../package.json",
+  "identifier": "org.gitthul.GitThul",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5183",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "GitThul",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "center": true,
+        "resizable": true,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost"
+    },
+    "enableGTKAppId": false
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "rpm", "appimage", "dmg", "nsis", "msi"],
+    "category": "DeveloperTool",
+    "shortDescription": "Cliente gráfico de git",
+    "longDescription": "GitThul es un cliente gráfico de git multiplataforma y libre, diseñado para que cualquier operación de git sea más simple y clara que en la línea de comandos.",
+    "copyright": "Copyright © 2026 GitThul. Licencia MIT.",
+    "licenseFile": "../LICENSE",
+    "resources": ["../LICENSE", "../THIRD_PARTY_NOTICES.md", "../TRADEMARKS.md", "../licenses/"],
+    "icon": [
+      "icons/16x16.png",
+      "icons/32x32.png",
+      "icons/48x48.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/256x256.png",
+      "icons/512x512.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      }
+    },
+    "linux": {
+      "appimage": {
+        "files": {
+          "/usr/share/applications/GitThul.desktop": "linux/org.gitthul.GitThul.desktop"
+        }
+      },
+      "deb": {
+        "depends": ["git"],
+        "desktopTemplate": "linux/gitthul.desktop",
+        "files": {
+          "/usr/share/applications/org.gitthul.GitThul.desktop": "linux/org.gitthul.GitThul.desktop"
+        }
+      },
+      "rpm": {
+        "depends": ["git"],
+        "desktopTemplate": "linux/gitthul.desktop",
+        "files": {
+          "/usr/share/applications/org.gitthul.GitThul.desktop": "linux/org.gitthul.GitThul.desktop"
+        }
+      }
+    }
+  }
+}

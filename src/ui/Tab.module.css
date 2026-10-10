@@ -1,0 +1,141 @@
+/*
+ * La pestaña no se encoge: lo que se recorta es el rótulo y el detalle, cada uno
+ * con su tope, y nunca los iconos ni la ×. Si dejáramos que la caja se encogiera,
+ * la primera pestaña que se abre convertiría a las demás en muñones sin texto —
+ * y con muchas pestañas lo correcto es que la tira desplace, como en cualquier
+ * navegador, no que todas se vuelvan ilegibles a la vez.
+ */
+.tab {
+  display: flex;
+  flex: 0 0 auto;
+  background-color: var(--surface-panel);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.menuRegion {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  padding-right: var(--space-1);
+}
+
+.tab:hover {
+  background-color: var(--surface-hover);
+}
+
+/*
+ * Activa: acento macizo, nunca peso de letra.
+ *
+ * La pestaña activa es «dónde estoy», una entre pocas y siempre a la vista: el
+ * mismo caso del interruptor de reparto y del chip, y el sitio donde el relleno
+ * sólido paga. Con el tinte suave había que comparar dos grises para saber cuál
+ * era la de delante; con el acento, la tira se lee de un golpe.
+ */
+.tab[data-active='true'] {
+  background-color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+/* Hasta el hover de la activa se queda en la familia del acento: el gris de
+   `--surface-hover` la apagaría justo al apuntarla. */
+.tab[data-active='true']:hover {
+  background-color: var(--accent-hover);
+}
+
+/* El destino del arrastre se marca con una sombra interior, que no ocupa sitio:
+   un borde más grueso movería toda la tira. */
+.tab[data-drop-target='true'] {
+  box-shadow: inset 2px 0 0 0 var(--accent);
+}
+
+/*
+ * La pestaña que se está arrastrando se queda fantasmal en su sitio: atenuada y
+ * con el borde discontinuo, para que se lea «esto está en el aire, su hueco es
+ * temporal». Ni la opacidad ni el estilo de borde ocupan espacio, así que el
+ * resto de la tira no se mueve mientras se arrastra.
+ */
+.tab[data-dragging='true'] {
+  border-style: dashed;
+  border-color: var(--border-accent);
+  opacity: 0.4;
+}
+
+/*
+ * Todo centrado en vertical, no por línea base. Con `baseline`, el rótulo y el
+ * detalle —que son de dos tamaños distintos— colocaban su línea base común según
+ * el más alto y el texto quedaba montado en la mitad superior de la pestaña. La
+ * caja de la pestaña es un control, no un párrafo: lo que tiene que cuadrar es su
+ * centro óptico con el del icono y con el de la ×.
+ */
+.activate {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  align-items: center;
+  height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.tab[data-active='true'] .activate {
+  color: var(--text-on-accent);
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--text-muted);
+}
+
+.tab[data-active='true'] .icon {
+  color: var(--text-on-accent);
+}
+
+.label {
+  max-width: 20ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hint {
+  flex: none;
+  max-width: 28ch;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* La × no se esconde nunca: cerrar es la acción principal de una pestaña. */
+.close {
+  flex: none;
+}
+
+/*
+ * Todo lo que va encima de la pestaña activa cambia de tinta a la vez.
+ *
+ * Sobre acento macizo, el gris de `--text-muted` y el hover gris de un botón
+ * fantasma se apagan hasta no leerse: el detalle, la × y sus estados se pasan a
+ * la familia del acento. El detalle no baja de intensidad para conservar
+ * jerarquía —eso lo hace ya su tamaño—, porque atenuar sobre un fondo saturado
+ * es justo lo que rompe el contraste medido.
+ */
+.tab[data-active='true'] .hint,
+.tab[data-active='true'] .close {
+  color: var(--text-on-accent);
+}
+
+.tab[data-active='true'] .close:hover {
+  color: var(--text-on-accent);
+  background-color: var(--accent-active);
+}

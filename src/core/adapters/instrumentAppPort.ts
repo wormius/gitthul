@@ -1,0 +1,244 @@
+import type { LogPort } from '@core/ports/LogPort';
+import { redactLogText } from '@core/domain/logPrivacy';
+import type { TerminalExit } from '@core/ports/TerminalPort';
+import { logOperation } from './logOperation';
+
+const LABELS: Record<string, Record<string, string>> = {
+  recovery: {
+    read: 'leer puntos de recuperación',
+    cleanup: 'depurar respaldos de recuperación',
+    importLegacy: 'importar copias existentes de recuperación',
+    remove: 'eliminar copia de recuperación',
+    preview: 'previsualizar recuperación',
+    restore: 'restaurar un punto de recuperación',
+    cancelPreview: 'cancelar vista previa de recuperación',
+    export: 'exportar archivos de recuperación',
+    openDirectory: 'abrir carpeta de recuperación',
+  },
+  settings: {
+    read: 'leer ajustes',
+    patch: 'guardar ajustes',
+    flush: 'persistir ajustes pendientes',
+  },
+  session: {
+    read: 'restaurar sesión',
+    write: 'guardar sesión',
+    flush: 'persistir sesión pendiente',
+  },
+  library: {
+    read: 'leer biblioteca',
+    createSpace: 'crear espacio',
+    renameSpace: 'renombrar espacio',
+    deleteSpace: 'eliminar espacio',
+    moveSpace: 'ordenar espacios',
+    addToSpace: 'agregar repositorio al espacio',
+    removeFromSpace: 'retirar repositorio del espacio',
+    setSpaceCollapsed: 'plegar o desplegar espacio',
+    setView: 'cambiar vista de biblioteca',
+    setSort: 'ordenar repositorios',
+    setLayout: 'cambiar disposición de biblioteca',
+    setAvatar: 'guardar avatar del repositorio',
+    recordOpening: 'guardar repositorio reciente',
+    flush: 'persistir biblioteca',
+  },
+  auth: {
+    subscribe: 'escuchar solicitudes de autenticación',
+    answer: 'responder autenticación',
+    listKeys: 'listar llaves SSH',
+    importKey: 'importar llave SSH',
+    generateKey: 'generar llave SSH',
+    removeKey: 'eliminar llave SSH',
+    readAccess: 'leer acceso al remoto',
+    saveAccess: 'guardar acceso al remoto',
+    forgetAccess: 'olvidar acceso al remoto',
+  },
+  keyring: {
+    isAvailable: 'consultar disponibilidad del llavero',
+    has: 'consultar referencia del llavero',
+    set: 'guardar secreto en el llavero',
+    delete: 'eliminar secreto del llavero',
+  },
+  system: {
+    pickDirectory: 'elegir carpeta',
+    pickFile: 'elegir archivo',
+    revealPath: 'abrir carpeta en explorador',
+    resolveChildPath: 'resolver ruta',
+    writeClipboardText: 'copiar al portapapeles',
+    readClipboardText: 'leer portapapeles',
+  },
+  link: { openExternal: 'abrir enlace confirmado', checkRelease: 'consultar versiones publicadas' },
+  terminal: {
+    createSession: 'abrir terminal',
+    closeSession: 'cerrar terminal',
+    write: 'enviar entrada al PTY',
+    resize: 'redimensionar terminal',
+    getHistory: 'leer historial de terminal',
+  },
+};
+
+/** Safe by default: no arguments or response bodies from credential, settings or clipboard ports. */
+export function instrumentAppPort<T extends object>(port: T, scope: string, log: LogPort): T {
+  const terminalLifetimes = new Map<string, { closing: boolean }>();
+  return new Proxy(port, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver) as unknown;
+      if (typeof property !== 'string' || typeof value !== 'function' || property === 'execute')
+        return value;
+      return (...args: unknown[]) => {
+        let request: string | undefined;
+        let repository: string | undefined;
+        if (scope === 'auth' && /^(readAccess|saveAccess|forgetAccess)$/.test(property)) {
+          repository = typeof args[0] === 'string' ? args[0] : undefined;
+          const access = args[1];
+          const url =
+            typeof access === 'string'
+              ? access
+              : access && typeof access === 'object' && 'url' in access
+                ? String(access.url)
+                : '';
+          request = `url=${redactLogText(url)}`;
+        }
+        if (scope === 'system' && /^(revealPath|resolveChildPath)$/.test(property))
+          request = args
+            .filter((value) => typeof value === 'string')
+            .map((value, index) => `path${index}=${redactLogText(String(value))}`)
+            .join(' · ');
+        if (scope === 'link' && property === 'openExternal' && typeof args[0] === 'string')
+          request = `url=${redactLogText(args[0])}`;
+        if (scope === 'link' && property === 'checkRelease') request = `canal=${String(args[0])}`;
+        if (scope === 'settings' && property === 'patch' && args[0] && typeof args[0] === 'object')
+          request = `secciones=${Object.keys(args[0]).join(',')}`;
+        if (scope === 'terminal') {
+          const first = args[0];
+          if (property === 'createSession' && first && typeof first === 'object') {
+            const original = first as Record<string, unknown>;
+            const sessionId = String(original['sessionId']);
+            const lifetime = { closing: false };
+            terminalLifetimes.set(sessionId, lifetime);
+            request = `sessionId=${String(original['sessionId'])} · cwd=${String(original['cwd'])} · cols=${String(original['cols'])} · rows=${String(original['rows'])}`;
+            args[0] = {
+              ...original,
+              onExit: (exit: TerminalExit) => {
+                log.write(
+                  exit.success || lifetime.closing ? 'info' : 'warn',
+                  'terminal',
+                  lifetime.closing
+                    ? 'El proceso de terminal terminó al cerrar la sesión'
+                    : exit.success
+                      ? 'El proceso de terminal terminó'
+                      : 'El proceso de terminal terminó con estado no exitoso',
+                  undefined,
+                  {
+                    phase: 'event',
+                    request,
+                    result: `code=${exit.code} · signal=${exit.signal ?? 'none'}`,
+                  },
+                );
+                if (terminalLifetimes.get(sessionId) === lifetime)
+                  terminalLifetimes.delete(sessionId);
+                (original['onExit'] as ((exit: TerminalExit) => void) | undefined)?.(exit);
+              },
+            };
+          } else {
+            request = `sessionId=${String(first)}`;
+            if (property === 'closeSession') {
+              const lifetime = terminalLifetimes.get(String(first));
+              if (lifetime) lifetime.closing = true;
+            }
+          }
+        }
+        if (scope === 'auth' && property === 'subscribe' && typeof args[0] === 'function') {
+          const listener = args[0] as (event: unknown) => void;
+          args[0] = (event: unknown) => {
+            if (event && typeof event === 'object' && 'storageError' in event)
+              log.write(
+                'warn',
+                'auth',
+                'La credencial no se pudo guardar en el llavero; se usará solo en esta sesión',
+              );
+            else log.write('debug', 'auth', 'Cambio en la solicitud de autenticación');
+            listener(event);
+          };
+        }
+        // Suppress arbitrary raw secrets if an underlying API echoes its own input in an error.
+        const secrets: string[] = [];
+        if (scope === 'keyring' && property === 'set' && typeof args[1] === 'string')
+          secrets.push(args[1]);
+        if (scope === 'auth') {
+          if (property === 'generateKey' && typeof args[1] === 'string') secrets.push(args[1]);
+          if (property === 'saveAccess' && typeof args[2] === 'string') secrets.push(args[2]);
+          if (property === 'answer' && args[1] && typeof args[1] === 'object') {
+            const secret = (args[1] as Record<string, unknown>)['secret'];
+            if (typeof secret === 'string') secrets.push(secret);
+          }
+        }
+        if (
+          (scope === 'terminal' && property === 'write') ||
+          (scope === 'system' && property === 'writeClipboardText')
+        )
+          if (typeof args[1] === 'string' || typeof args[0] === 'string')
+            secrets.push(String(scope === 'terminal' ? args[1] : args[0]));
+        const sanitize = (text: string) =>
+          secrets.reduce(
+            (safe, secret) =>
+              secret
+                ? safe
+                    .split(secret)
+                    .join('[redacted]')
+                    .split(JSON.stringify(secret).slice(1, -1))
+                    .join('[redacted]')
+                : safe,
+            text,
+          );
+        return logOperation(
+          log,
+          scope,
+          property,
+          LABELS[scope]?.[property] ?? `${scope}: ${property}`,
+          { ...(request ? { request } : {}), ...(repository ? { repository } : {}) },
+          () => {
+            const pending = Reflect.apply(value, target, args) as Promise<unknown>;
+            if (scope !== 'terminal' || !/^(createSession|closeSession)$/.test(property))
+              return pending;
+            const sessionId =
+              property === 'createSession'
+                ? String((args[0] as Record<string, unknown>)['sessionId'])
+                : String(args[0]);
+            return pending.then(
+              (result) => {
+                if (property === 'closeSession') terminalLifetimes.delete(sessionId);
+                return result;
+              },
+              (error: unknown) => {
+                const lifetime = terminalLifetimes.get(sessionId);
+                if (property === 'createSession') terminalLifetimes.delete(sessionId);
+                else if (lifetime) lifetime.closing = false;
+                throw error;
+              },
+            );
+          },
+          scope === 'terminal' && /^(createSession|closeSession)$/.test(property)
+            ? 'info'
+            : 'debug',
+          (result) => {
+            if (scope === 'keyring' && property === 'isAvailable' && result === false)
+              log.write(
+                'warn',
+                'keyring',
+                'El llavero del sistema no está disponible; no se podrán guardar secretos',
+              );
+            return result === null
+              ? 'sin selección o sin datos'
+              : typeof result === 'boolean'
+                ? String(result)
+                : Array.isArray(result)
+                  ? `elementos=${result.length}`
+                  : 'completado';
+          },
+          sanitize,
+          !(scope === 'terminal' && /^(write|resize)$/.test(property)),
+        );
+      };
+    },
+  });
+}

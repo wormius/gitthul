@@ -1,0 +1,168 @@
+/* El cuerpo no hace scroll — la ventana es la aplicación — así que la galería
+   lleva el suyo propio. */
+.gallery {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--surface-app);
+}
+
+.header {
+  flex: none;
+}
+
+.heading {
+  display: flex;
+  gap: var(--space-4);
+  align-items: baseline;
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-medium);
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-normal);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-5);
+  overflow-y: auto;
+}
+
+.section {
+  margin: 0 0 var(--space-7);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-4);
+  padding-bottom: var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
+  border-bottom: var(--border-width) solid var(--border-strong);
+}
+
+.surfaces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.card {
+  flex: 1 1 220px;
+  padding: var(--space-4);
+  background-color: var(--surface-panel);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  height: var(--row-height);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+/* Cambia el fondo y nada más: ni relleno, ni borde, ni peso. Ese es el modo de
+   cumplir la invariante de que el hover no desplace la interfaz. */
+.row:hover {
+  background-color: var(--surface-hover);
+}
+
+.rowSelected {
+  background-color: var(--surface-selected);
+}
+
+.rowLabel {
+  color: var(--text-primary);
+  font-size: var(--text-md);
+}
+
+.rowMeta {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-family: var(--font-family-code);
+  font-size: var(--code-size-sm);
+}
+
+.states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.chip {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  border: var(--border-width) solid;
+  border-radius: var(--radius-pill);
+}
+
+.chipSuccess {
+  color: var(--text-success);
+  background-color: var(--surface-success);
+  border-color: var(--border-success);
+}
+
+.chipWarning {
+  color: var(--text-warning);
+  background-color: var(--surface-warning);
+  border-color: var(--border-warning);
+}
+
+.chipDanger {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+  border-color: var(--border-danger);
+}
+
+.chipInfo {
+  color: var(--text-info);
+  background-color: var(--surface-info);
+  border-color: var(--border-info);
+}
+
+.chipAccent {
+  color: var(--text-accent);
+  background-color: var(--accent-wash);
+  border-color: var(--border-accent);
+}
+
+/* Atenuado por alfa en los temas normales y por trama en «Contraste», que no
+   admite que el alfa sea el que comunica el estado. */
+.chipDisabled {
+  color: var(--text-disabled);
+  background-image: var(--disabled-pattern);
+  border-color: var(--border-subtle);
+  opacity: var(--disabled-opacity);
+}
+
+.accentButton {
+  height: var(--control-height-md);
+  padding: 0 var(--space-4);
+  color: var(--text-on-accent);
+  font-family: inherit;
+  font-size: var(--text-md);
+  background-color: var(--accent);
+  border: var(--border-width) solid var(--border-accent);
+  border-radius: var(--radius-md);
+}
+
+.accentButton:hover {
+  background-color: var(--accent-hover);
+}
+
+.accentButton:active {
+  background-color: var(--accent-active);
+}

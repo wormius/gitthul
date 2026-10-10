@@ -1,0 +1,183 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh var(--space-5) var(--space-5);
+  background-color: var(--scrim);
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(48rem, 100%);
+  max-height: min(80vh, 52rem);
+  min-height: 0;
+  padding: var(--space-5);
+  background-color: var(--surface-panel);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+.searchField {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-sunken);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.searchField:focus-within {
+  border-color: var(--border-accent);
+}
+.searchIcon {
+  flex: none;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  color: var(--text-secondary);
+}
+.search {
+  min-width: 0;
+  width: 100%;
+  height: var(--control-height-lg);
+  padding: 0;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-lg);
+  background: transparent;
+  border: none;
+}
+.search:focus {
+  outline: none;
+}
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  margin-top: var(--space-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.group {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.groupLabel {
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+.option {
+  display: flex;
+  flex: none;
+  gap: var(--space-4);
+  align-items: center;
+  min-height: var(--row-height-lg);
+  padding: var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.selected {
+  background-color: var(--surface-selected);
+  border-color: var(--border-accent);
+}
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.icon svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+.selected .icon {
+  color: var(--text-accent);
+}
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.label {
+  overflow: hidden;
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.description {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-bottom: var(--border-width) solid var(--border-subtle);
+}
+.toolbar button {
+  border-radius: var(--radius-md);
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+.toolbar button[aria-pressed='true'] {
+  color: var(--text-primary);
+  background: var(--surface-selected);
+  border-color: var(--border-accent);
+}
+.status {
+  flex: none;
+}
+.status p {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.footer {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-4);
+  margin-top: var(--space-4);
+  border-top: var(--border-width) solid var(--border-subtle);
+  flex: none;
+}
+@media (max-width: 560px) {
+  .scrim {
+    padding: var(--space-5);
+  }
+  .panel {
+    max-height: calc(100dvh - var(--space-5) * 2);
+    padding: var(--space-4);
+  }
+  .option {
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+}

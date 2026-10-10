@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GitThul
+Comment=Cliente gráfico de git
+Exec=gitthul
+Icon=gitthul
+Categories=Development;
+Terminal=false
+StartupWMClass=org.gitthul.GitThul

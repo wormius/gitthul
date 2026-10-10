@@ -1,0 +1,80 @@
+.area {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.grid {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Los carriles fuera de la columna deben tener un control visible para llegar
+   a ellos: una conexión recortada sin barra parece una arista sin destino. */
+.grid :global([role='region']) {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) var(--surface-sunken);
+}
+
+.grid :global([role='region'])::-webkit-scrollbar {
+  display: block;
+  height: var(--space-2);
+}
+
+.grid :global([role='region'])::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+/* El resto de la aplicación oculta la ornamentación nativa del scroll. El
+   historial es la excepción: en una lista larga la barra también comunica
+   posición y tamaño, además de permitir arrastrar directamente. */
+.historyScroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) var(--surface-sunken);
+}
+
+.historyScroll::-webkit-scrollbar {
+  display: block;
+  width: var(--space-2);
+}
+
+.historyScroll::-webkit-scrollbar-track {
+  background: var(--surface-sunken);
+}
+
+.historyScroll::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border: var(--border-width) solid var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.skeletonArea {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--border-width);
+  padding: var(--space-1) 0;
+  overflow: hidden;
+}
+
+.empty,
+.error {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.loadingMore {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  border-top: var(--border-width) solid var(--border-subtle);
+}

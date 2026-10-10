@@ -1,0 +1,24 @@
+/*
+ * La columna es `minmax(0, 1fr)` y no `auto` a propósito: con `auto`, el tamaño
+ * mínimo automático de la rejilla es el ancho mínimo de su contenido, así que la
+ * barra inferior llena de pestañas estiraba la fila más allá de la ventana y se
+ * comía la zona derecha por el borde. Con el mínimo en cero, quien se encoge es
+ * la tira de pestañas —que para eso desplaza— y la barra completa se queda
+ * dentro.
+ */
+.shell {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--surface-app);
+}
+
+/* `min-height: 0` es lo que deja que la vista desplace su propio contenido en
+   vez de estirar la rejilla y empujar la barra inferior fuera de la ventana. */
+.view {
+  min-height: 0;
+  overflow: hidden;
+}

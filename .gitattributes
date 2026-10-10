@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+# Los avisos originales se conservan byte por byte en todas las plataformas.
+/licenses/** -text
+
+*.png binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,22 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2);
+}
+
+.vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Siempre al final y siempre visible: es la salida de lo que no cabe. */
+.overflow {
+  margin-left: auto;
+}
+
+.vertical .overflow {
+  margin-top: auto;
+  margin-left: 0;
+}

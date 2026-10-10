@@ -1,0 +1,48 @@
+.track {
+  width: 100%;
+  height: calc(var(--space-3) / 2 + 2px);
+  overflow: hidden;
+  background-color: var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.fill {
+  height: 100%;
+  background-color: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: width var(--duration-slow);
+}
+
+.indeterminate {
+  width: 40%;
+  animation: slide 1.2s ease-in-out infinite;
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate {
+    width: 100%;
+    animation: fade 1.4s ease-in-out infinite;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.9;
+  }
+}

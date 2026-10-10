@@ -1,0 +1,90 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background-color: var(--scrim);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  max-height: 100%;
+  padding: var(--space-5);
+  background-color: var(--surface-panel);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  min-width: 0;
+}
+
+.sm {
+  max-width: 44ch;
+}
+
+.md {
+  max-width: 68ch;
+}
+
+.lg {
+  max-width: 110ch;
+}
+
+.header {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-ui);
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+  flex: 1;
+}
+
+.description {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: var(--line-height-ui);
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.body {
+  min-height: 0;
+  padding: calc(var(--focus-ring-width) + var(--focus-ring-offset));
+  margin: calc(-1 * (var(--focus-ring-width) + var(--focus-ring-offset)));
+  overflow: auto;
+}
+
+/*
+ * El pie envuelve cuando sus botones no caben en una línea.
+ *
+ * Los rótulos nombran su objeto —«Dejar *Personales* donde está», «Borrar
+ * *Personales*»— porque lo pide la invariante 5, así que su ancho depende de
+ * cómo se llame lo que se está borrando y no cabe darlo por sabido. Sin envolver,
+ * el par se salía del panel por la izquierda y el botón de cancelar aparecía
+ * cortado a media palabra, que es la peor forma posible de ofrecer una salida.
+ * Recortar el rótulo no era opción: el nombre es justo lo que hay que leer antes
+ * de pulsar.
+ */
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  min-width: 0;
+}

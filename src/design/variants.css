@@ -1,0 +1,727 @@
+/*
+ * Variantes de la capa 1: cada familia conserva su identidad en claro y oscuro.
+ *
+ * Classic usa palette.css sin overrides. Minimalist reduce el tinte de las
+ * superficies y reserva el color para acentos suaves; Dense intensifica los
+ * acentos, las selecciones y, en oscuro, el tinte de las superficies. En claro
+ * los fondos principales permanecen casi blancos en las tres variantes. «Dense» describe
+ * la riqueza de color: el espacio y el tamaño siguen dependiendo de Densidad.
+ *
+ * Los estados de Git y la sintaxis conservan sus colores semánticos propios.
+ * El lienzo de código es casi blanco en claro. tokens.test.ts mide también
+ * estas variantes sobre el CSS final.
+ */
+
+/* Sargazo — musgo discreto o follaje iluminado. */
+
+[data-theme='sargazo'][data-mode='dark'][data-theme-variant='minimalist'] {
+  --palette-bg: #10110e;
+  --palette-panel: #151612;
+  --palette-raised: #1b1d16;
+  --palette-sunken: #0a0b08;
+  --palette-hover: #23261c;
+  --palette-active: #2a2e20;
+  --palette-selected: #283626;
+  --palette-ink: #eff2e8;
+  --palette-ink-dim: #bcc2b0;
+  --palette-ink-faint: #a4ac96;
+  --palette-border: #4d5742;
+  --palette-border-strong: #727c61;
+  --palette-accent: #aac38a;
+  --palette-accent-hover: #bdd29f;
+  --palette-accent-active: #cfdfb5;
+  --palette-accent-text: #aac38a;
+  --palette-accent-wash: #222c1c;
+  --palette-accent-border: #667d4b;
+  --palette-accent-2: #a2b6ac;
+  --palette-graph-1: #aac38a;
+  --palette-graph-2: #a2b6ac;
+  --palette-editor-gutter: #10110e;
+}
+
+[data-theme='sargazo'][data-mode='light'][data-theme-variant='minimalist'] {
+  --palette-bg: #fafaf8;
+  --palette-panel: #fefefa;
+  --palette-raised: #ffffff;
+  --palette-sunken: #f5f6f2;
+  --palette-hover: #e8ebe1;
+  --palette-active: #e0e6d7;
+  --palette-selected: #d9e3d0;
+  --palette-ink: #18200f;
+  --palette-ink-dim: #47503d;
+  --palette-ink-faint: #59624f;
+  --palette-border: #a3aa98;
+  --palette-border-strong: #717b63;
+  --palette-accent: #526c36;
+  --palette-accent-hover: #465e2e;
+  --palette-accent-active: #3a5026;
+  --palette-accent-text: #48612e;
+  --palette-accent-wash: #e9eddf;
+  --palette-accent-border: #82986b;
+  --palette-accent-2: #496b5c;
+  --palette-graph-1: #526c36;
+  --palette-graph-2: #496b5c;
+  --palette-editor-gutter: #fafaf8;
+}
+
+[data-theme='sargazo'][data-mode='dark'][data-theme-variant='dense'] {
+  --palette-bg: #111806;
+  --palette-panel: #18210a;
+  --palette-raised: #202b0e;
+  --palette-sunken: #090d03;
+  --palette-hover: #283514;
+  --palette-active: #304117;
+  --palette-selected: #354817;
+  --palette-ink: #f0f5da;
+  --palette-ink-dim: #c7d5a9;
+  --palette-ink-faint: #b4c699;
+  --palette-border: #586638;
+  --palette-border-strong: #829453;
+  --palette-accent: #d0ec68;
+  --palette-accent-hover: #ddf285;
+  --palette-accent-active: #e9f7a6;
+  --palette-accent-text: #d0ec68;
+  --palette-accent-wash: #2c3a10;
+  --palette-accent-border: #94af3b;
+  --palette-accent-2: #78d4ad;
+  --palette-graph-1: #d0ec68;
+  --palette-graph-2: #78d4ad;
+  --palette-editor-gutter: #111806;
+}
+
+[data-theme='sargazo'][data-mode='light'][data-theme-variant='dense'] {
+  --palette-bg: #fbfcf8;
+  --palette-panel: #fdfdfa;
+  --palette-raised: #fefefc;
+  --palette-sunken: #f7f9f2;
+  --palette-hover: #dbe5c9;
+  --palette-active: #cedcb7;
+  --palette-selected: #c3d49f;
+  --palette-ink: #1a2507;
+  --palette-ink-dim: #394b21;
+  --palette-ink-faint: #46542e;
+  --palette-border: #99ab73;
+  --palette-border-strong: #6b7b4a;
+  --palette-accent: #486300;
+  --palette-accent-hover: #3d5400;
+  --palette-accent-active: #324500;
+  --palette-accent-text: #3e570b;
+  --palette-accent-wash: #dceabb;
+  --palette-accent-border: #829d49;
+  --palette-accent-2: #316159;
+  --palette-graph-1: #486300;
+  --palette-graph-2: #316159;
+  --palette-editor-gutter: #fbfcf8;
+}
+
+/* Thul — magenta empolvado o ciruela intensa, siempre rosa y morado. */
+
+[data-theme='thul'][data-mode='dark'][data-theme-variant='minimalist'] {
+  --palette-bg: #111014;
+  --palette-panel: #18161b;
+  --palette-raised: #1e1b21;
+  --palette-sunken: #0b0a0d;
+  --palette-hover: #25222a;
+  --palette-active: #2b2631;
+  --palette-selected: #352a3c;
+  --palette-ink: #f0ecf2;
+  --palette-ink-dim: #c4b9c7;
+  --palette-ink-faint: #a89bac;
+  --palette-border: #594f5e;
+  --palette-border-strong: #807187;
+  --palette-accent: #c59bce;
+  --palette-accent-hover: #d2b0da;
+  --palette-accent-active: #dfc5e5;
+  --palette-accent-text: #c59bce;
+  --palette-accent-wash: #2b2330;
+  --palette-accent-border: #8b7093;
+  --palette-accent-2: #aea4d3;
+  --palette-graph-1: #c59bce;
+  --palette-graph-2: #aea4d3;
+  --palette-editor-gutter: #111014;
+}
+
+[data-theme='thul'][data-mode='light'][data-theme-variant='minimalist'] {
+  --palette-bg: #f9f8fa;
+  --palette-panel: #fdfcfd;
+  --palette-raised: #ffffff;
+  --palette-sunken: #f4f2f6;
+  --palette-hover: #ece6ef;
+  --palette-active: #e4dce9;
+  --palette-selected: #e6d8ed;
+  --palette-ink: #211927;
+  --palette-ink-dim: #504756;
+  --palette-ink-faint: #65596d;
+  --palette-border: #b2a6b9;
+  --palette-border-strong: #887892;
+  --palette-accent: #765580;
+  --palette-accent-hover: #65476e;
+  --palette-accent-active: #53395b;
+  --palette-accent-text: #765580;
+  --palette-accent-wash: #f0e8f3;
+  --palette-accent-border: #ae91bb;
+  --palette-accent-2: #615c89;
+  --palette-graph-1: #765580;
+  --palette-graph-2: #615c89;
+  --palette-editor-gutter: #f9f8fa;
+}
+
+[data-theme='thul'][data-mode='dark'][data-theme-variant='dense'] {
+  --palette-bg: #190920;
+  --palette-panel: #24122e;
+  --palette-raised: #2d1936;
+  --palette-sunken: #100414;
+  --palette-hover: #351c40;
+  --palette-active: #40244b;
+  --palette-selected: #54265e;
+  --palette-ink: #f9eafa;
+  --palette-ink-dim: #d6b9dc;
+  --palette-ink-faint: #bfa5c7;
+  --palette-border: #73517e;
+  --palette-border-strong: #9470a0;
+  --palette-accent: #ee79df;
+  --palette-accent-hover: #f591e8;
+  --palette-accent-active: #fab0ef;
+  --palette-accent-text: #ee79df;
+  --palette-accent-wash: #431748;
+  --palette-accent-border: #b253a8;
+  --palette-accent-2: #b4a0ff;
+  --palette-graph-1: #ee79df;
+  --palette-graph-2: #b4a0ff;
+  --palette-editor-gutter: #190920;
+}
+
+[data-theme='thul'][data-mode='light'][data-theme-variant='dense'] {
+  --palette-bg: #fbf8fc;
+  --palette-panel: #fefafe;
+  --palette-raised: #fffcff;
+  --palette-sunken: #f7f2fa;
+  --palette-hover: #e6d4ed;
+  --palette-active: #dcc3e5;
+  --palette-selected: #e4b9e9;
+  --palette-ink: #2b1233;
+  --palette-ink-dim: #573460;
+  --palette-ink-faint: #674970;
+  --palette-border: #ba90c5;
+  --palette-border-strong: #95629f;
+  --palette-accent: #93007d;
+  --palette-accent-hover: #7d006a;
+  --palette-accent-active: #660056;
+  --palette-accent-text: #890075;
+  --palette-accent-wash: #f4d9f2;
+  --palette-accent-border: #c36ab4;
+  --palette-accent-2: #5739b5;
+  --palette-graph-1: #93007d;
+  --palette-graph-2: #5739b5;
+  --palette-editor-gutter: #fbf8fc;
+}
+
+/* Abismo — pizarra marina o azul de profundidad con luz cian. */
+
+[data-theme='abismo'][data-mode='dark'][data-theme-variant='minimalist'] {
+  --palette-bg: #0c1116;
+  --palette-panel: #141a21;
+  --palette-raised: #1b222b;
+  --palette-sunken: #070b10;
+  --palette-hover: #1f2832;
+  --palette-active: #273441;
+  --palette-selected: #273b4b;
+  --palette-ink: #e8eff5;
+  --palette-ink-dim: #b4c2ce;
+  --palette-ink-faint: #9baebe;
+  --palette-border: #4c5e6c;
+  --palette-border-strong: #718797;
+  --palette-accent: #87b8ca;
+  --palette-accent-hover: #a1c8d7;
+  --palette-accent-active: #bad9e2;
+  --palette-accent-text: #96c3d2;
+  --palette-accent-wash: #1e303d;
+  --palette-accent-border: #588897;
+  --palette-accent-2: #9aacd2;
+  --palette-graph-1: #87b8ca;
+  --palette-graph-2: #9aacd2;
+  --palette-editor-gutter: #0c1116;
+}
+
+[data-theme='abismo'][data-mode='light'][data-theme-variant='minimalist'] {
+  --palette-bg: #f8f9fa;
+  --palette-panel: #fbfcfd;
+  --palette-raised: #ffffff;
+  --palette-sunken: #f2f5f7;
+  --palette-hover: #e4ebef;
+  --palette-active: #dbe5eb;
+  --palette-selected: #d5e5ec;
+  --palette-ink: #152531;
+  --palette-ink-dim: #405666;
+  --palette-ink-faint: #566979;
+  --palette-border: #a6b6c0;
+  --palette-border-strong: #788e9d;
+  --palette-accent: #386479;
+  --palette-accent-hover: #2e5568;
+  --palette-accent-active: #254657;
+  --palette-accent-text: #386479;
+  --palette-accent-wash: #e5edf1;
+  --palette-accent-border: #81a5b4;
+  --palette-accent-2: #4f6289;
+  --palette-graph-1: #386479;
+  --palette-graph-2: #4f6289;
+  --palette-editor-gutter: #f8f9fa;
+}
+
+[data-theme='abismo'][data-mode='dark'][data-theme-variant='dense'] {
+  --palette-bg: #020b1c;
+  --palette-panel: #08172b;
+  --palette-raised: #10233b;
+  --palette-sunken: #010615;
+  --palette-hover: #142c46;
+  --palette-active: #19354e;
+  --palette-selected: #0e3d57;
+  --palette-ink: #e5f6ff;
+  --palette-ink-dim: #a6c9e3;
+  --palette-ink-faint: #93b7d3;
+  --palette-border: #416786;
+  --palette-border-strong: #6289a8;
+  --palette-accent: #39dbf3;
+  --palette-accent-hover: #67e4f8;
+  --palette-accent-active: #94ecfb;
+  --palette-accent-text: #57e2f6;
+  --palette-accent-wash: #073549;
+  --palette-accent-border: #229bb2;
+  --palette-accent-2: #78a5ff;
+  --palette-graph-1: #39dbf3;
+  --palette-graph-2: #78a5ff;
+  --palette-editor-gutter: #020b1c;
+}
+
+[data-theme='abismo'][data-mode='light'][data-theme-variant='dense'] {
+  --palette-bg: #f8fbfd;
+  --palette-panel: #fafdfe;
+  --palette-raised: #fcfeff;
+  --palette-sunken: #f2f7fa;
+  --palette-hover: #d5e8f4;
+  --palette-active: #c9dfed;
+  --palette-selected: #b3dce9;
+  --palette-ink: #092437;
+  --palette-ink-dim: #294a63;
+  --palette-ink-faint: #40546a;
+  --palette-border: #8baec5;
+  --palette-border-strong: #5e839c;
+  --palette-accent: #00657c;
+  --palette-accent-hover: #005569;
+  --palette-accent-active: #004655;
+  --palette-accent-text: #005f75;
+  --palette-accent-wash: #ccecf5;
+  --palette-accent-border: #479bb0;
+  --palette-accent-2: #214db1;
+  --palette-graph-1: #00657c;
+  --palette-graph-2: #214db1;
+  --palette-editor-gutter: #f8fbfd;
+}
+
+/* Dual — grafito y papel marfil; terracota tenue o bermellón vivo. */
+
+[data-theme='dual'][data-mode='dark'][data-theme-variant='minimalist'] {
+  --palette-bg: #111111;
+  --palette-panel: #191919;
+  --palette-raised: #202020;
+  --palette-sunken: #090909;
+  --palette-hover: #252525;
+  --palette-active: #2d2d2d;
+  --palette-selected: #39302c;
+  --palette-ink: #f1efeb;
+  --palette-ink-dim: #c3beb8;
+  --palette-ink-faint: #aaa29a;
+  --palette-border: #5d5752;
+  --palette-border-strong: #827970;
+  --palette-accent: #d6a49a;
+  --palette-accent-hover: #e0bbb3;
+  --palette-accent-active: #ebcec8;
+  --palette-accent-text: #d6a49a;
+  --palette-accent-wash: #302623;
+  --palette-accent-border: #916a60;
+  --palette-accent-2: #9bafc9;
+  --palette-graph-1: #d6a49a;
+  --palette-graph-2: #9bafc9;
+  --palette-editor-gutter: #111111;
+}
+
+[data-theme='dual'][data-mode='light'][data-theme-variant='minimalist'] {
+  --palette-bg: #fbfaf8;
+  --palette-panel: #fdfcfa;
+  --palette-raised: #ffffff;
+  --palette-sunken: #f7f5f2;
+  --palette-hover: #e8e3da;
+  --palette-active: #e0d8cd;
+  --palette-selected: #e7d8ce;
+  --palette-ink: #261e17;
+  --palette-ink-dim: #54493f;
+  --palette-ink-faint: #6a5d51;
+  --palette-border: #b5aa9d;
+  --palette-border-strong: #8b7c6c;
+  --palette-accent: #844638;
+  --palette-accent-hover: #713a2e;
+  --palette-accent-active: #5d2e23;
+  --palette-accent-text: #844638;
+  --palette-accent-wash: #f1e7de;
+  --palette-accent-border: #b08a79;
+  --palette-accent-2: #4b627a;
+  --palette-graph-1: #844638;
+  --palette-graph-2: #4b627a;
+  --palette-editor-gutter: #fbfaf8;
+}
+
+[data-theme='dual'][data-mode='dark'][data-theme-variant='dense'] {
+  --palette-bg: #100d0d;
+  --palette-panel: #1c1514;
+  --palette-raised: #261b19;
+  --palette-sunken: #080505;
+  --palette-hover: #2d211e;
+  --palette-active: #352620;
+  --palette-selected: #49211a;
+  --palette-ink: #f9eee8;
+  --palette-ink-dim: #d5bdb0;
+  --palette-ink-faint: #bfa494;
+  --palette-border: #73594a;
+  --palette-border-strong: #98765f;
+  --palette-accent: #ff8061;
+  --palette-accent-hover: #ff9a82;
+  --palette-accent-active: #ffb5a2;
+  --palette-accent-text: #ff8d71;
+  --palette-accent-wash: #431d13;
+  --palette-accent-border: #bd5132;
+  --palette-accent-2: #76bfff;
+  --palette-graph-1: #ff8061;
+  --palette-graph-2: #76bfff;
+  --palette-editor-gutter: #100d0d;
+}
+
+[data-theme='dual'][data-mode='light'][data-theme-variant='dense'] {
+  --palette-bg: #fcfaf8;
+  --palette-panel: #fffdfa;
+  --palette-raised: #fffefc;
+  --palette-sunken: #faf6f2;
+  --palette-hover: #eadacf;
+  --palette-active: #e2ccbf;
+  --palette-selected: #efd1c5;
+  --palette-ink: #2b1712;
+  --palette-ink-dim: #593e32;
+  --palette-ink-faint: #694c3e;
+  --palette-border: #ba9980;
+  --palette-border-strong: #966d50;
+  --palette-accent: #b42b12;
+  --palette-accent-hover: #9c230d;
+  --palette-accent-active: #811c09;
+  --palette-accent-text: #aa2810;
+  --palette-accent-wash: #f8ded0;
+  --palette-accent-border: #ce795e;
+  --palette-accent-2: #18549c;
+  --palette-graph-1: #b42b12;
+  --palette-graph-2: #18549c;
+  --palette-editor-gutter: #fcfaf8;
+}
+
+/* Grimorio — papel de archivo o pergamino dorado y tinta de café. */
+
+[data-theme='grimorio'][data-mode='dark'][data-theme-variant='minimalist'] {
+  --palette-bg: #15130f;
+  --palette-panel: #1c1913;
+  --palette-raised: #242018;
+  --palette-sunken: #0e0c09;
+  --palette-hover: #292319;
+  --palette-active: #30291c;
+  --palette-selected: #3b3020;
+  --palette-ink: #f1ece2;
+  --palette-ink-dim: #ccc0ab;
+  --palette-ink-faint: #b5a88f;
+  --palette-border: #625644;
+  --palette-border-strong: #8b795b;
+  --palette-accent: #cbb38a;
+  --palette-accent-hover: #d8c5a6;
+  --palette-accent-active: #e5d8c4;
+  --palette-accent-text: #cbb38a;
+  --palette-accent-wash: #31281b;
+  --palette-accent-border: #8c7651;
+  --palette-accent-2: #aab69b;
+  --palette-graph-1: #cbb38a;
+  --palette-graph-2: #aab69b;
+  --palette-editor-gutter: #15130f;
+}
+
+[data-theme='grimorio'][data-mode='light'][data-theme-variant='minimalist'] {
+  --palette-bg: #fcfbf8;
+  --palette-panel: #fffefa;
+  --palette-raised: #fffffc;
+  --palette-sunken: #f9f7f2;
+  --palette-hover: #eee5d5;
+  --palette-active: #e7dbc6;
+  --palette-selected: #e8dac2;
+  --palette-ink: #2b2113;
+  --palette-ink-dim: #594a34;
+  --palette-ink-faint: #6b583b;
+  --palette-border: #b9a68a;
+  --palette-border-strong: #927953;
+  --palette-accent: #806038;
+  --palette-accent-hover: #6d512e;
+  --palette-accent-active: #594124;
+  --palette-accent-text: #785831;
+  --palette-accent-wash: #f3ead9;
+  --palette-accent-border: #b39970;
+  --palette-accent-2: #496b50;
+  --palette-graph-1: #806038;
+  --palette-graph-2: #496b50;
+  --palette-editor-gutter: #fcfbf8;
+}
+
+[data-theme='grimorio'][data-mode='dark'][data-theme-variant='dense'] {
+  --palette-bg: #1b1008;
+  --palette-panel: #26190d;
+  --palette-raised: #312114;
+  --palette-sunken: #100803;
+  --palette-hover: #382719;
+  --palette-active: #412e1d;
+  --palette-selected: #4b3218;
+  --palette-ink: #f9edd9;
+  --palette-ink-dim: #ddc6a2;
+  --palette-ink-faint: #c6ab83;
+  --palette-border: #795e39;
+  --palette-border-strong: #9e7c49;
+  --palette-accent: #f4bd60;
+  --palette-accent-hover: #f8cb7e;
+  --palette-accent-active: #fbdc9f;
+  --palette-accent-text: #f4bd60;
+  --palette-accent-wash: #3e2910;
+  --palette-accent-border: #b17d2d;
+  --palette-accent-2: #93c98a;
+  --palette-graph-1: #f4bd60;
+  --palette-graph-2: #93c98a;
+  --palette-editor-gutter: #1b1008;
+}
+
+[data-theme='grimorio'][data-mode='light'][data-theme-variant='dense'] {
+  --palette-bg: #fefcf8;
+  --palette-panel: #fefdfa;
+  --palette-raised: #fffefc;
+  --palette-sunken: #fcf9f2;
+  --palette-hover: #ecdbb8;
+  --palette-active: #e4cfa3;
+  --palette-selected: #e3c791;
+  --palette-ink: #34200a;
+  --palette-ink-dim: #654b27;
+  --palette-ink-faint: #735830;
+  --palette-border: #b89b63;
+  --palette-border-strong: #94713c;
+  --palette-accent: #865300;
+  --palette-accent-hover: #714500;
+  --palette-accent-active: #5d3800;
+  --palette-accent-text: #7a4b00;
+  --palette-accent-wash: #f5e3ba;
+  --palette-accent-border: #b58432;
+  --palette-accent-2: #315f36;
+  --palette-graph-1: #865300;
+  --palette-graph-2: #315f36;
+  --palette-editor-gutter: #fefcf8;
+}
+
+/* Arcano — tinta azul grisácea o índigo eléctrico. */
+
+[data-theme='arcano'][data-mode='dark'][data-theme-variant='minimalist'] {
+  --palette-bg: #101118;
+  --palette-panel: #171923;
+  --palette-raised: #1e2030;
+  --palette-sunken: #090a11;
+  --palette-hover: #252739;
+  --palette-active: #2d2f45;
+  --palette-selected: #2c3555;
+  --palette-ink: #eceef8;
+  --palette-ink-dim: #bcc2d9;
+  --palette-ink-faint: #a5adc7;
+  --palette-border: #545c7a;
+  --palette-border-strong: #7783a7;
+  --palette-accent: #9aacf0;
+  --palette-accent-hover: #b4c1f5;
+  --palette-accent-active: #ced6fa;
+  --palette-accent-text: #9aacf0;
+  --palette-accent-wash: #252c45;
+  --palette-accent-border: #627ac3;
+  --palette-accent-2: #bbaad5;
+  --palette-graph-1: #9aacf0;
+  --palette-graph-2: #bbaad5;
+  --palette-editor-gutter: #101118;
+}
+
+[data-theme='arcano'][data-mode='light'][data-theme-variant='minimalist'] {
+  --palette-bg: #f8f8fb;
+  --palette-panel: #fcfcff;
+  --palette-raised: #ffffff;
+  --palette-sunken: #f2f3f8;
+  --palette-hover: #e6e9f3;
+  --palette-active: #dce1ef;
+  --palette-selected: #d8dff3;
+  --palette-ink: #1b2340;
+  --palette-ink-dim: #495570;
+  --palette-ink-faint: #5d6884;
+  --palette-border: #a8b2c9;
+  --palette-border-strong: #7b88a5;
+  --palette-accent: #5266a0;
+  --palette-accent-hover: #445689;
+  --palette-accent-active: #364672;
+  --palette-accent-text: #5266a0;
+  --palette-accent-wash: #e7ebf6;
+  --palette-accent-border: #8d9ccb;
+  --palette-accent-2: #71568a;
+  --palette-graph-1: #5266a0;
+  --palette-graph-2: #71568a;
+  --palette-editor-gutter: #f8f8fb;
+}
+
+[data-theme='arcano'][data-mode='dark'][data-theme-variant='dense'] {
+  --palette-bg: #0b0c26;
+  --palette-panel: #141537;
+  --palette-raised: #1e2049;
+  --palette-sunken: #05051c;
+  --palette-hover: #242653;
+  --palette-active: #2c3061;
+  --palette-selected: #2f3570;
+  --palette-ink: #eceeff;
+  --palette-ink-dim: #bdc4ef;
+  --palette-ink-faint: #a6b0dd;
+  --palette-border: #5a61a5;
+  --palette-border-strong: #7b86ce;
+  --palette-accent: #8ea8ff;
+  --palette-accent-hover: #adc0ff;
+  --palette-accent-active: #ccd7ff;
+  --palette-accent-text: #9bb2ff;
+  --palette-accent-wash: #242b61;
+  --palette-accent-border: #627ee0;
+  --palette-accent-2: #d79dff;
+  --palette-graph-1: #8ea8ff;
+  --palette-graph-2: #d79dff;
+  --palette-editor-gutter: #0b0c26;
+}
+
+[data-theme='arcano'][data-mode='light'][data-theme-variant='dense'] {
+  --palette-bg: #f8f9ff;
+  --palette-panel: #fafbff;
+  --palette-raised: #fcfcff;
+  --palette-sunken: #f2f4fc;
+  --palette-hover: #d9dff8;
+  --palette-active: #cbd3f1;
+  --palette-selected: #bec9f1;
+  --palette-ink: #161d50;
+  --palette-ink-dim: #384776;
+  --palette-ink-faint: #485784;
+  --palette-border: #99a7d8;
+  --palette-border-strong: #7182b5;
+  --palette-accent: #244ed8;
+  --palette-accent-hover: #1e41bc;
+  --palette-accent-active: #17359d;
+  --palette-accent-text: #2048c9;
+  --palette-accent-wash: #dbe4ff;
+  --palette-accent-border: #6387e5;
+  --palette-accent-2: #7930a4;
+  --palette-graph-1: #244ed8;
+  --palette-graph-2: #7930a4;
+  --palette-editor-gutter: #f8f9ff;
+}
+
+/* Contraste — oro sobrio o magenta luminoso, conservando la lectura reforzada. */
+
+[data-theme='contraste'][data-mode='dark'][data-theme-variant='minimalist'] {
+  --palette-bg: #000000;
+  --palette-panel: #000000;
+  --palette-raised: #000000;
+  --palette-sunken: #000000;
+  --palette-hover: #1e1e1e;
+  --palette-active: #303030;
+  --palette-selected: #2b2810;
+  --palette-ink: #ffffff;
+  --palette-ink-dim: #ffffff;
+  --palette-ink-faint: #e8e8e8;
+  --palette-border: #e8e8e8;
+  --palette-border-strong: #ffffff;
+  --palette-accent: #c4b85f;
+  --palette-accent-hover: #dfd184;
+  --palette-accent-active: #efe1a7;
+  --palette-accent-text: #dfd184;
+  --palette-accent-wash: #2b2810;
+  --palette-accent-border: #c4b85f;
+  --palette-accent-2: #e0d7e0;
+  --palette-graph-1: #c4b85f;
+  --palette-graph-2: #e0d7e0;
+  --palette-editor-gutter: #000000;
+}
+
+[data-theme='contraste'][data-mode='light'][data-theme-variant='minimalist'] {
+  --palette-bg: #fffef8;
+  --palette-panel: #fffffa;
+  --palette-raised: #ffffff;
+  --palette-sunken: #faf9f2;
+  --palette-hover: #eae8dc;
+  --palette-active: #dedbca;
+  --palette-selected: #ece6bd;
+  --palette-ink: #000000;
+  --palette-ink-dim: #000000;
+  --palette-ink-faint: #171717;
+  --palette-border: #000000;
+  --palette-border-strong: #000000;
+  --palette-accent: #574a00;
+  --palette-accent-hover: #483d00;
+  --palette-accent-active: #392f00;
+  --palette-accent-text: #574a00;
+  --palette-accent-wash: #eee8c4;
+  --palette-accent-border: #574a00;
+  --palette-accent-2: #4e334e;
+  --palette-graph-1: #574a00;
+  --palette-graph-2: #4e334e;
+  --palette-editor-gutter: #fffef8;
+}
+
+[data-theme='contraste'][data-mode='dark'][data-theme-variant='dense'] {
+  --palette-bg: #000000;
+  --palette-panel: #160814;
+  --palette-raised: #1c101a;
+  --palette-sunken: #030003;
+  --palette-hover: #241823;
+  --palette-active: #332030;
+  --palette-selected: #40153d;
+  --palette-ink: #ffffff;
+  --palette-ink-dim: #ffffff;
+  --palette-ink-faint: #eee6ee;
+  --palette-border: #ffffff;
+  --palette-border-strong: #ffffff;
+  --palette-accent: #ff8cf0;
+  --palette-accent-hover: #ffa6f4;
+  --palette-accent-active: #ffc0f8;
+  --palette-accent-text: #ff8cf0;
+  --palette-accent-wash: #40153d;
+  --palette-accent-border: #ff8cf0;
+  --palette-accent-2: #fff000;
+  --palette-graph-1: #ff8cf0;
+  --palette-graph-2: #fff000;
+  --palette-editor-gutter: #000000;
+}
+
+[data-theme='contraste'][data-mode='light'][data-theme-variant='dense'] {
+  --palette-bg: #fffbf8;
+  --palette-panel: #fffcfa;
+  --palette-raised: #fffffc;
+  --palette-sunken: #fffaf2;
+  --palette-hover: #f0e2ed;
+  --palette-active: #e6d5e2;
+  --palette-selected: #f3d9eb;
+  --palette-ink: #000000;
+  --palette-ink-dim: #000000;
+  --palette-ink-faint: #171017;
+  --palette-border: #000000;
+  --palette-border-strong: #000000;
+  --palette-accent: #65004f;
+  --palette-accent-hover: #520040;
+  --palette-accent-active: #3f0031;
+  --palette-accent-text: #65004f;
+  --palette-accent-wash: #f3d9eb;
+  --palette-accent-border: #65004f;
+  --palette-accent-2: #654600;
+  --palette-graph-1: #65004f;
+  --palette-graph-2: #654600;
+  --palette-editor-gutter: #fffbf8;
+}

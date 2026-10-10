@@ -1,0 +1,17 @@
+.control {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.control select {
+  max-width: 15rem;
+}
+
+.warning {
+  color: var(--text-danger);
+  font-family: var(--font-family-code);
+  font-weight: var(--font-weight-bold);
+  cursor: help;
+}

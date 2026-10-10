@@ -1,0 +1,578 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { GestureProvider } from '@app/GestureProvider';
+import { PortsContext } from '@app/PortsContext';
+import { useShellStore } from '@app/shellStore';
+import { NO_LATENCY } from '@core/adapters/mock/latency';
+import { createMockGitPort } from '@core/adapters/mock/mockGitPort';
+import { createMockLibraryPort } from '@core/adapters/mock/mockLibraryPort';
+import { createMockSystemPort } from '@core/adapters/mock/mockSystemPort';
+import { selectPorts, type AppPorts } from '@core/adapters/selectPorts';
+import { GitOperationError } from '@core/domain/errors';
+import { ThemeProvider } from '@design/ThemeProvider';
+import { DEFAULT_USER_COLOR } from '@design/userColor';
+import { I18nProvider } from '@i18n/I18nProvider';
+
+import { useVirtualViewport } from '../../test/virtualViewport';
+import { RepositoriesView } from './RepositoriesView';
+import { useRepositoriesStore } from './repositoriesStore';
+
+function makePorts(): AppPorts & {
+  git: ReturnType<typeof createMockGitPort>;
+  library: ReturnType<typeof createMockLibraryPort>;
+  system: ReturnType<typeof createMockSystemPort>;
+} {
+  return {
+    ...selectPorts(),
+    git: createMockGitPort({ latency: NO_LATENCY }),
+    library: createMockLibraryPort({ now: () => Date.UTC(2026, 7, 21) }),
+    system: createMockSystemPort(),
+  };
+}
+
+function renderView(ports: AppPorts) {
+  return render(
+    <PortsContext value={ports}>
+      <ThemeProvider initialSettings={{ theme: 'thul', mode: 'dark' }}>
+        <I18nProvider initialLocale="es-MX">
+          <GestureProvider platform="linux">
+            <RepositoriesView />
+          </GestureProvider>
+        </I18nProvider>
+      </ThemeProvider>
+    </PortsContext>,
+  );
+}
+
+async function knownRows() {
+  return within(
+    await screen.findByRole('listbox', { name: 'Repositorios conocidos' }),
+  ).getAllByRole('option');
+}
+
+function rowAt(rows: readonly HTMLElement[], path: string) {
+  const row = rows.find((candidate) => within(candidate).queryByText(path));
+  if (!row) throw new Error(`No existe la fila ${path}`);
+  return row;
+}
+
+beforeEach(() => {
+  useRepositoriesStore.getState().reset();
+  useShellStore.getState().reset();
+});
+
+describe('RepositoriesView con biblioteca real', () => {
+  useVirtualViewport();
+
+  it('carga Recientes y Todos y ofrece el reparto de Espacios', async () => {
+    renderView(makePorts());
+    expect(await knownRows()).toHaveLength(4);
+    expect(screen.getByRole('region', { name: 'Recientes' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Espacios' })).toBeInTheDocument();
+  });
+
+  it('persiste el layout y monta miembros vivos como tarjetas seleccionables', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Alex');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'repo-que-ya-no-existe');
+    renderView(ports);
+    await knownRows();
+
+    await user.click(screen.getByRole('radio', { name: 'Espacios' }));
+    await waitFor(async () => expect((await ports.library.read()).layout).toBe('spaces'));
+    const zone = await screen.findByRole('listbox', { name: 'Repositorios de Alex' });
+    expect(within(zone).getAllByRole('option')).toHaveLength(1);
+
+    const card = within(zone).getByRole('option');
+    await user.click(card);
+    expect(useRepositoriesStore.getState().selected?.id).toBe('gitthul');
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('space:space-1');
+
+    await user.click(screen.getByRole('button', { name: 'Plegar Alex' }));
+    await waitFor(async () => expect((await ports.library.read()).spaces[0]?.collapsed).toBe(true));
+    expect(screen.queryByRole('listbox', { name: 'Repositorios de Alex' })).not.toBeInTheDocument();
+  });
+
+  it('las flechas recorren las tarjetas visibles y omiten espacios plegados', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Plegado');
+    await ports.library.createSpace('Uno');
+    await ports.library.createSpace('Dos');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-2', 'bitacora');
+    await ports.library.addToSpace('space-3', 'dotfiles');
+    await ports.library.setSpaceCollapsed('space-1', true);
+    await ports.library.setLayout('spaces');
+    renderView(ports);
+    await knownRows();
+
+    const spaces = await screen.findByRole('group', { name: 'Espacios' });
+    const visible = within(spaces).getAllByRole('option');
+
+    visible[0]?.focus();
+    fireEvent.keyDown(visible[0]!, { key: 'ArrowDown' });
+
+    expect(document.activeElement).toBe(visible[1]);
+  });
+
+  it('invierte layout y orden también al pulsar la opción que ya está activa', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    renderView(ports);
+    await knownRows();
+
+    await user.click(screen.getByRole('radio', { name: 'Lista' }));
+    await waitFor(async () => expect((await ports.library.read()).layout).toBe('spaces'));
+    await user.click(screen.getByRole('radio', { name: 'Espacios' }));
+    await waitFor(async () => expect((await ports.library.read()).layout).toBe('list'));
+
+    await user.click(screen.getByRole('radio', { name: 'Por última apertura' }));
+    await waitFor(async () => expect((await ports.library.read()).sort).toBe('name'));
+    await user.click(screen.getByRole('radio', { name: 'Por nombre' }));
+    await waitFor(async () => expect((await ports.library.read()).sort).toBe('lastOpened'));
+  });
+
+  it('elegir el avatar de una card seleccionada no abre GitWorking', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Trabajo');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.setLayout('spaces');
+    renderView(ports);
+    await knownRows();
+
+    const zone = await screen.findByRole('listbox', { name: 'Repositorios de Trabajo' });
+    const card = within(zone).getByRole('option');
+    await user.click(card);
+    fireEvent.contextMenu(within(card).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Elegir avatar' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Avatar de gitthul' })).toBeVisible();
+    expect(useShellStore.getState().tabs).toHaveLength(0);
+    expect(useShellStore.getState().activeId).toBeNull();
+  });
+
+  it('ofrece primero los colores y persiste un color personalizado del avatar', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    renderView(ports);
+    const row = rowAt(await knownRows(), '/home/example/projects/gitthul');
+
+    fireEvent.contextMenu(within(row).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Elegir avatar' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Avatar de gitthul' });
+    const custom = within(dialog).getByLabelText('Color personalizado');
+    const rocket = within(dialog).getByRole('button', { name: 'Cohete' });
+    const chosenColor = DEFAULT_USER_COLOR.replaceAll('8', '7');
+    expect(custom.compareDocumentPosition(rocket) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+
+    fireEvent.change(custom, { target: { value: chosenColor } });
+    await user.click(rocket);
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(async () =>
+      expect((await ports.library.read()).avatars['gitthul']).toEqual({
+        glyph: 'rocket',
+        tone: 1,
+        color: chosenColor,
+      }),
+    );
+  });
+
+  it('crea, renombra y elimina espacios sin olvidar repositorios', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.setLayout('spaces');
+    renderView(ports);
+    await knownRows();
+
+    await user.click(screen.getByRole('button', { name: '+ Crear un espacio' }));
+    const create = await screen.findByRole('dialog', { name: 'Crear un espacio' });
+    await user.type(within(create).getByLabelText('Nombre del espacio'), 'Trabajo');
+    await user.click(within(create).getByRole('button', { name: 'Crear espacio' }));
+    await screen.findByRole('region', { name: 'Espacio Trabajo' });
+    expect((await ports.library.read()).spaces.map((space) => space.name)).toEqual(['Trabajo']);
+
+    await user.keyboard('{F2}');
+    expect(screen.queryByRole('textbox', { name: 'Renombrar Trabajo' })).not.toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByRole('region', { name: 'Espacio Trabajo' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Renombrar Trabajo' }));
+    const rename = await screen.findByRole('textbox', { name: 'Renombrar Trabajo' });
+    await user.clear(rename);
+    await user.type(rename, 'Cliente{Enter}');
+    await screen.findByRole('region', { name: 'Espacio Cliente' });
+
+    await user.keyboard('{Alt>}{Delete}{/Alt}');
+    expect(screen.queryByRole('dialog', { name: 'Eliminar Cliente' })).not.toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByRole('region', { name: 'Espacio Cliente' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Eliminar Cliente' }));
+    const remove = await screen.findByRole('dialog', { name: 'Eliminar Cliente' });
+    expect(within(remove).getByText(/No se olvidará ningún repositorio/)).toBeInTheDocument();
+    await user.click(within(remove).getByRole('button', { name: 'Eliminar espacio' }));
+    await waitFor(async () => expect((await ports.library.read()).spaces).toHaveLength(0));
+    expect(await ports.git.listRepositories()).toHaveLength(4);
+  });
+
+  it('mueve a un espacio desde un submenú de nombres y deshabilita los actuales', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Trabajo');
+    await ports.library.createSpace('Cliente');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    renderView(ports);
+    const row = rowAt(await knownRows(), '/home/example/projects/gitthul');
+
+    fireEvent.contextMenu(within(row).getByText('/home/example/projects/gitthul'));
+    expect(await screen.findByRole('menuitem', { name: 'Abrir' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^Abrir la carpeta\b/ })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Buscar .* en otra carpeta/ })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Elegir avatar' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^Olvidar en GitThul\b/ })).toBeInTheDocument();
+
+    await user.hover(screen.getByRole('menuitem', { name: 'Mover a espacio' }));
+    expect(await screen.findByRole('menuitem', { name: 'Trabajo' })).toBeDisabled();
+    await user.click(screen.getByRole('menuitem', { name: 'Cliente' }));
+    await waitFor(async () =>
+      expect((await ports.library.read()).spaces[1]?.repos).toContain('gitthul'),
+    );
+  });
+
+  it('distingue arrastrar una tarjeta de reordenar su zona', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Origen');
+    await ports.library.createSpace('Destino');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.setLayout('spaces');
+    renderView(ports);
+    await knownRows();
+
+    const origin = await screen.findByRole('region', { name: 'Espacio Origen' });
+    const target = screen.getByRole('region', { name: 'Espacio Destino' });
+    const card = within(origin).getByRole('option');
+    fireEvent.dragStart(card);
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+    await waitFor(async () => {
+      const spaces = (await ports.library.read()).spaces;
+      expect(spaces[0]?.repos).not.toContain('gitthul');
+      expect(spaces[1]?.repos).toContain('gitthul');
+    });
+
+    fireEvent.dragStart(target);
+    fireEvent.dragOver(origin);
+    fireEvent.drop(origin);
+    await waitFor(async () =>
+      expect((await ports.library.read()).spaces.map((space) => space.name)).toEqual([
+        'Destino',
+        'Origen',
+      ]),
+    );
+  });
+
+  it('agrega desde Todos al arrastrar sin quitar otras membresías', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Trabajo');
+    await ports.library.setLayout('spaces');
+    renderView(ports);
+    const row = rowAt(await knownRows(), '/home/example/projects/gitthul');
+    const target = await screen.findByRole('region', { name: 'Espacio Trabajo' });
+
+    fireEvent.dragStart(within(row).getByText('/home/example/projects/gitthul'));
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+    await waitFor(async () =>
+      expect((await ports.library.read()).spaces[0]?.repos).toContain('gitthul'),
+    );
+  });
+
+  it('crea un espacio con el repositorio al soltar sobre el destino contextual', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Trabajo');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    renderView(ports);
+    const row = rowAt(await knownRows(), '/home/example/projects/gitthul');
+
+    fireEvent.dragStart(within(row).getByText('/home/example/projects/gitthul'));
+    const targets = await screen.findByRole('group', { name: 'Soltar sobre un espacio' });
+    expect(
+      targets.compareDocumentPosition(screen.getByRole('region', { name: 'Recientes' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(within(targets).getByText('Trabajo').parentElement).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    fireEvent.dragOver(within(targets).getByText('Nuevo espacio').parentElement!);
+    fireEvent.drop(within(targets).getByText('Nuevo espacio').parentElement!);
+
+    const dialog = await screen.findByRole('dialog', { name: 'Crear un espacio' });
+    await user.type(within(dialog).getByLabelText('Nombre del espacio'), 'Cliente');
+    await user.click(within(dialog).getByRole('button', { name: 'Crear espacio' }));
+    await waitFor(async () => {
+      const library = await ports.library.read();
+      expect(library.layout).toBe('spaces');
+      expect(library.view).toEqual({ kind: 'space', id: 'space-2' });
+      expect(library.spaces[1]?.repos).toContain('gitthul');
+    });
+    expect(await screen.findByRole('region', { name: 'Espacio Cliente' })).toBeInTheDocument();
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('space:space-2');
+  });
+
+  it('al soltar desde Lista revela el espacio y conserva seleccionado el repositorio', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Trabajo');
+    renderView(ports);
+    const row = rowAt(await knownRows(), '/home/example/projects/gitthul');
+
+    fireEvent.dragStart(within(row).getByText('/home/example/projects/gitthul'));
+    const targets = await screen.findByRole('group', { name: 'Soltar sobre un espacio' });
+    const target = within(targets).getByText('Trabajo').parentElement!;
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+
+    await waitFor(async () => {
+      const library = await ports.library.read();
+      expect(library.layout).toBe('spaces');
+      expect(library.view).toEqual({ kind: 'space', id: 'space-1' });
+    });
+    expect(useRepositoriesStore.getState().selected?.id).toBe('gitthul');
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('space:space-1');
+  });
+
+  it('abre todos los repositorios de un espacio sin duplicar pestañas', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const repos = await ports.git.listRepositories();
+    await ports.library.createSpace('Trabajo');
+    await ports.library.addToSpace('space-1', repos[0]!.id);
+    await ports.library.addToSpace('space-1', repos[1]!.id);
+    await ports.library.setLayout('spaces');
+    renderView(ports);
+    await knownRows();
+
+    const openAll = await screen.findByRole('button', {
+      name: 'Abrir todos los repositorios de Trabajo',
+    });
+    expect(openAll).toHaveAttribute('title', 'Abrir todos los repositorios de Trabajo');
+    await user.click(openAll);
+    await waitFor(() => expect(useShellStore.getState().tabs).toHaveLength(2));
+    await user.click(openAll);
+    await waitFor(() => expect(useShellStore.getState().tabs).toHaveLength(2));
+  });
+
+  it('continúa al fallar un repositorio de Abrir todos y avisa del resultado parcial', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const repos = await ports.git.listRepositories();
+    await ports.library.createSpace('Trabajo');
+    await ports.library.addToSpace('space-1', repos[0]!.id);
+    await ports.library.addToSpace('space-1', repos[1]!.id);
+    await ports.library.setLayout('spaces');
+    ports.git.failNext(
+      'markOpened',
+      new GitOperationError('repo.notFound', {
+        repo: repos[0]!.name,
+        path: repos[0]!.path,
+      }),
+    );
+    renderView(ports);
+    await knownRows();
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Abrir todos los repositorios de Trabajo' }),
+    );
+
+    await waitFor(() => expect(useShellStore.getState().tabs).toHaveLength(1));
+    expect(useShellStore.getState().status).toEqual({
+      tone: 'warning',
+      key: 'repositories.status.openedSpaceWithFailures',
+      params: { space: 'Trabajo', count: 2, failed: 1 },
+    });
+  });
+
+  it('filtra por ruta y conserva una sola lista de resultados', async () => {
+    const user = userEvent.setup();
+    renderView(makePorts());
+    await knownRows();
+    await user.type(
+      screen.getByLabelText('Filtrar los repositorios por nombre o por ruta'),
+      'f2-grafo',
+    );
+    expect(await knownRows()).toHaveLength(1);
+    expect(screen.queryByRole('region', { name: 'Recientes' })).not.toBeInTheDocument();
+  });
+
+  it('al filtrar explica los Espacios de cada resultado', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Trabajo');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    renderView(ports);
+    await knownRows();
+
+    await user.type(
+      screen.getByLabelText('Filtrar los repositorios por nombre o por ruta'),
+      '/home/example/projects/gitthul',
+    );
+    expect(within((await knownRows())[0]!).getByText('Trabajo')).toBeInTheDocument();
+  });
+
+  it('guarda el orden en LibraryPort', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    renderView(ports);
+    await knownRows();
+    await user.click(screen.getByRole('radio', { name: 'Por nombre' }));
+    await waitFor(async () => expect((await ports.library.read()).sort).toBe('name'));
+  });
+
+  it('Abrir elige una carpeta y registra el repositorio real seleccionado', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    ports.system.answerWith('/home/example/projects/tesis');
+    renderView(ports);
+    await knownRows();
+
+    await user.click(screen.getByRole('button', { name: 'Abrir una carpeta como repositorio' }));
+
+    await waitFor(() =>
+      expect(useRepositoriesStore.getState().selected?.path).toBe('/home/example/projects/tesis'),
+    );
+  });
+
+  it('Crear conserva su dialogo y usa la carpeta elegida para inicializar', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    ports.system.answerWith('/home/example/Nuevos');
+    renderView(ports);
+    await knownRows();
+
+    await user.click(screen.getByRole('button', { name: 'Crear un repositorio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Crear un repositorio' });
+    await user.click(within(dialog).getByRole('button', { name: 'Elegir carpeta' }));
+    await user.type(within(dialog).getByLabelText('Nombre'), 'proyecto-real');
+    await user.click(within(dialog).getByRole('button', { name: 'Crear' }));
+
+    await waitFor(() =>
+      expect(useRepositoriesStore.getState().selected?.path).toBe(
+        '/home/example/Nuevos/proyecto-real',
+      ),
+    );
+  });
+
+  it('Clonar conserva su dialogo y usa la carpeta elegida como destino', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    ports.system.answerWith('/home/example/Clones');
+    renderView(ports);
+    await knownRows();
+
+    await user.click(screen.getByRole('button', { name: 'Clonar un repositorio' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Clonar un repositorio' });
+    await user.type(
+      within(dialog).getByLabelText('Dirección'),
+      'https://example.com/equipo/demo.git',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Elegir carpeta' }));
+    expect(
+      await within(dialog).findByText('La ruta del repositorio será /home/example/Clones/demo'),
+    ).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Clonar' }));
+
+    await waitFor(() =>
+      expect(useRepositoriesStore.getState().selected?.path).toBe('/home/example/Clones/demo'),
+    );
+  });
+
+  it.each(['auth.failed', 'clone.unavailable'] as const)(
+    'Clonar permite reintentar %s sin abrir la configuración antigua',
+    async (code) => {
+      const user = userEvent.setup();
+      const ports = makePorts();
+      const clone = vi
+        .spyOn(ports.git, 'cloneRepository')
+        .mockRejectedValueOnce(new GitOperationError(code, { remote: 'example.com' }));
+      ports.system.answerWith('/home/example/Clones');
+      renderView(ports);
+      await knownRows();
+      await user.click(screen.getByRole('button', { name: 'Clonar un repositorio' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Clonar un repositorio' });
+      await user.type(within(dialog).getByLabelText('Dirección'), 'https://example.com/demo.git');
+      await user.click(within(dialog).getByRole('button', { name: 'Elegir carpeta' }));
+      await user.click(within(dialog).getByRole('button', { name: 'Clonar' }));
+      const retry = await within(dialog).findByRole('button', { name: 'Reintentar' });
+      expect(
+        within(dialog).queryByRole('button', { name: /credenciales/i }),
+      ).not.toBeInTheDocument();
+      expect(useShellStore.getState().overlay).toBe('none');
+      await user.click(retry);
+      await waitFor(() => expect(clone).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(useRepositoriesStore.getState().selected?.path).toBe('/home/example/Clones/demo'),
+      );
+    },
+  );
+
+  it('abrir marca Git, suma uso en la biblioteca y abre GitWorking', async () => {
+    const ports = makePorts();
+    renderView(ports);
+    const row = rowAt(await knownRows(), '/home/example/projects/gitthul');
+    const target = within(row).getByText('/home/example/projects/gitthul');
+    fireEvent.mouseDown(target, { button: 0, detail: 1 });
+    fireEvent.click(target, { button: 0, detail: 1 });
+    fireEvent.mouseDown(target, { button: 0, detail: 1 });
+    fireEvent.click(target, { button: 0, detail: 1 });
+    await waitFor(() => expect(useShellStore.getState().tabs[0]?.surface.kind).toBe('working'));
+    expect(Object.values((await ports.library.read()).usage)).toEqual([1]);
+  });
+
+  it('olvidar confirma alcance y retira solo la entrada conocida', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    renderView(ports);
+    const row = rowAt(await knownRows(), '/home/example/projects/gitthul');
+    await user.click(within(row).getByText('/home/example/projects/gitthul'));
+    await user.keyboard('{Delete}');
+    expect(
+      screen.queryByRole('dialog', { name: 'Olvidar gitthul en GitThul' }),
+    ).not.toBeInTheDocument();
+    fireEvent.contextMenu(within(row).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: /^Olvidar en GitThul/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Olvidar gitthul en GitThul' });
+    expect(
+      within(dialog).getByText(/la carpeta .* y su historial se conservarán/i),
+    ).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Olvidar gitthul' }));
+    await waitFor(() =>
+      expect(useRepositoriesStore.getState().repositories?.map((repo) => repo.id)).not.toContain(
+        'gitthul',
+      ),
+    );
+  });
+
+  it('localizar valida la carpeta nueva antes de olvidar la anterior', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    ports.system.answerWith('/home/example/projects/tesis');
+    ports.git.failNext(
+      'markOpened',
+      new GitOperationError('repo.notFound', {
+        repo: 'gitthul',
+        path: '/home/example/projects/gitthul',
+      }),
+    );
+    renderView(ports);
+    const row = rowAt(await knownRows(), '/home/example/projects/gitthul');
+    fireEvent.contextMenu(within(row).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Abrir' }));
+    await user.click(await screen.findByRole('button', { name: 'Buscar gitthul en otra carpeta' }));
+    await waitFor(() => expect(useRepositoriesStore.getState().selected?.name).toBe('tesis'));
+    await screen.findByRole('heading', { name: 'tesis' });
+    expect((await ports.git.listRepositories()).map((repo) => repo.id)).not.toContain('gitthul');
+  });
+});

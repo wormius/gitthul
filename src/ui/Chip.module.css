@@ -1,0 +1,92 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height-sm);
+  padding-left: var(--space-3);
+  background-color: var(--surface-raised);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+/*
+ * Elegida, la píldora va en acento macizo.
+ *
+ * Un chip es una elección de un puñado, siempre a la vista y de una sola línea:
+ * el mismo caso que el interruptor de reparto, y por eso admite el relleno
+ * sólido que una fila de lista no admite. Lo que aquí se gana es que «puesto» y
+ * «no puesto» se distinguen de un vistazo desde el otro lado de la pantalla, sin
+ * tener que comparar dos tintes parecidos.
+ */
+.selected {
+  background-color: var(--accent);
+  border-color: var(--border-accent);
+}
+
+.body {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+  padding: 0;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+/* Sin botón de quitar no hay nada que reserve el aire del lado derecho: sin
+   esto, el texto queda pegado al borde de la píldora. */
+.noRemove {
+  padding-right: var(--space-3);
+}
+
+.selected .body {
+  color: var(--text-on-accent);
+}
+
+/* La × hereda el mismo tinte: sobre el acento, el gris de siempre no se lee. */
+.selected .remove {
+  color: var(--text-on-accent);
+}
+
+.icon {
+  display: inline-flex;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Siempre montado; el hover solo aclara la opacidad, nunca cambia su caja. */
+.remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  margin: 0 var(--space-2) 0 var(--space-1);
+  color: var(--text-secondary);
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.remove svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.remove:hover {
+  color: var(--text-danger);
+  background-color: var(--surface-danger);
+  opacity: 1;
+}

@@ -1,0 +1,100 @@
+.split {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  /* Sin esto, un SplitPane anidado dentro de un panel se niega a encogerse. */
+  flex: 1;
+}
+
+.horizontal {
+  flex-direction: row;
+}
+
+.vertical {
+  flex-direction: column;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* El segundo panel se queda con lo que sobre: así el reparto lo decide una
+   sola fracción y no dos que tengan que sumar uno. */
+.rest {
+  flex: 1 1 0;
+}
+
+/* El plegado no crece ni se encoge: su ancho lo decide `collapsedSize`, sea
+   cero o lo que ocupe la tira de iconos que tenga dentro. */
+.collapsed {
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
+/*
+ * El divisor tiene una zona de agarre mayor que su línea visible: el ancho
+ * total es de tokens de densidad, pero solo el filamento central se pinta.
+ * Al hacer hover cambia el color del filamento, nunca su grosor — cambiar
+ * `border-width` o el tamaño desplazaría los dos paneles, que es exactamente
+ * lo que prohíbe la invariante 1.
+ */
+.divider {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--surface-app);
+  touch-action: none;
+}
+
+.divider:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.horizontal > .divider {
+  width: var(--divider-thickness);
+  cursor: col-resize;
+}
+
+.vertical > .divider {
+  height: var(--divider-thickness);
+  cursor: row-resize;
+}
+
+.grip {
+  background-color: var(--border-subtle);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.horizontal > .divider > .grip {
+  width: var(--border-width);
+  height: 100%;
+}
+
+.vertical > .divider > .grip {
+  width: 100%;
+  height: var(--border-width);
+}
+
+.divider:hover > .grip,
+.divider:focus-visible > .grip,
+.dragging > .divider > .grip {
+  background-color: var(--border-accent);
+}
+
+/* Durante el arrastre el puntero puede pasar por encima de un iframe, un
+   canvas o un campo de texto; apagar la selección evita que el gesto termine
+   pintando de azul media ventana. */
+.dragging {
+  user-select: none;
+}
+
+.dragging .pane {
+  pointer-events: none;
+}
