@@ -72,7 +72,7 @@ los límites y las opciones de conservación.
 
 ## Instalación y ayuda
 
-Los paquetes publicados estarán en [GitHub Releases](https://github.com/wormius/gitthul/releases).
+Los paquetes publicados están en [GitHub Releases](https://github.com/wormius/gitthul/releases).
 Consulta las [notas de 1.0.0](docs/releases/1.0.0.md) y la
 [guía de instalación](docs/instalacion.md) para elegir el paquete de tu sistema.
 Revisa las [dependencias](docs/instalacion.md#dependencias), incluido Git instalado
