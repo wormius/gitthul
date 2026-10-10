@@ -2,8 +2,9 @@
 
 Estas guías explican cómo utilizar GitThul y qué efectos tienen sus acciones.
 
-- [Instalación y acceso desde el escritorio](instalacion.md): abrir un paquete
-  para tu sistema e integrar un AppImage en Linux.
+- [Instalación y acceso desde el escritorio](instalacion.md): preparar las
+  dependencias, comprobar Git y SSH, instalar el paquete de tu sistema e integrar
+  un AppImage en Linux.
 - [Atajos de teclado](atajos.md): navegación, acciones habituales y edición de
   texto.
 - [Búsqueda global](busqueda-global.md): encontrar repositorios, commits,

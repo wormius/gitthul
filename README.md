@@ -75,7 +75,8 @@ los límites y las opciones de conservación.
 Los paquetes publicados estarán en [GitHub Releases](https://github.com/wormius/gitthul/releases).
 Consulta las [notas de 1.0.0](docs/releases/1.0.0.md) y la
 [guía de instalación](docs/instalacion.md) para elegir el paquete de tu sistema.
-GitThul necesita Git instalado y disponible en el sistema.
+Revisa las [dependencias](docs/instalacion.md#dependencias), incluido Git instalado
+y disponible en el sistema.
 
 Puedes [reportar un problema](https://github.com/wormius/gitthul/issues) indicando
 la versión, el sistema y los pasos para reproducirlo. Evita incluir credenciales
