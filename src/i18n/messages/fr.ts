@@ -1440,7 +1440,7 @@ export const fr: Messages = {
   'about.version': 'GitThul™ {version}',
   'about.license': 'Licence {license}',
   'about.trademark': 'GitThul et son logo sont utilisés comme marques non enregistrées (™).',
-  'about.tagline': 'Client graphique de Git, tentaculaire, arcanique et libre.',
+  'about.tagline': 'Client graphique de Git, tentaculaire, arcanique et open source.',
   'about.site': 'Site du projet',
   'about.source': 'Code source',
   'about.offline':

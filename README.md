@@ -2,7 +2,7 @@
 
 # GitThul™
 
-**Cliente gráfico de Git multiplataforma, libre y claro.**
+**Cliente gráfico de Git multiplataforma, de código abierto y claro.**
 
 Linux · Windows · macOS — MIT
 

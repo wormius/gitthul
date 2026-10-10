@@ -64,7 +64,7 @@ describe('AboutPanel', () => {
       within(dialog).getByText('GitThul y su logotipo se usan como marcas no registradas (™).'),
     ).toBeInTheDocument();
     expect(
-      within(dialog).getByText('Cliente gráfico de Git, tentacular, arcano y libre.'),
+      within(dialog).getByText('Cliente gráfico de Git, tentacular, arcano y de código abierto.'),
     ).toBeInTheDocument();
     expect(within(dialog).getByRole('img', { name: 'Logotipo de GitThul' })).toBeInTheDocument();
   });

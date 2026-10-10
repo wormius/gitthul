@@ -1,6 +1,6 @@
 # GitThul
 
-GitThul es un cliente gráfico de Git de escritorio, multiplataforma y libre.
+GitThul es un cliente gráfico de Git de escritorio, multiplataforma y de código abierto.
 Su propósito es hacer visibles el estado real y las operaciones de Git, con una
 interfaz clara, terminal integrada y mecanismos de recuperación. La red responde
 a acciones del usuario o preferencias explícitas; no introducir telemetría.

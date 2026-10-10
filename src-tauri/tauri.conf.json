@@ -32,7 +32,7 @@
     "targets": ["deb", "rpm", "appimage", "dmg", "nsis", "msi"],
     "category": "DeveloperTool",
     "shortDescription": "Cliente gráfico de git",
-    "longDescription": "GitThul es un cliente gráfico de git multiplataforma y libre, diseñado para que cualquier operación de git sea más simple y clara que en la línea de comandos.",
+    "longDescription": "GitThul es un cliente gráfico de Git multiplataforma y de código abierto, diseñado para que cualquier operación de Git sea más simple y clara que en la línea de comandos.",
     "copyright": "Copyright © 2026 GitThul. Licencia MIT.",
     "licenseFile": "../LICENSE",
     "resources": ["../LICENSE", "../THIRD_PARTY_NOTICES.md", "../TRADEMARKS.md", "../licenses/"],
