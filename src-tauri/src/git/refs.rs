@@ -587,14 +587,22 @@ mod tests {
     use std::path::Path;
     use std::process::Command;
 
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "macos")))]
     use std::ffi::OsString;
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "macos")))]
     use std::os::unix::ffi::OsStringExt;
 
     use tempfile::TempDir;
 
     use super::{read, ReadRefsError};
+
+    #[test]
+    fn rejects_non_utf8_ref_bytes_on_every_platform() {
+        assert!(matches!(
+            super::utf8(b"refs/heads/invalid-\xff"),
+            Err(ReadRefsError::InvalidEncoding)
+        ));
+    }
 
     fn repository() -> TempDir {
         let temporary = tempfile::tempdir().unwrap();
@@ -713,7 +721,10 @@ mod tests {
             .iter()
             .find(|branch| branch.id == "refs/heads/dev")
             .unwrap();
-        assert_eq!(dev.checked_out_in.as_deref(), linked.to_str());
+        assert_eq!(
+            fs::canonicalize(dev.checked_out_in.as_deref().unwrap()).unwrap(),
+            fs::canonicalize(&linked).unwrap()
+        );
 
         let annotated = snapshot
             .tags
@@ -794,7 +805,8 @@ mod tests {
         assert!(snapshot.worktrees[0].is_main);
     }
 
-    #[cfg(unix)]
+    // APFS/HFS+ reject invalid UTF-8 filenames before Git can create the ref.
+    #[cfg(all(unix, not(target_os = "macos")))]
     #[test]
     fn rechaza_un_nombre_de_ref_no_utf8_sin_reemplazarlo() {
         let temporary = repository();

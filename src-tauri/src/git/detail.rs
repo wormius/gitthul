@@ -487,17 +487,31 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn conserva_rutas_con_salto_y_rechaza_rutas_no_utf8() {
-        use std::ffi::OsString;
-        use std::os::unix::ffi::OsStringExt;
-
+    fn conserva_rutas_con_salto() {
         let temporary = repository();
         let path = temporary.path();
         fs::write(path.join("línea\nnueva.txt"), "contenido\n").unwrap();
         let valid = commit(path, "ruta literal");
         let details = read(path, &valid).unwrap();
         assert_eq!(details.files[0].path, "línea\nnueva.txt");
+    }
 
+    #[test]
+    fn rejects_non_utf8_path_bytes_on_every_platform() {
+        assert_eq!(
+            super::strict_path(b"invalid-\xff.txt"),
+            Err(ReadDetailError::PathEncoding)
+        );
+    }
+
+    // APFS/HFS+ reject this filename before Git can create the fixture.
+    #[cfg(all(unix, not(target_os = "macos")))]
+    #[test]
+    fn rechaza_rutas_no_utf8() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+        let temporary = repository();
+        let path = temporary.path();
         fs::write(
             path.join(OsString::from_vec(b"invalido-\xff.txt".to_vec())),
             "contenido\n",

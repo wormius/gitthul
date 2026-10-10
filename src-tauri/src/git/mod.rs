@@ -3346,7 +3346,7 @@ mod registry_refresh_tests {
         let current = registry
             .repositories
             .iter()
-            .find(|known| known.path == path)
+            .find(|known| known.path == fs::canonicalize(&repository).unwrap().to_string_lossy())
             .expect("ficha canónica");
         assert_eq!(
             current.id,

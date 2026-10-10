@@ -841,7 +841,16 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
+    #[test]
+    fn rejects_non_utf8_path_bytes_on_every_platform() {
+        assert_eq!(
+            super::strict_path(b"invalid-\xff.txt"),
+            Err(ReadStatusError::InvalidPathEncoding)
+        );
+    }
+
+    // APFS/HFS+ cannot store this fixture; byte decoding is tested on all platforms.
+    #[cfg(all(unix, not(target_os = "macos")))]
     #[test]
     fn rechaza_una_ruta_no_utf8_sin_reemplazar_sus_bytes() {
         use std::ffi::OsString;

@@ -86,6 +86,10 @@ app_local_data_dir()/recovery, separadas por gitdir e identidad de instancia.
 Resolver gitdir y common-dir mediante Git: un worktree puede tener un archivo .git
 y referencias/configuración compartidas. Un repositorio recreado en la misma ruta
 no debe heredar automáticamente copias de otra instancia.
+Al comprobar pertenencia de un worktree, exigir una ruta absoluta y comparar
+también las rutas canónicas existentes. Git puede devolver /private/var en macOS
+o una forma distinta de la ruta Windows. Conservar las protecciones de principal,
+actual, bloqueo y trabajo pendiente al aceptar un alias del mismo directorio.
 
 La política recovery de settings.json controla depuración automática, cantidad,
 antigüedad y espacio. Los límites son blandos: nunca eliminar puntos activos,
@@ -164,6 +168,11 @@ sin afirmar que se haya certificado como mínimo efectivo en todos los sistemas.
 Python y Bash sirven a herramientas externas opcionales, no a las comprobaciones
 ordinarias. OpenSSH proporciona ssh y ssh-keygen para los remotos y las funciones
 de llaves SSH de la aplicación.
+build.rs solicita Common Controls v6 también para los ejecutables de pruebas
+Windows; los recursos del binario Tauri no alcanzan por sí solos los tests de la
+librería. Los fixtures comparan rutas canónicas. Las pruebas de bytes no UTF-8
+se ejecutan en todas las plataformas; los fixtures con nombres no UTF-8 en disco
+excluyen macOS porque APFS/HFS+ rechaza esos nombres antes de que intervenga Git.
 
 Instalar con npm ci. npm run dev usa mocks fuera de Tauri; npm run tauri dev
 ejecuta el escritorio. El puerto fijo es 5183 y la galería está en /dev/tokens.

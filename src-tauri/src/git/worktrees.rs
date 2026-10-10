@@ -101,9 +101,20 @@ fn create(repository: &Path, path: &str, branch: &RefTarget) -> Result<(), GitCo
 
 fn target(repository: &Path, path: &str) -> Result<refs::Worktree, GitCommandError> {
     // Se usa la ruta completa del listado, nunca el nombre abreviado aceptado por Git.
+    if !Path::new(path).is_absolute() {
+        return Err(GitCommandError::internal(
+            "La ruta del worktree debe ser absoluta",
+        ));
+    }
+    let canonical = std::fs::canonicalize(path).ok();
     let entry = list(repository)?
         .into_iter()
-        .find(|entry| entry.path == path)
+        .find(|entry| {
+            entry.path == path
+                || canonical.as_ref().is_some_and(|requested| {
+                    std::fs::canonicalize(&entry.path).ok().as_ref() == Some(requested)
+                })
+        })
         .ok_or_else(|| {
             GitCommandError::internal("El worktree ya no pertenece a este repositorio")
         })?;
@@ -362,5 +373,26 @@ mod tests {
             &locks.repository(path)
         ));
         remove(root.path(), path, &RemoveOptions::default()).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn accepts_absolute_aliases_but_preserves_worktree_protections() {
+        let root = fixture();
+        let destination = tempfile::tempdir().unwrap();
+        let alias_parent = tempfile::tempdir().unwrap();
+        let alias = alias_parent.path().join("alias");
+        std::os::unix::fs::symlink(destination.path(), &alias).unwrap();
+        let path = alias.join("linked");
+        let path = path.to_str().unwrap();
+        create(root.path(), path, &branch("topic")).unwrap();
+        assert_eq!(target(root.path(), path).unwrap().branch, "topic");
+        assert!(target(root.path(), "linked").is_err());
+        lock(root.path(), path, true).unwrap();
+        assert!(remove(root.path(), path, &RemoveOptions { force: true }).is_err());
+        lock(root.path(), path, false).unwrap();
+        assert!(remove(Path::new(path), path, &RemoveOptions { force: true }).is_err());
+        remove(root.path(), path, &RemoveOptions::default()).unwrap();
+        assert!(!destination.path().join("linked").exists());
     }
 }

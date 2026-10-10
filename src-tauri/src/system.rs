@@ -80,7 +80,10 @@ mod tests {
                 "repo".to_owned()
             )
             .expect("ruta hija"),
-            directory.path().join("repo").to_string_lossy()
+            fs::canonicalize(directory.path())
+                .unwrap()
+                .join("repo")
+                .to_string_lossy()
         );
         assert!(system_resolve_child_path(
             directory.path().to_string_lossy().into_owned(),

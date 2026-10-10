@@ -419,6 +419,8 @@ mod tests {
         git(&repo, &["add", "."]);
         git(&repo, &["commit", "-m", "Initial fixture"]);
         recovery_store::configure(root.clone(), recovery_store::RecoveryPolicy::default()).unwrap();
+        let repo = fs::canonicalize(repo).unwrap();
+        let root = fs::canonicalize(root).unwrap();
         (temp, repo, root)
     }
 

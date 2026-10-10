@@ -514,7 +514,10 @@ mod tests {
 
         let error = create(temporary.path(), "ocupado", "main").expect_err("destino ocupado");
 
-        assert_eq!(error, CreateError::DestinationExists(target.clone()));
+        assert_eq!(
+            error,
+            CreateError::DestinationExists(fs::canonicalize(&target).unwrap())
+        );
         assert_eq!(
             fs::read_to_string(target.join("usuario.txt")).unwrap(),
             "se conserva\n"
