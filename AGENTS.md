@@ -127,6 +127,8 @@ Leer el portapapeles solo al pegar; Ctrl+C sin selección debe poder interrumpir
 En ConPTY, drenar la salida antes de redimensionar o escribir y mantener la
 lectura hasta EOF incluso si se desconecta la UI: el cierre puede emitir un
 último frame y bloquear Windows anteriores a 11 24H2 si nadie consume el pipe.
+La prueba PTY sin interfaz responde la consulta inicial de cursor que activa
+portable-pty con PSEUDOCONSOLE_INHERIT_CURSOR; en la aplicación responde xterm.
 Los logs conservan errores útiles y redactan secretos antes de persistir o notificar;
 no registrar contenido libre de archivos, credenciales, mensajes de commit, PTY o
 portapapeles. Un fallo del logger no cambia el resultado de una operación Git.
@@ -186,6 +188,9 @@ no dependen de la conversión global del runner Windows. Los nombres con tab o
 salto de línea se prueban en disco únicamente donde el sistema los admite;
 Windows conserva cobertura con nombres Unicode y espacios. Los IDs de recovery
 del contrato usan / en todas las plataformas, incluidos los fixtures.
+Al crear o clonar, usar el nombre de destino relativo al padre ya validado y
+establecido como cwd. Git for Windows rechaza los destinos canónicos con prefijo
+verbatim; conservar las rutas canónicas para identidad y comprobaciones de seguridad.
 
 Instalar con npm ci. npm run dev usa mocks fuera de Tauri; npm run tauri dev
 ejecuta el escritorio. El puerto fijo es 5183 y la galería está en /dev/tokens.

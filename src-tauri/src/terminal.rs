@@ -397,6 +397,15 @@ mod tests {
             }
         });
 
+        // portable-pty enables PSEUDOCONSOLE_INHERIT_CURSOR. In the app,
+        // xterm answers its initial DSR query; this headless host must answer
+        // too, before resizing or closing ConPTY can wait for that response.
+        #[cfg(windows)]
+        {
+            writer.write_all(b"\x1b[1;1R").unwrap();
+            writer.flush().unwrap();
+        }
+
         pair.master
             .resize(PtySize {
                 rows: 31,

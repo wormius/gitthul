@@ -545,7 +545,7 @@ mod tests {
             .strip_prefix(&root)
             .unwrap()
             .to_string_lossy()
-            .to_string();
+            .replace('\\', "/");
         entry
             .baseline
             .recovery_mark_pending("undo.recovery")

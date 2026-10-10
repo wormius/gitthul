@@ -603,7 +603,9 @@ fn run_clone(
         .arg("--progress")
         .arg("--")
         .arg(&request.url)
-        .arg(&target)
+        // The parent is already checked and set as cwd. Git for Windows
+        // rejects canonical verbatim paths as clone destinations.
+        .arg(&request.name)
         .current_dir(&parent)
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C")
