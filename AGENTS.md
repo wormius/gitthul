@@ -168,8 +168,11 @@ sin afirmar que se haya certificado como mínimo efectivo en todos los sistemas.
 Python y Bash sirven a herramientas externas opcionales, no a las comprobaciones
 ordinarias. OpenSSH proporciona ssh y ssh-keygen para los remotos y las funciones
 de llaves SSH de la aplicación.
-build.rs solicita Common Controls v6 también para los ejecutables de pruebas
-Windows; los recursos del binario Tauri no alcanzan por sí solos los tests de la
+build.rs incorpora windows-common-controls.manifest mediante /MANIFESTINPUT
+también a los ejecutables de pruebas Windows, como hace Tauri en su propio
+workspace. Evitar atributos con comillas anidadas en /MANIFESTDEPENDENCY: el
+enlazador puede dividirlos en argumentos de archivos. Los recursos del binario
+Tauri no alcanzan por sí solos los tests de la
 librería. Los fixtures comparan rutas canónicas. Las pruebas de bytes no UTF-8
 se ejecutan en todas las plataformas; los fixtures con nombres no UTF-8 en disco
 excluyen macOS porque APFS/HFS+ rechaza esos nombres antes de que intervenga Git.
