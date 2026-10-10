@@ -142,28 +142,16 @@ pub fn terminal_create_session(
     }
 
     thread::spawn(move || {
-        let mut buffer = [0_u8; 8192];
-        loop {
-            match reader.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(count) => {
-                    if on_data.send(buffer[..count].to_vec()).is_err() {
-                        break;
-                    }
-                }
-                // Linux PTYs signal the normal end of a slave with EIO.
-                Err(error) if cfg!(unix) && error.raw_os_error() == Some(5) => break,
-                Err(error) => {
-                    crate::logging::native_with_context(
-                        "warn",
-                        "terminal.native",
-                        "La lectura del PTY se interrumpió",
-                        Some(format!("ioKind={:?}", error.kind())),
-                        Some(reader_log_context.clone()),
-                    );
-                    break;
-                }
-            }
+        if let Err(error) = drain_terminal_output(reader.as_mut(), |bytes| {
+            on_data.send(bytes.to_vec()).is_ok()
+        }) {
+            crate::logging::native_with_context(
+                "warn",
+                "terminal.native",
+                "La lectura del PTY se interrumpió",
+                Some(format!("ioKind={:?}", error.kind())),
+                Some(reader_log_context),
+            );
         }
     });
     thread::spawn(move || {
@@ -177,6 +165,30 @@ pub fn terminal_create_session(
     });
 
     Ok(())
+}
+
+fn drain_terminal_output(
+    reader: &mut dyn Read,
+    mut deliver: impl FnMut(&[u8]) -> bool,
+) -> std::io::Result<()> {
+    let mut buffer = [0_u8; 8192];
+    let mut delivering = true;
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => return Ok(()),
+            Ok(count) => {
+                if delivering && !deliver(&buffer[..count]) {
+                    // ConPTY can emit a final frame during shutdown. Keep
+                    // draining after the UI disconnects so close cannot block
+                    // waiting for its output pipe on older Windows.
+                    delivering = false;
+                }
+            }
+            // Linux PTYs signal the normal end of a slave with EIO.
+            Err(error) if cfg!(unix) && error.raw_os_error() == Some(5) => return Ok(()),
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 fn configure_terminal_environment(command: &mut CommandBuilder) {
@@ -350,6 +362,20 @@ mod tests {
     }
 
     #[test]
+    fn drains_output_to_eof_after_the_ui_disconnects() {
+        let output = vec![b'x'; 32768];
+        let mut reader = std::io::Cursor::new(&output);
+        let mut deliveries = 0;
+        super::drain_terminal_output(&mut reader, |_| {
+            deliveries += 1;
+            false
+        })
+        .unwrap();
+        assert_eq!(reader.position(), output.len() as u64);
+        assert_eq!(deliveries, 1);
+    }
+
+    #[test]
     fn pty_real_transporta_entrada_salida_y_resize() {
         let pair = native_pty_system().openpty(PtySize::default()).unwrap();
         let mut command = CommandBuilder::new_default_prog();
@@ -357,6 +383,19 @@ mod tests {
         let mut child = pair.slave.spawn_command(command).unwrap();
         let mut reader = pair.master.try_clone_reader().unwrap();
         let mut writer = pair.master.take_writer().unwrap();
+
+        // Start draining before resize/write: ConPTY can synchronously repaint
+        // enough output to fill its pipe before those operations return.
+        let (sender, receiver) = mpsc::channel();
+        let reading = thread::spawn(move || {
+            let mut buffer = [0_u8; 1024];
+            while let Ok(count) = reader.read(&mut buffer) {
+                if count == 0 {
+                    break;
+                }
+                let _ = sender.send(buffer[..count].to_vec());
+            }
+        });
 
         pair.master
             .resize(PtySize {
@@ -375,16 +414,6 @@ mod tests {
             .unwrap();
         writer.flush().unwrap();
 
-        let (sender, receiver) = mpsc::channel();
-        thread::spawn(move || {
-            let mut buffer = [0_u8; 1024];
-            while let Ok(count) = reader.read(&mut buffer) {
-                if count == 0 || sender.send(buffer[..count].to_vec()).is_err() {
-                    break;
-                }
-            }
-        });
-
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut output = String::new();
         while Instant::now() < deadline && !output.contains(marker) {
@@ -394,6 +423,9 @@ mod tests {
         }
         child.kill().unwrap();
         child.wait().unwrap();
+        drop(writer);
+        drop(pair);
+        reading.join().unwrap();
         assert!(output.contains(marker), "salida PTY inesperada: {output:?}");
     }
 

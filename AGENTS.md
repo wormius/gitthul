@@ -124,6 +124,9 @@ archivo privado. Los auxiliares de autenticación usan credenciales ficticias al
 El PTY ejecuta el shell del usuario; transportar bytes y secuencias ANSI sin reconstruir
 comandos. Mantener TERM=xterm-256color, COLORTERM=truecolor y tamaño tomado del PTY.
 Leer el portapapeles solo al pegar; Ctrl+C sin selección debe poder interrumpir.
+En ConPTY, drenar la salida antes de redimensionar o escribir y mantener la
+lectura hasta EOF incluso si se desconecta la UI: el cierre puede emitir un
+último frame y bloquear Windows anteriores a 11 24H2 si nadie consume el pipe.
 Los logs conservan errores útiles y redactan secretos antes de persistir o notificar;
 no registrar contenido libre de archivos, credenciales, mensajes de commit, PTY o
 portapapeles. Un fallo del logger no cambia el resultado de una operación Git.
@@ -178,6 +181,11 @@ Tauri no alcanzan por sí solos los tests de la
 librería. Los fixtures comparan rutas canónicas. Las pruebas de bytes no UTF-8
 se ejecutan en todas las plataformas; los fixtures con nombres no UTF-8 en disco
 excluyen macOS porque APFS/HFS+ rechaza esos nombres antes de que intervenga Git.
+Los fixtures con bytes LF usan core.autocrlf=false o atributos eol=lf propios;
+no dependen de la conversión global del runner Windows. Los nombres con tab o
+salto de línea se prueban en disco únicamente donde el sistema los admite;
+Windows conserva cobertura con nombres Unicode y espacios. Los IDs de recovery
+del contrato usan / en todas las plataformas, incluidos los fixtures.
 
 Instalar con npm ci. npm run dev usa mocks fuera de Tauri; npm run tauri dev
 ejecuta el escritorio. El puerto fijo es 5183 y la galería está en /dev/tokens.

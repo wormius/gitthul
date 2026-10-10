@@ -415,6 +415,7 @@ mod tests {
         git(&repo, &["init", "-b", "main"]);
         git(&repo, &["config", "user.name", "Recovery fixture"]);
         git(&repo, &["config", "user.email", "fixture@example.invalid"]);
+        git(&repo, &["config", "core.autocrlf", "false"]);
         fs::write(repo.join("file.txt"), "committed\n").unwrap();
         git(&repo, &["add", "."]);
         git(&repo, &["commit", "-m", "Initial fixture"]);
@@ -432,7 +433,7 @@ mod tests {
             .strip_prefix(root)
             .unwrap()
             .to_string_lossy()
-            .to_string();
+            .replace('\\', "/");
         fs::write(repo.join("file.txt"), "uncommitted after\n").unwrap();
         let after = Checkpoint::after(repo, &before).unwrap();
         let old_session = GitWriteLocks::default();
@@ -492,7 +493,7 @@ mod tests {
             .strip_prefix(&root)
             .unwrap()
             .to_string_lossy()
-            .to_string();
+            .replace('\\', "/");
         drop(before);
         fs::write(repo.join("file.txt"), "partial operation\n").unwrap();
         recovery_store::cleanup().unwrap();

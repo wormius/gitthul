@@ -159,7 +159,9 @@ pub fn create(
         .arg("--initial-branch")
         .arg(initial_branch)
         .arg("--")
-        .arg(&target)
+        // The checked parent is already the working directory. A relative
+        // destination also avoids verbatim Windows paths in Git's arguments.
+        .arg(name)
         .current_dir(&parent)
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .output()

@@ -783,6 +783,7 @@ mod tests {
         let temporary = tempfile::tempdir().unwrap();
         git(temporary.path(), &["init", "--quiet"]);
         git(temporary.path(), &["config", "user.name", "GitThul"]);
+        git(temporary.path(), &["config", "core.autocrlf", "false"]);
         git(
             temporary.path(),
             &["config", "user.email", "gitthul@example.invalid"],
@@ -1078,7 +1079,11 @@ mod tests {
     fn partial_new_file_can_be_unstaged_line_by_line_until_it_is_untracked() {
         let temporary = repository();
         let root = temporary.path();
-        let path = "nuevo ü\t.txt";
+        let path = if cfg!(windows) {
+            "nuevo ü con espacios.txt"
+        } else {
+            "nuevo ü\t.txt"
+        };
         let working = "uno\ndos\ntres\n";
         fs::write(root.join(path), working).unwrap();
         let mut request = partial(root, path, DiffSource::Worktree);

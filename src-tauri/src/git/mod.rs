@@ -3479,8 +3479,9 @@ mod clone_tests {
         let source = temporary.path().join("origen");
         fs::create_dir(&source).unwrap();
         git(&source, &["init", "--initial-branch=main"]);
+        fs::write(source.join(".gitattributes"), "*.md text eol=lf\n").unwrap();
         fs::write(source.join("README.md"), "contenido\n").unwrap();
-        git(&source, &["add", "README.md"]);
+        git(&source, &["add", "README.md", ".gitattributes"]);
         git(&source, &["commit", "-m", "inicio"]);
         let bare = temporary.path().join("remoto.git");
         git(

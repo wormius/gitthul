@@ -239,11 +239,21 @@ fn changed_paths(repository: &Path, from: &str, to: &str) -> Result<BTreeSet<Str
     )?)
 }
 
+fn git_relative_path(path: &Path) -> Result<String, UndoError> {
+    path.components()
+        .map(|component| match component {
+            std::path::Component::Normal(name) => name.to_str().ok_or(UndoError::GitFailed),
+            _ => Err(UndoError::Stale),
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|components| components.join("/"))
+}
+
 fn paths_overlap(path: &str, other: &BTreeSet<String>) -> bool {
     if Path::new(path)
         .ancestors()
-        .filter_map(Path::to_str)
-        .any(|ancestor| other.contains(ancestor))
+        .filter_map(|ancestor| git_relative_path(ancestor).ok())
+        .any(|ancestor| other.contains(&ancestor))
     {
         return true;
     }
@@ -272,26 +282,25 @@ fn include_collisions(repository: &Path, selected: &mut BTreeSet<String>) -> Res
                 break;
             }
             if fs::symlink_metadata(repository.join(parent)).is_ok_and(|meta| meta.is_file()) {
-                collisions.insert(parent.to_str().ok_or(UndoError::GitFailed)?.to_owned());
+                collisions.insert(git_relative_path(parent)?);
             }
         }
     }
     while let Some(directory) = directories.pop() {
         for entry in fs::read_dir(directory).map_err(|_| UndoError::GitFailed)? {
             let path = entry.map_err(|_| UndoError::GitFailed)?.path();
-            let name = path
-                .strip_prefix(repository)
-                .map_err(|_| UndoError::GitFailed)?
-                .to_str()
-                .ok_or(UndoError::GitFailed)?;
-            safe_path(repository, name)?;
+            let name = git_relative_path(
+                path.strip_prefix(repository)
+                    .map_err(|_| UndoError::GitFailed)?,
+            )?;
+            safe_path(repository, &name)?;
             if fs::symlink_metadata(&path)
                 .map_err(|_| UndoError::GitFailed)?
                 .is_dir()
             {
                 directories.push(path);
             } else {
-                collisions.insert(name.to_owned());
+                collisions.insert(name);
             }
         }
     }
@@ -342,10 +351,10 @@ fn structural_interaction(
             if let Some(parent) = Path::new(path).parent() {
                 for parent in parent
                     .ancestors()
-                    .filter_map(Path::to_str)
+                    .filter_map(|parent| git_relative_path(parent).ok())
                     .filter(|p| !p.is_empty())
                 {
-                    if paths_overlap(parent, other) {
+                    if paths_overlap(&parent, other) {
                         return Ok(true);
                     }
                 }
@@ -1967,6 +1976,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         git(dir.path(), &["init", "-q", "-b", "main"]);
         git(dir.path(), &["config", "user.name", "Recovery test"]);
+        git(dir.path(), &["config", "core.autocrlf", "false"]);
         git(
             dir.path(),
             &["config", "user.email", "recovery@example.invalid"],

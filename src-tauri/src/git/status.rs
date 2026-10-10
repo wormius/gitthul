@@ -608,6 +608,7 @@ mod tests {
     fn repository() -> TempDir {
         let temporary = TempDir::new().expect("carpeta temporal");
         assert!(git(temporary.path(), &["init", "--initial-branch=main"]));
+        assert!(git(temporary.path(), &["config", "core.autocrlf", "false"]));
         temporary
     }
 
@@ -620,10 +621,15 @@ mod tests {
     fn separa_indice_arbol_no_seguidos_y_renombrados_con_rutas_dificiles() {
         let temporary = repository();
         let root = temporary.path();
+        let unusual = if cfg!(windows) {
+            "linea ü nueva.txt"
+        } else {
+            "linea\nnueva.txt"
+        };
         fs::write(root.join("ambos.txt"), "base\n").unwrap();
         fs::write(root.join("borrado.txt"), "base\n").unwrap();
         fs::write(root.join("nombre anterior.txt"), "base\n").unwrap();
-        fs::write(root.join("linea\nnueva.txt"), "base\n").unwrap();
+        fs::write(root.join(unusual), "base\n").unwrap();
         fs::write(root.join(".gitignore"), "*.ignored\n").unwrap();
         commit_all(root, "base");
 
@@ -635,7 +641,7 @@ mod tests {
             root,
             &["mv", "nombre anterior.txt", "nombre nuevo.txt"]
         ));
-        fs::write(root.join("linea\nnueva.txt"), "cambio\n").unwrap();
+        fs::write(root.join(unusual), "cambio\n").unwrap();
         fs::write(root.join("sin seguir.txt"), "nuevo\n").unwrap();
         fs::write(root.join("oculto.ignored"), "no mostrar\n").unwrap();
 
@@ -669,10 +675,7 @@ mod tests {
                 && entry.previous_path.as_deref() == Some("nombre anterior.txt")
                 && entry.change == ChangeType::Renamed
         }));
-        assert!(status
-            .unstaged
-            .iter()
-            .any(|entry| entry.path == "linea\nnueva.txt"));
+        assert!(status.unstaged.iter().any(|entry| entry.path == unusual));
         assert!(status
             .unstaged
             .iter()
