@@ -1,10 +1,10 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import { Button, type ButtonSize, type ButtonVariant } from './Button';
-import type { FloatingAlign, FloatingSide } from './floating';
+import type { FloatingAlign, FloatingSide } from './floatingUtils';
 import { IconButton } from './IconButton';
 import { Menu } from './Menu';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 import styles from './Dropdown.module.css';
 
 interface DropdownProps {

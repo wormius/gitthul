@@ -1,5 +1,5 @@
 import { useI18n } from '@i18n/useI18n';
-import { useDragSource, useDropTarget, type DropVerdict } from '@ui/dragLayer';
+import { useDragSource, useDropTarget, type DropVerdict } from '@ui/dragLayerUtils';
 
 import { isDragRef, type DragRef } from './integration';
 import { RefIcon } from './RefIcon';

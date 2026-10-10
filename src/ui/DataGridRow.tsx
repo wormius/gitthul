@@ -1,6 +1,6 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 
-import { useDataGridLayout } from './dataGrid';
+import { useDataGridLayout } from './dataGridUtils';
 import styles from './DataGridRow.module.css';
 
 interface DataGridRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {

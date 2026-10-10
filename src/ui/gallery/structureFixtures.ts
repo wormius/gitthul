@@ -1,5 +1,5 @@
-import type { HeatmapDay } from '../heatmap';
-import type { TreeNode } from '../tree';
+import type { HeatmapDay } from '../heatmapUtils';
+import type { TreeNode } from '../treeUtils';
 
 /**
  * Datos de mentira para la galería de F0.6.

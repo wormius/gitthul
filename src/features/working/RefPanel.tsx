@@ -8,7 +8,7 @@ import { CollapsibleRail, type RailSection } from '@ui/CollapsibleRail';
 import { ContextMenu } from '@ui/ContextMenu';
 import { Skeleton } from '@ui/Skeleton';
 import { Tree } from '@ui/Tree';
-import type { TreeNode } from '@ui/tree';
+import type { TreeNode } from '@ui/treeUtils';
 
 import {
   localBranchMenu,

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CodeSurface } from './CodeSurface';
-import * as codeSurface from './codeSurface';
+import * as codeSurface from './codeSurfaceUtils';
 import type { CodeSurfaceFoldLabels } from './CodeSurface';
 
 /*

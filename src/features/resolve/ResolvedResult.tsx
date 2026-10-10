@@ -4,7 +4,7 @@ import { useI18n } from '@i18n/useI18n';
 import { IconButton } from '@ui/IconButton';
 import { MarkerScrollbar } from '@ui/MarkerScrollbar';
 import { CodeSurface, type CodeBlockControl } from '@ui/CodeSurface';
-import { syntaxLanguageForPath, type CodeLineMark } from '@ui/codeSurface';
+import { syntaxLanguageForPath, type CodeLineMark } from '@ui/codeSurfaceUtils';
 
 import type { LineOrigin } from './conflict';
 import styles from './ResolutionReview.module.css';

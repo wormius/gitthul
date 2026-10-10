@@ -18,7 +18,7 @@ import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
 import { ContextMenu } from '@ui/ContextMenu';
 import { EmptyState } from '@ui/EmptyState';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 import { Skeleton } from '@ui/Skeleton';
 import { SplitPane } from '@ui/SplitPane';
 import { VirtualList } from '@ui/VirtualList';

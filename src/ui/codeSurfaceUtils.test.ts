@@ -8,7 +8,7 @@ import {
   readLines,
   syntaxLanguageForPath,
   syntaxSpans,
-} from './codeSurface';
+} from './codeSurfaceUtils';
 
 describe('resaltado de sintaxis', () => {
   it('elige el lenguaje por la ruta y deja desconocidos sin colorear', () => {

@@ -16,7 +16,7 @@ import { useI18n } from '@i18n/useI18n';
 import { Avatar } from '@ui/Avatar';
 import { Badge } from '@ui/Badge';
 import { Button } from '@ui/Button';
-import type { HeatmapCell } from '@ui/heatmap';
+import type { HeatmapCell } from '@ui/heatmapUtils';
 import { Spinner } from '@ui/Spinner';
 
 import { ActivityHeatmap } from './ActivityHeatmap';

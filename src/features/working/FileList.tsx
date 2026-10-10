@@ -8,7 +8,7 @@ import { Counter } from '@ui/Counter';
 import { IconButton } from '@ui/IconButton';
 import { Tree } from '@ui/Tree';
 import { VirtualList } from '@ui/VirtualList';
-import type { FlatTreeNode } from '@ui/tree';
+import type { FlatTreeNode } from '@ui/treeUtils';
 
 import { ChangeTypeIcon } from './ChangeTypeIcon';
 import styles from './FileList.module.css';

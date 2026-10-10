@@ -13,7 +13,7 @@ import { ContextMenu } from '@ui/ContextMenu';
 import { EmptyState } from '@ui/EmptyState';
 import { IconButton } from '@ui/IconButton';
 import { Skeleton } from '@ui/Skeleton';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import styles from './FileHistoryPanel.module.css';
 

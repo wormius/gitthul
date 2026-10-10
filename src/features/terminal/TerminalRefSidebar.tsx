@@ -13,7 +13,7 @@ import { useI18n } from '@i18n/useI18n';
 import { Menu } from '@ui/Menu';
 import { SearchInput } from '@ui/SearchInput';
 import { VirtualList } from '@ui/VirtualList';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import styles from './TerminalRefSidebar.module.css';
 import {

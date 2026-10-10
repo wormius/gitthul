@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { useDataGridLayout } from './dataGrid';
+import { useDataGridLayout } from './dataGridUtils';
 import styles from './DataGridCell.module.css';
 
 interface DataGridCellProps {

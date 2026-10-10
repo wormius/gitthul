@@ -1,6 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 
-import type { FloatingAlign, FloatingSide } from './floating';
+import type { FloatingAlign, FloatingSide } from './floatingUtils';
 import { Floating } from './Floating';
 import styles from './Popover.module.css';
 import { useOutsidePointer } from './useOutsidePointer';

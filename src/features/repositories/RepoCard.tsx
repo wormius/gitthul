@@ -7,7 +7,7 @@ import { useI18n } from '@i18n/useI18n';
 import { Avatar } from '@ui/Avatar';
 import { ContextMenu } from '@ui/ContextMenu';
 import { previewDrag } from '@ui/dragPreview';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import { RepoDragPreview } from './RepoDragPreview';
 import styles from './RepoCard.module.css';

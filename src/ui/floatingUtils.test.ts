@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { anchorRect, placeFloating, type FloatingRect } from './floating';
+import { anchorRect, placeFloating, type FloatingRect } from './floatingUtils';
 
 /*
  * La verificación de F0.5: los flotantes se posicionan bien contra los bordes

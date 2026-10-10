@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { expectNoHoverShift } from '../test/noShift';
 import { useVirtualViewport } from '../test/virtualViewport';
 import { Tree } from './Tree';
-import type { TreeNode } from './tree';
+import type { TreeNode } from './treeUtils';
 
 const nodes: readonly TreeNode[] = [
   {

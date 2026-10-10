@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { DragLayer } from '../DragLayer';
-import { useDragSource, useDropTarget, type DropVerdict } from '../dragLayer';
+import { useDragSource, useDropTarget, type DropVerdict } from '../dragLayerUtils';
 import styles from './DragGallery.module.css';
 
 /**

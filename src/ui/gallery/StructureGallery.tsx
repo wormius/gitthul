@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Badge } from '../Badge';
 import { CollapsibleRail, type RailSection } from '../CollapsibleRail';
 import { Counter } from '../Counter';
-import type { DataGridColumn } from '../dataGrid';
+import type { DataGridColumn } from '../dataGridUtils';
 import { DataGrid } from '../DataGrid';
 import { DataGridCell } from '../DataGridCell';
 import { DataGridRow } from '../DataGridRow';

@@ -7,7 +7,7 @@ import { Avatar } from '@ui/Avatar';
 import { ContextMenu } from '@ui/ContextMenu';
 import { IconButton } from '@ui/IconButton';
 import { Input } from '@ui/Input';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import { validateSpaceName } from './collection';
 import { OpenAllIcon, SpaceIcon, TrashIcon } from './RepositoryIcons';

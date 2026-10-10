@@ -3,7 +3,7 @@ import { useState, type MouseEvent, type ReactNode } from 'react';
 import { Button, type ButtonSize, type ButtonVariant } from './Button';
 import { IconButton } from './IconButton';
 import { Menu } from './Menu';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 import styles from './SplitActionButton.module.css';
 
 export interface SplitActionAlternative {

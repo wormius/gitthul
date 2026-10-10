@@ -4,7 +4,7 @@ import type { RepoAvatar, Space, SpaceId } from '@core/domain/library';
 import type { RepoId, RepoSummary } from '@core/domain/repository';
 import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import { RepoCard } from './RepoCard';
 import { RepoSection } from './RepoSection';

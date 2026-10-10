@@ -8,7 +8,7 @@ import {
   lastIndex,
   stepIndex,
   type MenuEntry,
-} from './menu';
+} from './menuUtils';
 
 const items: MenuEntry[] = [
   { key: 'sep-top', kind: 'separator' },

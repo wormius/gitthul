@@ -2,7 +2,7 @@ import type { Commit, Person } from '@core/domain/commit';
 import type { Branch, RefsSnapshot } from '@core/domain/refs';
 import type { RepoSummary } from '@core/domain/repository';
 import { isoDay } from '@core/domain/library';
-import type { HeatmapDay } from '@ui/heatmap';
+import type { HeatmapDay } from '@ui/heatmapUtils';
 
 /*
  * Los agregados de Repositorios, en funciones puras.

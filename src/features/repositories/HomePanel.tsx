@@ -8,7 +8,7 @@ import { isoDay, type Library } from '@core/domain/library';
 import type { RepoSummary } from '@core/domain/repository';
 import { useI18n } from '@i18n/useI18n';
 import { BigActionButton } from '@ui/BigActionButton';
-import type { HeatmapCell } from '@ui/heatmap';
+import type { HeatmapCell } from '@ui/heatmapUtils';
 
 import { ActivityHeatmap } from './ActivityHeatmap';
 import { statsSince, STATS_MONTHS, usageDays } from './stats';

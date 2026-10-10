@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { expectNoHoverShift } from '../test/noShift';
 import { MarkerScrollbar } from './MarkerScrollbar';
-import type { ScrollMarker } from './markerScrollbar';
+import type { ScrollMarker } from './markerScrollbarUtils';
 
 const markers: ScrollMarker[] = [
   { id: 'a', from: 12, to: 20, tone: 'added', label: 'Añadidas 12-20' },

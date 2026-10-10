@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { Dropdown } from './Dropdown';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 import styles from './Breadcrumb.module.css';
 
 export interface BreadcrumbItem {

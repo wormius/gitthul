@@ -12,7 +12,7 @@ import { Dropdown } from '../Dropdown';
 import { EmptyState } from '../EmptyState';
 import { ErrorPanel } from '../ErrorPanel';
 import { IconButton } from '../IconButton';
-import type { MenuEntry } from '../menu';
+import type { MenuEntry } from '../menuUtils';
 import { Popover } from '../Popover';
 import { Toolbar } from '../Toolbar';
 import { Tooltip } from '../Tooltip';

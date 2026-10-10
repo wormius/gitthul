@@ -1,6 +1,6 @@
 import { useRef, type PointerEvent } from 'react';
 
-import { markerBand, seekPosition, viewportBand, type ScrollMarker } from './markerScrollbar';
+import { markerBand, seekPosition, viewportBand, type ScrollMarker } from './markerScrollbarUtils';
 import styles from './MarkerScrollbar.module.css';
 
 interface MarkerScrollbarProps {

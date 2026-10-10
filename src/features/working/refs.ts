@@ -8,7 +8,7 @@
 
 import type { Sha } from '@core/domain/commit';
 import type { Branch, Remote, RefsSnapshot, Tag } from '@core/domain/refs';
-import type { TreeNode } from '@ui/tree';
+import type { TreeNode } from '@ui/treeUtils';
 
 export interface RemoteGroup {
   remote: Remote;

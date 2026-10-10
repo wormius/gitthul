@@ -7,7 +7,7 @@ import { ContextMenu } from '@ui/ContextMenu';
 import { Counter } from '@ui/Counter';
 import { DataGridCell } from '@ui/DataGridCell';
 import { DataGridRow } from '@ui/DataGridRow';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import { CommitGraph, type GraphColumn } from './CommitGraph';
 import type { CommitTableRow } from './commits';

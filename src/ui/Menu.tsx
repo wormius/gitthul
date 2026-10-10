@@ -1,9 +1,16 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 
-import type { FloatingAlign, FloatingAnchor, FloatingSide } from './floating';
+import type { FloatingAlign, FloatingAnchor, FloatingSide } from './floatingUtils';
 import { Floating } from './Floating';
 import { Kbd } from './Kbd';
-import { firstIndex, isSeparator, isSubmenu, lastIndex, stepIndex, type MenuEntry } from './menu';
+import {
+  firstIndex,
+  isSeparator,
+  isSubmenu,
+  lastIndex,
+  stepIndex,
+  type MenuEntry,
+} from './menuUtils';
 import styles from './Menu.module.css';
 import { useOutsidePointer } from './useOutsidePointer';
 

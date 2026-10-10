@@ -1,6 +1,6 @@
 import { useMemo, type CSSProperties } from 'react';
 
-import { buildHeatmapGrid, type HeatmapCell, type HeatmapDay } from './heatmap';
+import { buildHeatmapGrid, type HeatmapCell, type HeatmapDay } from './heatmapUtils';
 import styles from './Heatmap.module.css';
 
 interface HeatmapLegend {

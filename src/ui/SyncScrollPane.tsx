@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 
 import styles from './SyncScrollPane.module.css';
-import { useSyncScrollRegistry } from './syncScroll';
+import { useSyncScrollRegistry } from './syncScrollUtils';
 
 interface SyncScrollPaneProps {
   /** Nombre accesible del panel, p. ej. «Versión de main». */

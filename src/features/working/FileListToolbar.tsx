@@ -5,7 +5,7 @@ import { Checkbox } from '@ui/Checkbox';
 import { Dropdown } from '@ui/Dropdown';
 import { SearchInput } from '@ui/SearchInput';
 import { SegmentedControl } from '@ui/SegmentedControl';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import styles from './FileListToolbar.module.css';
 import type { FileSort, FileView } from './staging';

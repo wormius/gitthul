@@ -6,7 +6,7 @@ import {
   type SyncAxis,
   type SyncMode,
   type SyncScrollRegistry,
-} from './syncScroll';
+} from './syncScrollUtils';
 
 interface SyncScrollProps {
   axis?: SyncAxis;

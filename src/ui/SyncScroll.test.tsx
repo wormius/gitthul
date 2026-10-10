@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { expectNoHoverShift } from '../test/noShift';
 import { SyncScroll } from './SyncScroll';
-import { mirroredOffset } from './syncScroll';
+import { mirroredOffset } from './syncScrollUtils';
 import { SyncScrollPane } from './SyncScrollPane';
 
 /**

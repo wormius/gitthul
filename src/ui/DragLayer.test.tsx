@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { expectNoHoverShift } from '../test/noShift';
 import { DragLayer } from './DragLayer';
-import { useDragSource, useDropTarget, type DropVerdict } from './dragLayer';
+import { useDragSource, useDropTarget, type DropVerdict } from './dragLayerUtils';
 
 /**
  * El arrastre se dispara evento a evento: `userEvent` no lo simula y jsdom no

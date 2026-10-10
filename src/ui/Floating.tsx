@@ -17,7 +17,7 @@ import {
   type FloatingAnchor,
   type FloatingSide,
   type Placement,
-} from './floating';
+} from './floatingUtils';
 import styles from './Floating.module.css';
 
 interface FloatingProps extends Omit<HTMLAttributes<HTMLDivElement>, 'style'> {

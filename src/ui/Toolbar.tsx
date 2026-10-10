@@ -1,7 +1,7 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 
 import { Dropdown } from './Dropdown';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 import styles from './Toolbar.module.css';
 
 interface ToolbarOverflow {

@@ -13,13 +13,13 @@ import { ConfirmDialog } from '@features/working/ConfirmDialog';
 import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
 import { CodeSurface, type CodeBlockControl, type CodeLineControl } from '@ui/CodeSurface';
-import { syntaxLanguageForPath, type CodeLineMark } from '@ui/codeSurface';
+import { syntaxLanguageForPath, type CodeLineMark } from '@ui/codeSurfaceUtils';
 import { EncodingSelect } from '@ui/EncodingSelect';
 import { IconButton } from '@ui/IconButton';
 import { Skeleton } from '@ui/Skeleton';
 import { SplitPane } from '@ui/SplitPane';
 import { SyncScroll } from '@ui/SyncScroll';
-import { useSyncScrollRegistry } from '@ui/syncScroll';
+import { useSyncScrollRegistry } from '@ui/syncScrollUtils';
 import { useDirectWheel } from '@ui/wheelScroll';
 
 import {

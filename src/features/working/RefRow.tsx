@@ -1,7 +1,7 @@
 import { useI18n } from '@i18n/useI18n';
 import { ContextMenu } from '@ui/ContextMenu';
-import { useDragSource, useDropTarget, type DropVerdict } from '@ui/dragLayer';
-import type { MenuEntry } from '@ui/menu';
+import { useDragSource, useDropTarget, type DropVerdict } from '@ui/dragLayerUtils';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import { isDragRef, type DragRef } from './integration';
 import { RefIcon, type RefIconKind } from './RefIcon';

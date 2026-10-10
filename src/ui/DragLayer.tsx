@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { DragLayerContext, type DragLayerApi, type DragSession } from './dragLayer';
+import { DragLayerContext, type DragLayerApi, type DragSession } from './dragLayerUtils';
 
 interface DragLayerProps {
   children: ReactNode;

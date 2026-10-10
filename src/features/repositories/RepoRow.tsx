@@ -8,7 +8,7 @@ import { Avatar } from '@ui/Avatar';
 import { Chip } from '@ui/Chip';
 import { ContextMenu } from '@ui/ContextMenu';
 import { previewDrag } from '@ui/dragPreview';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import { RepoDragPreview } from './RepoDragPreview';
 import { RepoIcon } from './RepositoryIcons';

@@ -18,9 +18,9 @@ import {
   resizeColumnWidths,
   type DataGridColumn,
   type DataGridLayout,
-} from './dataGrid';
+} from './dataGridUtils';
 import styles from './DataGrid.module.css';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 import { usePaneStorage } from './paneStorage';
 
 interface DataGridProps {

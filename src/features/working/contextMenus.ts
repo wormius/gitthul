@@ -23,7 +23,7 @@ import { stashName } from '@core/domain/refs';
 import type { FileChange } from '@core/domain/status';
 import type { MessageParams } from '@i18n/format';
 import type { MessageKey } from '@i18n/messages';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import type { GraphNodeForm } from './graphPaint';
 

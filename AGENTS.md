@@ -131,6 +131,10 @@ configurados. Seguir el estilo del módulo Rust y comprobar formato con cargo fm
 Reutilizar puertos y componentes existentes. Mantener cambios funcionales y
 refactorizaciones independientes cuando no sean necesarios para la misma tarea.
 Conservar package-lock.json y Cargo.lock; no actualizarlos sin una causa del cambio.
+Los módulos auxiliares compartidos usan nombres distintos de los componentes,
+por ejemplo Menu.tsx y menuUtils.ts. No distinguir módulos únicamente por
+mayúsculas o por .ts/.tsx: TypeScript puede resolverlos como el mismo archivo
+en los sistemas de archivos habituales de Windows y macOS.
 
 ## Diseño e internacionalización
 

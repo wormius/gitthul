@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { expectNoHoverShift } from '../test/noShift';
 import { ContextMenu } from './ContextMenu';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 
 function entries(onCherryPick = vi.fn(), onRevert = vi.fn()): MenuEntry[] {
   return [

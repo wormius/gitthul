@@ -8,7 +8,7 @@
  */
 
 import type { ChangeType, FileChange, TreeEntry } from '@core/domain/status';
-import type { TreeNode } from '@ui/tree';
+import type { TreeNode } from '@ui/treeUtils';
 
 /** Lista plana o árbol de carpetas. Lo alterna `working.toggleFileTree`. */
 export type FileView = 'flat' | 'tree';

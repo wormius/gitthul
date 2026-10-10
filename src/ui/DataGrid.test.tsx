@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { expectNoHoverShift } from '../test/noShift';
 import { useVirtualViewport } from '../test/virtualViewport';
-import type { DataGridColumn } from './dataGrid';
+import type { DataGridColumn } from './dataGridUtils';
 import { DataGrid } from './DataGrid';
 import { DataGridCell } from './DataGridCell';
 import { DataGridRow } from './DataGridRow';

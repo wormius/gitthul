@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { expectNoHoverShift } from '../test/noShift';
 import { Dropdown } from './Dropdown';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 
 const items: MenuEntry[] = [
   { key: 'name', label: 'Por nombre', checked: true, onSelect: vi.fn() },

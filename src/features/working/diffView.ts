@@ -12,8 +12,8 @@
 import { shortSha } from '@core/domain/commit';
 import type { DiffLine, DiffSource, Hunk, WordSpan } from '@core/domain/diff';
 import type { LineRef } from '@core/ports/GitPort';
-import type { CodeLineMark, CodeWordMark } from '@ui/codeSurface';
-import type { MarkerTone, ScrollMarker } from '@ui/markerScrollbar';
+import type { CodeLineMark, CodeWordMark } from '@ui/codeSurfaceUtils';
+import type { MarkerTone, ScrollMarker } from '@ui/markerScrollbarUtils';
 
 import type { Translate } from './contextMenus';
 

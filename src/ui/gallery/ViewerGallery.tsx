@@ -4,9 +4,9 @@ import { type TEXT_ENCODINGS, encodingLabel } from '@core/domain/encoding';
 import { decodePreview } from '@core/adapters/mock/textDecoding';
 import { EncodingSelect } from '../EncodingSelect';
 import { CodeSurface } from '../CodeSurface';
-import type { CodeLineMark } from '../codeSurface';
+import type { CodeLineMark } from '../codeSurfaceUtils';
 import { MarkerScrollbar } from '../MarkerScrollbar';
-import type { ScrollMarker } from '../markerScrollbar';
+import type { ScrollMarker } from '../markerScrollbarUtils';
 import { Switch } from '../Switch';
 import styles from './ViewerGallery.module.css';
 

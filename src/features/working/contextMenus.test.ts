@@ -11,7 +11,7 @@ import {
   type MenuAction,
   type MenuEntry,
   type MenuSubmenu,
-} from '@ui/menu';
+} from '@ui/menuUtils';
 
 import {
   commitFileMenu,

@@ -9,7 +9,7 @@ import type { GitQuery } from '@core/ports/GitPort';
 import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
 import { CodeSurface } from '@ui/CodeSurface';
-import { syntaxLanguageForPath, type CodeLineMark } from '@ui/codeSurface';
+import { syntaxLanguageForPath, type CodeLineMark } from '@ui/codeSurfaceUtils';
 import { Skeleton } from '@ui/Skeleton';
 
 import { useResolveStore } from './resolveStore';

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { expectNoHoverShift } from '../test/noShift';
 import { Heatmap } from './Heatmap';
-import type { HeatmapDay } from './heatmap';
+import type { HeatmapDay } from './heatmapUtils';
 
 const days: HeatmapDay[] = [
   { date: '2026-07-20', value: 2 },

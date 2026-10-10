@@ -6,7 +6,7 @@ import { MESSAGES, type MessageKey } from '@i18n/messages';
 import { useI18n } from '@i18n/useI18n';
 import { BigActionButton } from '@ui/BigActionButton';
 import { Menu } from '@ui/Menu';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import styles from './GitActionBar.module.css';
 import {

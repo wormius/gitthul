@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildHeatmapGrid, heatLevel, type HeatmapDay } from './heatmap';
+import { buildHeatmapGrid, heatLevel, type HeatmapDay } from './heatmapUtils';
 
 const days: HeatmapDay[] = [
   { date: '2026-07-20', value: 1 },

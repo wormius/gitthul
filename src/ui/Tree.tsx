@@ -11,7 +11,7 @@ import {
 } from 'react';
 
 import { useSelection, type SelectionMode } from './selection';
-import { flattenTree, type FlatTreeNode, type TreeNode } from './tree';
+import { flattenTree, type FlatTreeNode, type TreeNode } from './treeUtils';
 import styles from './Tree.module.css';
 
 interface TreeProps {

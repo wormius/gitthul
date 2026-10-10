@@ -2,7 +2,7 @@ import type { DragEvent, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react
 
 import { ContextMenu } from './ContextMenu';
 import { IconButton } from './IconButton';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 import styles from './Tab.module.css';
 
 export interface TabDescriptor {

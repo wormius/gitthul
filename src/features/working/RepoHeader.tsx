@@ -10,7 +10,7 @@ import type { Repository } from '@core/domain/repository';
 import { useI18n } from '@i18n/useI18n';
 import { Avatar } from '@ui/Avatar';
 import { ContextMenu } from '@ui/ContextMenu';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import { RefIcon } from './RefIcon';
 import styles from './RepoHeader.module.css';

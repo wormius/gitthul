@@ -1,7 +1,7 @@
 import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 
 import { Menu } from './Menu';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 import styles from './ContextMenu.module.css';
 
 interface ContextMenuProps {

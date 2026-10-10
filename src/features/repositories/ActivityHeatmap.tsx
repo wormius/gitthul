@@ -1,6 +1,6 @@
 import { useI18n } from '@i18n/useI18n';
 import { Heatmap } from '@ui/Heatmap';
-import type { HeatmapCell, HeatmapDay } from '@ui/heatmap';
+import type { HeatmapCell, HeatmapDay } from '@ui/heatmapUtils';
 
 import styles from './ActivityHeatmap.module.css';
 

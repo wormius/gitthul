@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { useDropTarget, type DropVerdict } from '@ui/dragLayer';
+import { useDropTarget, type DropVerdict } from '@ui/dragLayerUtils';
 
 import { isDragRef } from './integration';
 import styles from './RefList.module.css';

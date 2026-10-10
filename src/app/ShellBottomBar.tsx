@@ -6,7 +6,7 @@ import { useI18n } from '@i18n/useI18n';
 import { BottomBar } from '@ui/BottomBar';
 import { IconButton } from '@ui/IconButton';
 import { Kbd } from '@ui/Kbd';
-import type { MenuEntry } from '@ui/menu';
+import type { MenuEntry } from '@ui/menuUtils';
 import type { TabDescriptor } from '@ui/Tab';
 import { TabStrip } from '@ui/TabStrip';
 import { Tooltip } from '@ui/Tooltip';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { countLeaves, flattenTree, type TreeNode } from './tree';
+import { countLeaves, flattenTree, type TreeNode } from './treeUtils';
 
 const nodes: readonly TreeNode[] = [
   {

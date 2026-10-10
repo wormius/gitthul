@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fitColumnWidths, resizeColumnWidths, type DataGridColumn } from './dataGrid';
+import { fitColumnWidths, resizeColumnWidths, type DataGridColumn } from './dataGridUtils';
 
 const columns: readonly DataGridColumn[] = [
   { key: 'graph', header: 'Grafo', width: 120, minWidth: 80, maxWidth: 120 },

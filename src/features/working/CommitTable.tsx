@@ -10,7 +10,7 @@ import { useCssTokens } from '@design/useCssTokens';
 import { useTheme } from '@design/useTheme';
 import { useI18n } from '@i18n/useI18n';
 import { DataGrid } from '@ui/DataGrid';
-import type { DataGridColumn } from '@ui/dataGrid';
+import type { DataGridColumn } from '@ui/dataGridUtils';
 import { EmptyState } from '@ui/EmptyState';
 import { Skeleton } from '@ui/Skeleton';
 import { Spinner } from '@ui/Spinner';

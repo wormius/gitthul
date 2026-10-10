@@ -19,7 +19,7 @@ import type { GitQuery, LineRef } from '@core/ports/GitPort';
 import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
 import { CodeSurface } from '@ui/CodeSurface';
-import { syntaxLanguageForPath } from '@ui/codeSurface';
+import { syntaxLanguageForPath } from '@ui/codeSurfaceUtils';
 import { ContextMenu } from '@ui/ContextMenu';
 import { EmptyState } from '@ui/EmptyState';
 import { MarkerScrollbar } from '@ui/MarkerScrollbar';
@@ -27,10 +27,10 @@ import { ProgressBar } from '@ui/ProgressBar';
 import { Skeleton } from '@ui/Skeleton';
 import { SyncScroll } from '@ui/SyncScroll';
 import { SyncScrollPane } from '@ui/SyncScrollPane';
-import { useSyncScrollRegistry } from '@ui/syncScroll';
+import { useSyncScrollRegistry } from '@ui/syncScrollUtils';
 import type { CodeBlockControl, CodeLineControl, CodeSurfaceFoldLabels } from '@ui/CodeSurface';
-import type { MarkerTone } from '@ui/markerScrollbar';
-import type { MenuEntry } from '@ui/menu';
+import type { MarkerTone } from '@ui/markerScrollbarUtils';
+import type { MenuEntry } from '@ui/menuUtils';
 
 import {
   fileBlocks,

@@ -12,7 +12,7 @@ import {
   type Ref,
 } from 'react';
 
-import type { FloatingAlign, FloatingSide } from './floating';
+import type { FloatingAlign, FloatingSide } from './floatingUtils';
 import { Floating } from './Floating';
 import styles from './Tooltip.module.css';
 

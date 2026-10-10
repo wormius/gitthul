@@ -4,7 +4,7 @@ import styles from './CollapsibleRail.module.css';
 import { ContextMenu } from './ContextMenu';
 import { Counter } from './Counter';
 import { IconButton } from './IconButton';
-import type { MenuEntry } from './menu';
+import type { MenuEntry } from './menuUtils';
 import { Popover } from './Popover';
 
 export interface RailSection {

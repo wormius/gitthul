@@ -38,6 +38,20 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Verify portable TypeScript module names
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import assert from 'node:assert/strict';
+          const modules = new Map();
+          for (const file of fs.readdirSync('src', { recursive: true })) {
+            if (!/\.tsx?$/.test(file)) continue;
+            const key = file.replace(/\.tsx?$/, '').split(path.sep).join('/').toLowerCase();
+            assert.ok(!modules.has(key), `Conflicting module names: ${modules.get(key)} and ${file}`);
+            modules.set(key, file);
+          }
+          NODE
       - name: Install dependencies
         run: npm ci
       - name: Verify versions and third-party notices

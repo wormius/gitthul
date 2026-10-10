@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { markerBand, MINIMUM_BAND, seekPosition, viewportBand } from './markerScrollbar';
+import { markerBand, MINIMUM_BAND, seekPosition, viewportBand } from './markerScrollbarUtils';
 
 const marker = (from: number, to?: number) =>
   ({ id: 'm', from, ...(to === undefined ? {} : { to }), tone: 'added' }) as const;

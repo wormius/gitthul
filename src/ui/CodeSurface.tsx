@@ -38,7 +38,7 @@ import {
   type CodeWordTone,
   type SyntaxLanguage,
   type SyntaxTone,
-} from './codeSurface';
+} from './codeSurfaceUtils';
 import styles from './CodeSurface.module.css';
 
 /**
