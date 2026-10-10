@@ -170,7 +170,9 @@ ordinarias. OpenSSH proporciona ssh y ssh-keygen para los remotos y las funcione
 de llaves SSH de la aplicación.
 build.rs incorpora windows-common-controls.manifest mediante /MANIFESTINPUT
 también a los ejecutables de pruebas Windows, como hace Tauri en su propio
-workspace. Evitar atributos con comillas anidadas en /MANIFESTDEPENDENCY: el
+workspace. En MSVC, WindowsAttributes::new_without_app_manifest conserva los
+recursos de icono/versión y evita duplicar el manifiesto en resource.lib y el
+enlazador. Evitar atributos con comillas anidadas en /MANIFESTDEPENDENCY: el
 enlazador puede dividirlos en argumentos de archivos. Los recursos del binario
 Tauri no alcanzan por sí solos los tests de la
 librería. Los fixtures comparan rutas canónicas. Las pruebas de bytes no UTF-8
