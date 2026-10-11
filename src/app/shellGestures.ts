@@ -7,7 +7,7 @@ import { useWorkingStore } from '@features/working/workingStore';
 import { useI18n } from '@i18n/useI18n';
 
 import type { GestureDefinition } from './gestures';
-import { APP_SITE_URL, APP_SUPPORT_URL } from './metadata';
+import { APP_HELP_URL, APP_SUPPORT_URL } from './metadata';
 import { usePorts } from './PortsContext';
 import { newTerminalSurface, useShellStore } from './shellStore';
 import { activeTab, isHome } from './tabs';
@@ -216,7 +216,7 @@ export function useShellGestureDefinitions(): readonly GestureDefinition[] {
         triggers: ['button', 'shortcut', 'search'],
         shortcut: 'F1',
         run: () => {
-          void link.openExternal(APP_SITE_URL);
+          void link.openExternal(APP_HELP_URL);
         },
       },
       {

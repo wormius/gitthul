@@ -6,13 +6,12 @@ export const APP_VERSION = __APP_VERSION__;
 
 /*
  * Destinos de Ayuda, Apoyar y «Acerca de». Salen por `LinkPort`, al navegador
- * del sistema. El repositorio público y la consulta de novedades se configurarán
- * cuando se prepare la publicación.
- * Son metadatos centralizados para poder sustituir los destinos sin
+ * del sistema. Son metadatos centralizados para poder sustituir los destinos sin
  * buscar literales por toda la interfaz.
  */
 export const APP_SITE_URL = 'https://gitthul.com';
-export const APP_SUPPORT_URL = 'https://gitthul.com';
+export const APP_HELP_URL = 'https://gitthul.com/help';
+export const APP_SUPPORT_URL = 'https://gitthul.com/support';
 
 /**
  * La licencia, escrita como identificador SPDX.
