@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::Serialize;
 
@@ -214,7 +214,7 @@ fn git(repository: &Path, args: &[&str]) -> Result<Output, ReadFileError> {
 }
 
 fn git_allow_unborn(repository: &Path, args: &[&str]) -> Result<Output, ReadFileError> {
-    Command::new("git")
+    crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -229,6 +229,7 @@ fn git_allow_unborn(repository: &Path, args: &[&str]) -> Result<Output, ReadFile
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
 
     fn git_ok(path: &Path, args: &[&str]) -> String {
         let output = Command::new("git")

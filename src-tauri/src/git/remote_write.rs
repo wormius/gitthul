@@ -1,7 +1,7 @@
 //! Administración de remotos con precondiciones sobre la vista segura que leyó la interfaz.
 
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::Deserialize;
 
@@ -186,7 +186,7 @@ fn successful(repository: &Path, args: &[&str]) -> Result<(), WriteRemoteError> 
 }
 
 fn command(repository: &Path, args: &[&str]) -> Result<Output, WriteRemoteError> {
-    Command::new("git")
+    crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -199,6 +199,7 @@ fn command(repository: &Path, args: &[&str]) -> Result<Output, WriteRemoteError>
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::process::Command;
 
     use tempfile::TempDir;
 
@@ -217,7 +218,6 @@ mod tests {
     }
 
     use std::path::Path;
-    use std::process::Command;
 
     fn repository() -> TempDir {
         let temporary = TempDir::new().unwrap();

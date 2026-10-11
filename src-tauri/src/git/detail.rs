@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::Serialize;
 
@@ -329,7 +329,7 @@ fn nul_fields(bytes: &[u8]) -> Vec<&[u8]> {
 }
 
 fn git(repository: &Path, args: &[&str]) -> Result<Output, ReadDetailError> {
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -351,7 +351,7 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
     use std::fs;
-    use std::process::Stdio;
+    use std::process::{Command, Stdio};
 
     fn git_ok(path: &Path, args: &[&str]) -> String {
         let output = Command::new("git")

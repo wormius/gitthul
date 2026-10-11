@@ -843,7 +843,7 @@ fn command_output(repository: &Path, args: &[&str]) -> Result<std::process::Outp
 }
 
 fn git_command() -> Command {
-    let mut command = Command::new("git");
+    let mut command = crate::process::command("git");
     command.env("GIT_TERMINAL_PROMPT", "0").env("LC_ALL", "C");
     command
 }

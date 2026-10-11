@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -141,7 +140,7 @@ fn classify(paths: &[PathBuf], repository: &Path, git_roots: &[PathBuf]) -> Repo
 fn git_roots(repository: &Path) -> Result<Vec<PathBuf>, ()> {
     let mut roots = HashSet::new();
     for argument in ["--git-dir", "--git-common-dir"] {
-        let output = Command::new("git")
+        let output = crate::process::command("git")
             .args(["rev-parse", argument])
             .current_dir(repository)
             .env("GIT_CONFIG_NOSYSTEM", "1")

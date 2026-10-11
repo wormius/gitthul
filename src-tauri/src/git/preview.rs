@@ -1,7 +1,6 @@
 //! Vista previa de integración entre dos referencias sin modificar el repositorio.
 
 use std::path::Path;
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
@@ -100,7 +99,7 @@ fn commits_between(
     included: gix::ObjectId,
     excluded: gix::ObjectId,
 ) -> Result<Vec<gix::ObjectId>, ReadPreviewError> {
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .args([
             "rev-list",
             "--topo-order",
@@ -136,6 +135,7 @@ fn map_history_error(error: history::ReadHistoryError) -> ReadPreviewError {
 mod tests {
     use super::*;
     use std::fs;
+    use std::process::Command;
 
     fn git(path: &Path, args: &[&str]) -> String {
         let output = Command::new("git")

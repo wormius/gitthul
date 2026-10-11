@@ -656,7 +656,7 @@ fn run_git(repository: &Path, args: &[&str], stdin: Option<&[u8]>) -> Result<(),
 }
 
 fn git_command(repository: &Path) -> Command {
-    let mut command = Command::new("git");
+    let mut command = crate::process::command("git");
     command
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")

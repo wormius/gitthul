@@ -1,7 +1,7 @@
 //! Escrituras locales de referencias, serializadas por repositorio.
 
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::Deserialize;
 
@@ -565,7 +565,7 @@ fn validate_tag_name(repository: &Path, name: &str) -> Result<(), WriteRefError>
 }
 
 fn command(repository: &Path, args: &[&str]) -> Result<Output, WriteRefError> {
-    Command::new("git")
+    crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -585,6 +585,7 @@ fn command_text(repository: &Path, args: &[&str]) -> Option<String> {
 mod tests {
     use super::*;
     use std::fs;
+    use std::process::Command;
 
     fn git(path: &Path, args: &[&str]) -> String {
         let output = Command::new("git")

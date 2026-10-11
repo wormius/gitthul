@@ -567,7 +567,7 @@ fn run_git(repository: &Path, args: &[&str], input: Option<&[u8]>) -> Result<(),
 }
 
 fn git_command(repository: &Path, args: &[&str]) -> Command {
-    let mut command = Command::new("git");
+    let mut command = crate::process::command("git");
     command
         .args(args)
         .current_dir(repository)

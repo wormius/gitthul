@@ -9,6 +9,7 @@ mod git;
 mod keyring;
 mod library;
 mod logging;
+mod process;
 mod releases;
 mod session;
 mod settings;

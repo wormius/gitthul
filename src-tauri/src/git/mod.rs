@@ -36,7 +36,7 @@ mod write;
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -85,7 +85,7 @@ fn set_identity(
     }
     let repo = gix::open(repository)
         .map_err(|_| GitCommandError::internal("No se pudo abrir el repositorio"))?;
-    let worktree_config = Command::new("git")
+    let worktree_config = crate::process::command("git")
         .current_dir(repository)
         .args(["config", "--bool", "--get", "extensions.worktreeConfig"])
         .output()
@@ -120,7 +120,7 @@ fn set_identity(
             ("user.name", &identity.name),
             ("user.email", &identity.email),
         ] {
-            let status = Command::new("git")
+            let status = crate::process::command("git")
                 .arg("config")
                 .arg("--file")
                 .arg(&pending)
@@ -144,7 +144,7 @@ fn set_identity(
 pub fn git_read_identity(id: String) -> Result<Option<GitIdentity>, GitCommandError> {
     let repository = existing_repository(&id)?;
     let read = |key: &str| -> Option<String> {
-        let output = Command::new("git")
+        let output = crate::process::command("git")
             .args(["config", "--get", key])
             .current_dir(&repository)
             .env("GIT_OPTIONAL_LOCKS", "0")
@@ -594,7 +594,7 @@ fn run_clone(
         ));
     }
 
-    let mut command = Command::new("git");
+    let mut command = crate::process::command("git");
     if let Some(credentials) = credentials {
         credentials.apply(&mut command);
     }
@@ -2888,7 +2888,7 @@ pub async fn git_commit(
 }
 
 fn git_head_label(repository: &std::path::Path) -> String {
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .args(["symbolic-ref", "--short", "-q", "HEAD"])
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")

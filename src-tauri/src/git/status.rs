@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::{Deserialize, Serialize};
 
@@ -216,7 +216,7 @@ pub(super) fn commit_precondition(repository: &Path) -> CommitPrecondition {
  * precondición opaca igualmente exacta para commit y undo, sin modificar `.git/index`.
  */
 fn index_fingerprint(repository: &Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .args(["ls-files", "--stage", "-z"])
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -237,7 +237,7 @@ fn index_fingerprint(repository: &Path) -> Option<String> {
 
 /** Identifica solo los cambios rastreados del árbol de trabajo, sin escribir. */
 fn worktree_fingerprint(repository: &Path) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .args([
             "diff",
             "--no-ext-diff",
@@ -309,7 +309,7 @@ fn untracked_fingerprint(repository: &Path) -> Option<String> {
 }
 
 fn git_text(repository: &Path, args: &[&str]) -> Option<String> {
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -325,7 +325,7 @@ fn git_text(repository: &Path, args: &[&str]) -> Option<String> {
 }
 
 fn git_output(repository: &Path, args: &[&str]) -> Result<Output, ReadStatusError> {
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")

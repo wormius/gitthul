@@ -1,7 +1,7 @@
 //! Lectura de las tres etapas de un conflicto directamente desde el índice.
 
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::Serialize;
 
@@ -248,7 +248,7 @@ fn short_oid(oid: &str) -> String {
 }
 
 fn git_output(repository: &Path, args: &[&str]) -> Result<Output, ReadConflictError> {
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")

@@ -7,7 +7,6 @@ use std::{
     fs,
     io::Write,
     path::{Component, Path, PathBuf},
-    process::Command,
     sync::{Arc, Mutex, MutexGuard, OnceLock, Weak},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -139,7 +138,7 @@ pub(super) fn repository_identity(
     repository: &Path,
 ) -> Result<(PathBuf, PathBuf, String), UndoError> {
     let repository = fs::canonicalize(repository).map_err(|_| UndoError::GitFailed)?;
-    let out = Command::new("git")
+    let out = crate::process::command("git")
         .current_dir(&repository)
         .args(["rev-parse", "--absolute-git-dir"])
         .env("GIT_OPTIONAL_LOCKS", "0")

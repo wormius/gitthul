@@ -1,5 +1,6 @@
 //! Sesiones de shell reales sobre PTY. La interfaz solo transporta bytes y tamaño.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -103,7 +104,7 @@ pub fn terminal_create_session(
     let mut command = CommandBuilder::new_default_prog();
     configure_terminal_environment(&mut command);
     if !cwd.is_empty() {
-        command.cwd(&cwd);
+        command.cwd(shell_working_directory(&cwd).as_ref());
     }
 
     let mut reader = pair
@@ -165,6 +166,42 @@ pub fn terminal_create_session(
     });
 
     Ok(())
+}
+
+fn shell_working_directory(cwd: &str) -> Cow<'_, str> {
+    #[cfg(windows)]
+    {
+        let shell_path = windows_shell_path(cwd);
+        if shell_path != cwd {
+            // CMD mistakes a canonical verbatim drive path for UNC and falls
+            // back to Windows. Only remove the prefix when ordinary Win32
+            // parsing still resolves the same directory; names requiring the
+            // verbatim namespace must keep their original meaning.
+            let same_directory = Path::new(shell_path.as_ref())
+                .canonicalize()
+                .ok()
+                .zip(Path::new(cwd).canonicalize().ok())
+                .is_some_and(|(shell, original)| shell == original);
+            if same_directory {
+                return shell_path;
+            }
+        }
+    }
+    Cow::Borrowed(cwd)
+}
+
+#[cfg(any(windows, test))]
+fn windows_shell_path(cwd: &str) -> Cow<'_, str> {
+    if let Some(unc) = cwd.strip_prefix(r"\\?\UNC\") {
+        return Cow::Owned(format!(r"\\{unc}"));
+    }
+    if let Some(drive) = cwd.strip_prefix(r"\\?\") {
+        let bytes = drive.as_bytes();
+        if bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && bytes[1..3] == *b":\\" {
+            return Cow::Borrowed(drive);
+        }
+    }
+    Cow::Borrowed(cwd)
 }
 
 fn drain_terminal_output(
@@ -322,6 +359,41 @@ mod tests {
     use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 
     #[test]
+    fn windows_shell_paths_preserve_drive_unicode_spaces_and_unc() {
+        for (cwd, expected) in [
+            (r"\\?\C:\Users\Usuario\Repo", r"C:\Users\Usuario\Repo"),
+            (
+                r"\\?\D:\Área de trabajo\日本語",
+                r"D:\Área de trabajo\日本語",
+            ),
+            (r"C:\Área de trabajo\日本語", r"C:\Área de trabajo\日本語"),
+            (
+                r"\\?\UNC\servidor\carpeta compartida\Repo",
+                r"\\servidor\carpeta compartida\Repo",
+            ),
+            (
+                r"\\servidor\carpeta compartida\Repo",
+                r"\\servidor\carpeta compartida\Repo",
+            ),
+            (r"\\?\Volume{device}\Repo", r"\\?\Volume{device}\Repo"),
+            (r"\\.\C:\Repo", r"\\.\C:\Repo"),
+        ] {
+            assert_eq!(super::windows_shell_path(cwd), expected);
+        }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn shell_cwd_keeps_names_that_require_verbatim_semantics() {
+        let temporary = tempfile::tempdir().unwrap();
+        let canonical = temporary.path().canonicalize().unwrap();
+        let special = canonical.join("literal.");
+        std::fs::create_dir(&special).unwrap();
+        let cwd = special.to_str().unwrap();
+        assert_eq!(super::shell_working_directory(cwd), cwd);
+    }
+
+    #[test]
     #[cfg(unix)]
     fn shell_recibe_capacidades_del_emulador_sin_dimensiones_del_padre() {
         let pair = native_pty_system().openpty(PtySize::default()).unwrap();
@@ -377,9 +449,26 @@ mod tests {
 
     #[test]
     fn pty_real_transporta_entrada_salida_y_resize() {
+        let temporary = tempfile::tempdir().unwrap();
+        let directory = temporary.path().join("shell cwd área_日本語");
+        std::fs::create_dir(&directory).unwrap();
+        let canonical = directory.canonicalize().unwrap();
+        let cwd = canonical.to_str().unwrap();
+        let shell_cwd = super::shell_working_directory(cwd);
+        #[cfg(windows)]
+        assert!(!shell_cwd.starts_with(r"\\?\"));
+
         let pair = native_pty_system().openpty(PtySize::default()).unwrap();
+        #[cfg(windows)]
+        let mut command = {
+            let mut command = CommandBuilder::new("cmd.exe");
+            command.args(["/D", "/Q"]);
+            command
+        };
+        #[cfg(not(windows))]
         let mut command = CommandBuilder::new_default_prog();
         super::configure_terminal_environment(&mut command);
+        command.cwd(shell_cwd.as_ref());
         let mut child = pair.slave.spawn_command(command).unwrap();
         let mut reader = pair.master.try_clone_reader().unwrap();
         let mut writer = pair.master.take_writer().unwrap();
@@ -406,26 +495,32 @@ mod tests {
             writer.flush().unwrap();
         }
 
+        let marker = "gitthul-pty-real";
+        let expected = format!("{marker}={shell_cwd}");
+        let cols = u16::try_from(expected.len() + 16)
+            .unwrap_or(u16::MAX)
+            .max(97);
         pair.master
             .resize(PtySize {
                 rows: 31,
-                cols: 97,
+                cols,
                 pixel_width: 0,
                 pixel_height: 0,
             })
             .unwrap();
         assert_eq!(pair.master.get_size().unwrap().rows, 31);
-        assert_eq!(pair.master.get_size().unwrap().cols, 97);
+        assert_eq!(pair.master.get_size().unwrap().cols, cols);
 
-        let marker = "gitthul-pty-real";
-        writer
-            .write_all(format!("echo {marker}\r").as_bytes())
-            .unwrap();
+        #[cfg(windows)]
+        let probe = format!("chcp 65001 >nul\recho {marker}=%CD%\r");
+        #[cfg(not(windows))]
+        let probe = format!("printf '%s=%s\\n' '{marker}' \"$PWD\"\r");
+        writer.write_all(probe.as_bytes()).unwrap();
         writer.flush().unwrap();
 
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut output = String::new();
-        while Instant::now() < deadline && !output.contains(marker) {
+        while Instant::now() < deadline && !output.contains(&expected) {
             if let Ok(bytes) = receiver.recv_timeout(Duration::from_millis(100)) {
                 output.push_str(&String::from_utf8_lossy(&bytes));
             }
@@ -435,7 +530,10 @@ mod tests {
         drop(writer);
         drop(pair);
         reading.join().unwrap();
-        assert!(output.contains(marker), "salida PTY inesperada: {output:?}");
+        assert!(
+            output.contains(&expected),
+            "salida PTY inesperada: {output:?}"
+        );
     }
 
     #[cfg(target_os = "linux")]

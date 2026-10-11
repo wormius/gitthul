@@ -77,7 +77,7 @@ pub(super) fn notify_undo_change(repository: &Path) -> Result<(), UndoError> {
 }
 
 fn command(repository: &Path) -> Command {
-    let mut c = Command::new("git");
+    let mut c = crate::process::command("git");
     c.current_dir(repository)
         .env("GIT_OPTIONAL_LOCKS", "0")
         .env("GIT_TERMINAL_PROMPT", "0")

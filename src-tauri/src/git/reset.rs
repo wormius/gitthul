@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::Deserialize;
 
@@ -193,7 +193,7 @@ fn short_sha(sha: &str) -> String {
 }
 
 fn command(repository: &Path, args: &[&str]) -> Result<Output, ResetError> {
-    Command::new("git")
+    crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -208,6 +208,7 @@ fn command(repository: &Path, args: &[&str]) -> Result<Output, ResetError> {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::process::Command;
 
     use tempfile::TempDir;
 

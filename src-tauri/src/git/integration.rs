@@ -1,7 +1,7 @@
 //! Inicio de merge y rebase contra las puntas exactas mostradas en la vista previa.
 
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::Deserialize;
 
@@ -312,7 +312,7 @@ fn read_short(repository: &Path, revision: &str) -> Option<String> {
 }
 
 fn command(repository: &Path, args: &[&str]) -> Result<Output, IntegrationError> {
-    Command::new("git")
+    crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -328,6 +328,7 @@ fn command(repository: &Path, args: &[&str]) -> Result<Output, IntegrationError>
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::process::Command;
 
     use tempfile::TempDir;
 

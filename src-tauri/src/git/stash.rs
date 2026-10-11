@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::{Deserialize, Serialize};
 
@@ -492,7 +492,7 @@ fn branch(repository: &Path) -> String {
 }
 
 fn command(repository: &Path, args: &[&str]) -> Result<Output, StashError> {
-    Command::new("git")
+    crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -504,7 +504,7 @@ fn command(repository: &Path, args: &[&str]) -> Result<Output, StashError> {
 
 /** La captura privada no depende de que el repositorio tenga identidad para commits. */
 fn recovery_snapshot(repository: &Path, args: &[&str]) -> Result<Output, StashError> {
-    Command::new("git")
+    crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -520,6 +520,7 @@ fn recovery_snapshot(repository: &Path, args: &[&str]) -> Result<Output, StashEr
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::process::Command;
 
     use tempfile::TempDir;
 

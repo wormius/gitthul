@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use gix::bstr::ByteSlice;
 use serde::{Deserialize, Serialize};
@@ -154,7 +153,7 @@ pub fn create(
         return Err(CreateError::InvalidBranch);
     }
 
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .arg("init")
         .arg("--initial-branch")
         .arg(initial_branch)
@@ -187,7 +186,7 @@ pub fn is_single_component(name: &str) -> bool {
 }
 
 fn git_succeeds<'a>(directory: &Path, args: impl IntoIterator<Item = &'a str>) -> bool {
-    Command::new("git")
+    crate::process::command("git")
         .args(args)
         .current_dir(directory)
         .env("GIT_CONFIG_NOSYSTEM", "1")

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 use gix::bstr::ByteSlice;
 use serde::Serialize;
@@ -570,7 +570,7 @@ fn git_allow_missing<const N: usize>(
     path: &Path,
     args: [&str; N],
 ) -> Result<Output, ReadRefsError> {
-    Command::new("git")
+    crate::process::command("git")
         .args(args)
         .current_dir(path)
         .env("GIT_CONFIG_NOSYSTEM", "1")

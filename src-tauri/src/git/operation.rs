@@ -109,7 +109,7 @@ fn run(repository: &Path, args: &[&str]) -> Result<(), OperationError> {
 }
 
 fn git_command(repository: &Path) -> Command {
-    let mut command = Command::new("git");
+    let mut command = crate::process::command("git");
     command
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")

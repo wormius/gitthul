@@ -116,6 +116,14 @@ antes de repararla y mantener la suspensión al escribir otras preferencias.
 
 ## Acceso al sistema
 
+Los comandos internos usan `process::command` para ejecutar Git, SSH y sus
+auxiliares sin crear ventanas de consola en Windows (`CREATE_NO_WINDOW`).
+Conservar los pipes, argumentos y códigos de salida de cada operación. El shell
+interactivo usa `portable-pty`/ConPTY y no pasa por esta fábrica.
+Al entregar el cwd al shell Windows, usar la forma de unidad o UNC sin prefijo
+verbatim solo si resuelve al mismo directorio. Conservar el cwd canónico para
+identidad y recovery; esta adaptación no elimina la limitación de CMD con UNC.
+
 Leer la identidad efectiva de Git. Seleccionar un perfil escribe user.name/user.email
 en la configuración local o de worktree; no pasar el perfil como autor de todos los
 commits. Amend conserva el autor original salvo una acción explícita distinta.

@@ -1,6 +1,6 @@
 //! Ciclo de vida de worktrees enlazados. Git conserva las protecciones de datos y bloqueo.
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde::Deserialize;
 use serde_json::json;
@@ -15,7 +15,7 @@ pub struct RemoveOptions {
 }
 
 fn run(repository: &Path, args: &[&str]) -> Result<Output, GitCommandError> {
-    Command::new("git")
+    crate::process::command("git")
         .arg("-C")
         .arg(repository)
         .args(args)

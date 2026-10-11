@@ -449,7 +449,7 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
             .unwrap_or_default()
             .as_millis()
     ));
-    let version = std::process::Command::new("git").arg("--version").output();
+    let version = crate::process::command("git").arg("--version").output();
     let _ = GIT_VERSION.set(
         version
             .ok()

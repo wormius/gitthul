@@ -306,7 +306,7 @@ fn public_key(path: &Path) -> Result<String, String> {
     if public.len() > 65_535 || !public.starts_with("ssh-") && !public.starts_with("ecdsa-") {
         return Err(error());
     }
-    let check = Command::new("ssh-keygen")
+    let check = crate::process::command("ssh-keygen")
         .args(["-l", "-f"])
         .arg(path.with_file_name(format!(
             "{}.pub",
@@ -370,7 +370,7 @@ pub async fn auth_generate_key(
         }
         let path = folder.join(&id);
         let bridge = CommandConfig::for_generation(&app, passphrase)?;
-        let mut command = Command::new("ssh-keygen");
+        let mut command = crate::process::command("ssh-keygen");
         command
             .args(["-q", "-t", "ed25519", "-C", alias.trim(), "-f"])
             .arg(&path)
@@ -735,7 +735,7 @@ impl CommandConfig {
             let original = env::var("GIT_SSH_COMMAND")
                 .ok()
                 .or_else(|| {
-                    Command::new("git")
+                    crate::process::command("git")
                         .args(["config", "--get", "core.sshCommand"])
                         .current_dir(&self.repository)
                         .output()
@@ -793,7 +793,7 @@ fn configure_https_bridge(command: &mut Command, endpoints: &[(String, String)])
     }
 }
 fn system_credentials_command(repository: &Path, executable: &Path) -> Command {
-    let mut command = Command::new("git");
+    let mut command = crate::process::command("git");
     command
         .args(["credential", "fill"])
         .env("GIT_TERMINAL_PROMPT", "0")
@@ -1148,7 +1148,7 @@ pub fn run_if_requested() -> bool {
     let response = wire(request).unwrap_or_default();
     if ssh {
         let original = env::var("GITTHUL_SYSTEM_SSH_COMMAND").unwrap_or_else(|_| "ssh".into());
-        let mut command = Command::new("sh");
+        let mut command = crate::process::command("sh");
         command.args(["-c", &format!("{original} \"$@\""), "--"]);
         if !response.key_path.is_empty() {
             command.args(["-o", "IdentitiesOnly=yes", "-i", &response.key_path]);

@@ -1,7 +1,6 @@
 //! Lectura del reflog de HEAD y recuperación no destructiva mediante una rama.
 
 use std::path::Path;
-use std::process::Command;
 
 use serde::Serialize;
 
@@ -26,7 +25,7 @@ pub enum ReflogError {
 }
 
 pub fn read(repository: &Path) -> Result<Vec<ReflogEntry>, ReflogError> {
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .current_dir(repository)
         .env("LC_ALL", "C")
         .args([
@@ -88,7 +87,7 @@ pub fn recover(
     }
 
     let revision = format!("{selector}^{{commit}}");
-    let output = Command::new("git")
+    let output = crate::process::command("git")
         .current_dir(repository)
         .env("LC_ALL", "C")
         .args(["rev-parse", "--verify", "--end-of-options", &revision])
@@ -122,6 +121,7 @@ fn valid_head_selector(selector: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::process::Command;
 
     use super::*;
 

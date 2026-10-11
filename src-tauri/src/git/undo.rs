@@ -845,7 +845,7 @@ pub(super) fn git_text(repository: &Path, args: &[&str]) -> Option<String> {
 }
 
 fn git_command(repository: &Path) -> Command {
-    let mut command = Command::new("git");
+    let mut command = crate::process::command("git");
     command
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
