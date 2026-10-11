@@ -163,12 +163,8 @@ export interface GitSettings {
 
 // --- Configuraciones de actualizaciones ---
 
-export const UPDATE_CHANNELS = ['stable', 'beta'] as const;
-export type UpdateChannel = (typeof UPDATE_CHANNELS)[number];
-
 export interface UpdateSettings {
   checkOnStartup: boolean;
-  channel: UpdateChannel;
 }
 
 /** Límites de recuperación aplicados de forma independiente a cada repositorio. */
@@ -231,7 +227,6 @@ export const DEFAULT_GIT_SETTINGS: GitSettings = {
 
 export const DEFAULT_UPDATE_SETTINGS: UpdateSettings = {
   checkOnStartup: false,
-  channel: 'stable',
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -438,7 +433,6 @@ function normalizeUpdateSettings(value: unknown): UpdateSettings {
       typeof raw['checkOnStartup'] === 'boolean'
         ? raw['checkOnStartup']
         : DEFAULT_UPDATE_SETTINGS.checkOnStartup,
-    channel: oneOf(UPDATE_CHANNELS, raw['channel'], DEFAULT_UPDATE_SETTINGS.channel),
   };
 }
 

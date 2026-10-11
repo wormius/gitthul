@@ -1,4 +1,4 @@
-import { RELEASE_CHECK_CONFIGURED, type LinkPort, type ReleaseCheck } from '@core/ports/LinkPort';
+import type { LinkPort, ReleaseCheck } from '@core/ports/LinkPort';
 
 type OpenUrl = (url: string) => Promise<void>;
 
@@ -28,9 +28,8 @@ export function createTauriLinkPort(
 ): LinkPort {
   return {
     openExternal: async (url) => openUrl(safeExternalUrl(url)),
-    checkRelease: async (channel) => {
-      if (!RELEASE_CHECK_CONFIGURED) return { status: 'notConfigured' };
-      return (await call('releases_check', { channel })) as ReleaseCheck;
+    checkRelease: async () => {
+      return (await call('releases_check', {})) as ReleaseCheck;
     },
   };
 }

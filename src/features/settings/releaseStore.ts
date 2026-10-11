@@ -1,42 +1,31 @@
 import { create } from 'zustand';
 
-import type { UpdateChannel } from '@core/domain/settings';
-import { RELEASE_CHECK_CONFIGURED, type LinkPort, type ReleaseCheck } from '@core/ports/LinkPort';
+import type { LinkPort, ReleaseCheck } from '@core/ports/LinkPort';
 
-type CheckState =
-  | { status: 'idle' }
-  | { status: 'checking'; channel: UpdateChannel }
-  | { status: 'error'; channel: UpdateChannel }
-  | (ReleaseCheck & { channel: UpdateChannel });
+type CheckState = { status: 'idle' } | { status: 'checking' } | { status: 'error' } | ReleaseCheck;
 
 interface ReleaseState {
   check: CheckState;
-  checkNow: (link: LinkPort, channel: UpdateChannel) => Promise<void>;
+  checkNow: (link: LinkPort) => Promise<void>;
 }
 
-/** Comparte el resultado entre ajustes y el aviso; descarta respuestas de otro canal. */
-export const useReleaseStore = create<ReleaseState>((set, get) => {
-  let revision = 0;
+/** Comparte el resultado y una única consulta en curso entre ajustes y el aviso. */
+export const useReleaseStore = create<ReleaseState>((set) => {
   let pending: Promise<void> | undefined;
   return {
-    check: { status: 'notConfigured', channel: 'stable' },
-    checkNow: (link, channel) => {
-      if (!RELEASE_CHECK_CONFIGURED) {
-        set({ check: { status: 'notConfigured', channel } });
-        return Promise.resolve();
-      }
-      const check = get().check;
-      if (check.status === 'checking' && check.channel === channel && pending) return pending;
-      const request = ++revision;
-      set({ check: { status: 'checking', channel } });
-      pending = link.checkRelease(channel).then(
-        (result) => {
-          if (request === revision) set({ check: { ...result, channel } });
-        },
-        () => {
-          if (request === revision) set({ check: { status: 'error', channel } });
-        },
-      );
+    check: { status: 'idle' },
+    checkNow: (link) => {
+      if (pending) return pending;
+      pending = Promise.resolve()
+        .then(() => link.checkRelease())
+        .then(
+          (check) => set({ check }),
+          () => set({ check: { status: 'error' } }),
+        )
+        .finally(() => {
+          pending = undefined;
+        });
+      set({ check: { status: 'checking' } });
       return pending;
     },
   };

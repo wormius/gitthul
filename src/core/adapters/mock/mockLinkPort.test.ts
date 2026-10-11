@@ -3,11 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { createMockLinkPort } from './mockLinkPort';
 
 describe('createMockLinkPort', () => {
-  it('representa la misma indisponibilidad que escritorio sin abrir un destino', async () => {
+  it('simula una versión actual sin consultas reales ni abrir un destino', async () => {
     const link = createMockLinkPort();
-    for (const channel of ['stable', 'beta'] as const) {
-      await expect(link.checkRelease(channel)).resolves.toEqual({ status: 'notConfigured' });
-    }
+    await expect(link.checkRelease()).resolves.toEqual({ status: 'current' });
     expect(link.opened).toEqual([]);
   });
 });

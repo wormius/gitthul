@@ -1377,20 +1377,15 @@ export const en: Messages = {
   'settings.shortcuts.action': 'Action',
   'settings.shortcuts.shortcut': 'Shortcut',
 
-  'settings.updates.notConfigured':
-    'Update checks are unavailable until the public GitThul repository is configured.',
   'settings.updates.checkOnStartup': 'Check for updates on startup',
-  'settings.updates.channel': 'Channel',
-  'settings.updates.channel.stable': 'Stable',
-  'settings.updates.channel.beta': 'Beta',
   'settings.updates.currentVersion': 'Current version',
   'settings.updates.description':
-    'Checks GitHub releases. Downloading and installation take place outside GitThul.',
+    'Checks for new stable versions of GitThul on GitHub. Downloading and installation take place outside the application.',
   'settings.updates.checking': 'Checking releases…',
   'settings.updates.available': 'A new version of GitThul is available: {version}.',
   'settings.updates.download': 'Open downloads',
-  'settings.updates.current': 'There is no newer version in this channel.',
-  'settings.updates.empty': 'There are no published releases for this channel.',
+  'settings.updates.current': 'There is no newer stable version.',
+  'settings.updates.empty': 'There are no published stable versions yet.',
   'settings.updates.failed': 'Could not check GitHub. Check your connection or try again later.',
   'settings.updates.openFailed': 'Could not open the download page.',
   'settings.updates.checkNow': 'Check now',

@@ -5,6 +5,21 @@ import { DEFAULT_SETTINGS } from '@core/domain/settings';
 import { createTauriSettingsPort } from './tauriSettingsPort';
 
 describe('createTauriSettingsPort', () => {
+  it('migra un canal beta heredado y persiste solo la preferencia de consulta al iniciar', async () => {
+    let disk: unknown = { updates: { channel: 'beta', checkOnStartup: true } };
+    const call = vi.fn((command: string, args?: Record<string, unknown>) => {
+      if (command === 'settings_read') return Promise.resolve(structuredClone(disk));
+      disk = structuredClone(args?.['settings']);
+      return Promise.resolve(undefined);
+    });
+    const port = createTauriSettingsPort(call);
+    expect((await port.read()).updates).toEqual({ checkOnStartup: true });
+    await port.patch({ updates: { checkOnStartup: false } });
+    expect(disk).toMatchObject({ updates: { checkOnStartup: false } });
+    expect((disk as { updates: unknown }).updates).not.toHaveProperty('channel');
+    expect((await createTauriSettingsPort(call).read()).updates).toEqual({ checkOnStartup: false });
+  });
+
   it('una lectura fallida deja ajustes editables con depuración suspendida hasta activarla explícitamente', async () => {
     let disk: unknown = null;
     const written: unknown[] = [];

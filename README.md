@@ -91,8 +91,9 @@ La [documentación de uso](docs/README.md) explica las funciones de la aplicaci�
 - [Puntos de recuperación](docs/recuperacion-persistente.md).
 - [Avisos de versiones](docs/versiones-publicadas.md).
 
-Los avisos de novedades dentro de la aplicación permanecen desactivados. Puedes
-consultar las versiones publicadas en GitHub Releases.
+En **Configuración → Actualizaciones** puedes buscar versiones estables publicadas
+en GitHub Releases y activar la consulta al iniciar. Si hay una versión más reciente,
+GitThul ofrece un enlace para descargarla e instalarla fuera de la aplicación.
 
 ## Licencia
 

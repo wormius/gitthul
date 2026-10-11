@@ -1392,20 +1392,15 @@ export const de: Messages = {
   'settings.shortcuts.action': 'Aktion',
   'settings.shortcuts.shortcut': 'Kürzel',
 
-  'settings.updates.notConfigured':
-    'Die Aktualisierungssuche ist erst verfügbar, wenn das öffentliche GitThul-Repository eingerichtet ist.',
   'settings.updates.checkOnStartup': 'Beim Start nach Aktualisierungen suchen',
-  'settings.updates.channel': 'Kanal',
-  'settings.updates.channel.stable': 'Stabil',
-  'settings.updates.channel.beta': 'Beta',
   'settings.updates.currentVersion': 'Aktuelle Version',
   'settings.updates.description':
-    'Prüft die Veröffentlichungen auf GitHub. Download und Installation erfolgen außerhalb von GitThul.',
+    'Sucht auf GitHub nach neuen stabilen Versionen von GitThul. Download und Installation erfolgen außerhalb der Anwendung.',
   'settings.updates.checking': 'Versionen werden geprüft…',
   'settings.updates.available': 'Eine neue Version von GitThul ist verfügbar: {version}.',
   'settings.updates.download': 'Downloads öffnen',
-  'settings.updates.current': 'In diesem Kanal gibt es keine neuere Version.',
-  'settings.updates.empty': 'Für diesen Kanal sind keine Versionen veröffentlicht.',
+  'settings.updates.current': 'Es gibt keine neuere stabile Version.',
+  'settings.updates.empty': 'Es sind noch keine stabilen Versionen veröffentlicht.',
   'settings.updates.failed':
     'GitHub konnte nicht abgefragt werden. Prüfe die Verbindung oder versuche es später erneut.',
   'settings.updates.openFailed': 'Die Downloadseite konnte nicht geöffnet werden.',

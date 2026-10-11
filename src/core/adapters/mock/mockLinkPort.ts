@@ -16,7 +16,7 @@ export function createMockLinkPort(): MockLinkPort {
 
   return {
     opened,
-    checkRelease: () => Promise.resolve({ status: 'notConfigured' }),
+    checkRelease: () => Promise.resolve({ status: 'current' }),
 
     openExternal: (url) => {
       opened.push(url);

@@ -1391,20 +1391,15 @@ export const esES: Messages = {
   'settings.shortcuts.action': 'Acción',
   'settings.shortcuts.shortcut': 'Atajo',
 
-  'settings.updates.notConfigured':
-    'La consulta de actualizaciones no está disponible hasta configurar el repositorio público de GitThul.',
   'settings.updates.checkOnStartup': 'Buscar actualizaciones al arrancar',
-  'settings.updates.channel': 'Canal',
-  'settings.updates.channel.stable': 'Estable',
-  'settings.updates.channel.beta': 'Beta',
   'settings.updates.currentVersion': 'Versión actual',
   'settings.updates.description':
-    'Consulta las publicaciones de GitHub. La descarga y la instalación se realizan fuera de GitThul.',
+    'Busca nuevas versiones estables de GitThul en GitHub. La descarga y la instalación se realizan fuera de la aplicación.',
   'settings.updates.checking': 'Buscando versiones…',
   'settings.updates.available': 'Hay una nueva versión de GitThul: {version}.',
   'settings.updates.download': 'Abrir descargas',
-  'settings.updates.current': 'No hay una versión más reciente en este canal.',
-  'settings.updates.empty': 'No hay versiones publicadas compatibles con este canal.',
+  'settings.updates.current': 'No hay una versión estable más reciente.',
+  'settings.updates.empty': 'Todavía no hay versiones estables publicadas.',
   'settings.updates.failed':
     'No se pudo consultar GitHub. Revisa la conexión o inténtalo más tarde.',
   'settings.updates.openFailed': 'No se pudo abrir la página de descargas.',

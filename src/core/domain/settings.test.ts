@@ -235,3 +235,22 @@ it('debug solo se activa con un booleano verdadero y no altera otros ajustes', (
   expect(settings.appearance).toEqual(DEFAULT_SETTINGS.appearance);
   expect(normalizeSettings(JSON.parse(JSON.stringify(settings))).logging.debugEnabled).toBe(true);
 });
+
+it('descarta el canal beta heredado y conserva la preferencia explícita de consulta al iniciar', () => {
+  const settings = normalizeSettings({ updates: { channel: 'beta', checkOnStartup: true } });
+  expect(settings.updates).toEqual({ checkOnStartup: true });
+  expect(normalizeSettings(JSON.parse(JSON.stringify(settings))).updates).toEqual({
+    checkOnStartup: true,
+  });
+});
+
+it('la consulta al iniciar está desactivada por defecto y exige un booleano', () => {
+  for (const checkOnStartup of [undefined, 'true', 1, null, false]) {
+    expect(normalizeSettings({ updates: { channel: 'stable', checkOnStartup } }).updates).toEqual({
+      checkOnStartup: false,
+    });
+  }
+  expect(mergeSettings(DEFAULT_SETTINGS, { updates: { checkOnStartup: true } }).updates).toEqual({
+    checkOnStartup: true,
+  });
+});

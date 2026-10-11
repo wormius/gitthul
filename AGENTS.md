@@ -6,9 +6,13 @@ interfaz clara, terminal integrada y mecanismos de recuperación. La red respond
 a acciones del usuario o preferencias explícitas; no introducir telemetría.
 No incluye una función de IA dentro de la aplicación.
 
-La consulta de novedades permanece neutralizada. Aunque existe el repositorio
-público wormius/gitthul, su reactivación requiere un cambio explícito de alcance;
-no reactivarla a partir de preferencias almacenadas.
+La búsqueda de actualizaciones consulta únicamente versiones estables publicadas
+en GitHub Releases de wormius/gitthul. Se activa manualmente o mediante la
+preferencia de consulta al iniciar, desactivada por defecto. No hay canales beta.
+Las preferencias antiguas de canal se descartan al normalizar ajustes.
+LinkPort.checkRelease no recibe argumentos; el backend compara SemVer y valida
+el enlace exacto al tag oficial. Los fallos de red, HTTP o datos se muestran como
+errores que permiten reintentar. No descargar, instalar ni reiniciar automáticamente.
 
 El código propio se distribuye bajo MIT. GitThul™ y su logotipo tienen una política
 de marca separada, documentada en TRADEMARKS.md; los avisos de terceros se

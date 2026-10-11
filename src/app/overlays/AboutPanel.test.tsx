@@ -19,7 +19,7 @@ function makePorts(): AppPorts & { opened: string[] } {
     ...selectPorts(),
     opened,
     link: {
-      checkRelease: () => Promise.resolve({ status: 'notConfigured' }),
+      checkRelease: () => Promise.resolve({ status: 'current' }),
       openExternal: (url) => {
         opened.push(url);
 

@@ -2,31 +2,45 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createTauriLinkPort } from './tauriLinkPort';
 
+const available = {
+  status: 'available',
+  version: '1.1.0',
+  url: 'https://github.com/wormius/gitthul/releases/tag/v1.1.0',
+};
+
 describe('createTauriLinkPort', () => {
-  it('no invoca IPC ni abre enlaces mientras no haya origen público configurado', async () => {
-    const call = vi.fn(() => Promise.resolve({ status: 'current' }));
-    const openUrl = vi.fn();
-    const link = createTauriLinkPort(openUrl, call);
-    for (const channel of ['stable', 'beta'] as const) {
-      await expect(link.checkRelease(channel)).resolves.toEqual({ status: 'notConfigured' });
-    }
-    expect(call).not.toHaveBeenCalled();
-    expect(openUrl).not.toHaveBeenCalled();
+  it.each([{ status: 'current' }, { status: 'empty' }, available])(
+    'consulta IPC sin canal y no abre el navegador por consultar: %j',
+    async (result) => {
+      const call = vi.fn(() => Promise.resolve(result));
+      const openUrl = vi.fn();
+      const link = createTauriLinkPort(openUrl, call);
+      await expect(link.checkRelease()).resolves.toEqual(result);
+      expect(call).toHaveBeenCalledExactlyOnceWith('releases_check', {});
+      expect(openUrl).not.toHaveBeenCalled();
+    },
+  );
+
+  it('propaga fallos de consulta para permitir reintentos', async () => {
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('HTTP 429'))
+      .mockResolvedValueOnce({ status: 'current' });
+    const link = createTauriLinkPort(vi.fn(), call);
+    await expect(link.checkRelease()).rejects.toThrow('HTTP 429');
+    await expect(link.checkRelease()).resolves.toEqual({ status: 'current' });
   });
 
   it('delega HTTP(S) normalizado al navegador del sistema', async () => {
     const openUrl = vi.fn(() => Promise.resolve());
     const link = createTauriLinkPort(openUrl);
-
-    await link.openExternal('https://example.test/docs');
-
-    expect(openUrl).toHaveBeenCalledWith('https://example.test/docs');
+    await link.openExternal(available.url);
+    expect(openUrl).toHaveBeenCalledWith(available.url);
   });
 
   it('rechaza protocolos ajenos y direcciones con credenciales antes de llamar al sistema', async () => {
     const openUrl = vi.fn(() => Promise.resolve());
     const link = createTauriLinkPort(openUrl);
-
     await expect(link.openExternal('javascript:alert(1)')).rejects.toThrow(
       'Dirección externa no permitida',
     );

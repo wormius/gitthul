@@ -18,5 +18,5 @@ Estas guías explican cómo utilizar GitThul y qué efectos tienen sus acciones.
   conservar puntos de recuperación.
 - [Registros y diagnóstico](logs-diagnostico.md): consultar registros y reportar
   un problema.
-- [Versión instalada y actualizaciones](versiones-publicadas.md): consultar el
-  estado actual de la sección de actualizaciones.
+- [Versión instalada y actualizaciones](versiones-publicadas.md): buscar
+  versiones estables y recibir avisos de nuevas publicaciones.

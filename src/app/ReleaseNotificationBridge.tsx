@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 
 import { useSettingsData } from '@features/settings/useSettingsData';
 import { useReleaseStore } from '@features/settings/releaseStore';
-import { RELEASE_CHECK_CONFIGURED } from '@core/ports/LinkPort';
 import { useI18n } from '@i18n/useI18n';
 import { useToast } from '@ui/useToast';
 
@@ -16,24 +15,18 @@ export function ReleaseNotificationBridge() {
   const { show } = useToast();
   const check = useReleaseStore((state) => state.check);
   const checkNow = useReleaseStore((state) => state.checkNow);
-  const searched = useRef(new Set<string>());
+  const searched = useRef(false);
   const notified = useRef(new Set<string>());
-  const { channel, checkOnStartup } = settings.updates;
+  const { checkOnStartup } = settings.updates;
 
   useEffect(() => {
-    if (!RELEASE_CHECK_CONFIGURED || !checkOnStartup || searched.current.has(channel)) return;
-    searched.current.add(channel);
-    void checkNow(link, channel);
-  }, [checkOnStartup, channel, checkNow, link]);
+    if (!checkOnStartup || searched.current) return;
+    searched.current = true;
+    void checkNow(link);
+  }, [checkOnStartup, checkNow, link]);
 
   useEffect(() => {
-    if (
-      !RELEASE_CHECK_CONFIGURED ||
-      check.status !== 'available' ||
-      check.channel !== channel ||
-      notified.current.has(check.version)
-    )
-      return;
+    if (check.status !== 'available' || notified.current.has(check.version)) return;
     notified.current.add(check.version);
     show({
       message: t('settings.updates.available', { version: check.version }),
@@ -47,7 +40,7 @@ export function ReleaseNotificationBridge() {
         },
       },
     });
-  }, [check, channel, show, t, link]);
+  }, [check, show, t, link]);
 
   return null;
 }

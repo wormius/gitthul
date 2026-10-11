@@ -47,7 +47,7 @@ const OPTIONS: readonly [SettingsSectionId, MessageKey][] = [
   ['git', 'settings.git.pullStrategy'],
   ['git', 'settings.git.profiles'],
   ['updates', 'settings.updates.checkOnStartup'],
-  ['updates', 'settings.updates.channel'],
+  ['updates', 'settings.updates.checkNow'],
   ['updates', 'settings.updates.currentVersion'],
   ['logging', 'settings.logging.debug'],
 ];
