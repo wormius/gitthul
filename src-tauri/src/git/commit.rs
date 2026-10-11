@@ -91,20 +91,28 @@ pub fn commit(repository: &Path, request: CommitRequest) -> Result<String, Commi
         CommitError::GitFailed(format!("No se pudo iniciar git commit: {error}"))
     })?;
     let message = message(&request.summary, &request.body);
-    child
+    let input_result = child
         .stdin
         .take()
-        .ok_or_else(|| CommitError::GitFailed("Git no abrió la entrada del mensaje".to_owned()))?
-        .write_all(message.as_bytes())
-        .map_err(|error| {
-            CommitError::GitFailed(format!("No se pudo enviar el mensaje: {error}"))
-        })?;
+        .ok_or_else(|| CommitError::GitFailed("Git no abrió la entrada del mensaje".to_owned()))
+        .and_then(|mut stdin| {
+            stdin.write_all(message.as_bytes()).map_err(|error| {
+                CommitError::GitFailed(format!("No se pudo enviar el mensaje: {error}"))
+            })
+        });
+    // Close stdin and reap Git even if it rejected the message early. Its real
+    // failure (for example, missing identity) takes precedence over BrokenPipe.
     let output = child.wait_with_output().map_err(|error| {
         CommitError::GitFailed(format!("Git no devolvió un resultado: {error}"))
     })?;
     if !output.status.success() {
-        return Err(classify_failure(&String::from_utf8_lossy(&output.stderr)));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.trim().is_empty() {
+            input_result?;
+        }
+        return Err(classify_failure(&stderr));
     }
+    input_result?;
 
     git_text(repository, &["rev-parse", "--verify", "HEAD"]).ok_or_else(|| {
         CommitError::GitFailed("Git creó el commit pero HEAD no se pudo leer".to_owned())
@@ -428,6 +436,62 @@ mod tests {
             commit(empty.path(), request(empty.path(), false)),
             Err(CommitError::NothingStaged)
         );
+    }
+
+    #[test]
+    fn conserva_error_de_identidad_si_git_cierra_stdin_antes_del_mensaje_largo() {
+        let temporary = repository(true);
+        let root = temporary.path();
+        stage(root, "original\n");
+        git(root, &["commit", "--quiet", "-m", "base"]);
+        stage(root, "preparado\n");
+        fs::write(root.join("archivo.txt"), "sin preparar\n").unwrap();
+        git(root, &["config", "user.name", ""]);
+        git(root, &["config", "user.email", ""]);
+
+        let head = output(root, &["rev-parse", "HEAD"]);
+        // Stabilize Git's cache-tree extension before comparing index bytes.
+        let index_tree = output(root, &["write-tree"]);
+        let index = fs::read(root.join(".git/index")).unwrap();
+        let worktree = fs::read(root.join("archivo.txt")).unwrap();
+        let staged_diff = output(root, &["diff", "--cached", "--binary"]);
+        let unstaged_diff = output(root, &["diff", "--binary"]);
+        let mut input = request(root, false);
+        // Exceeds pipe capacity so Git's early identity failure closes stdin
+        // while write_all is still sending, independent of process scheduling.
+        input.body = "mensaje largo\n".repeat(512 * 1024);
+
+        assert_eq!(commit(root, input), Err(CommitError::IdentityMissing));
+
+        assert_eq!(output(root, &["rev-parse", "HEAD"]), head);
+        assert_eq!(fs::read(root.join(".git/index")).unwrap(), index);
+        assert_eq!(output(root, &["write-tree"]), index_tree);
+        assert_eq!(fs::read(root.join("archivo.txt")).unwrap(), worktree);
+        assert_eq!(output(root, &["diff", "--cached", "--binary"]), staged_diff);
+        assert_eq!(output(root, &["diff", "--binary"]), unstaged_diff);
+        assert!(!root.join(".git/index.lock").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn conserva_error_de_stdin_si_un_hook_rechaza_el_commit_sin_stderr() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temporary = repository(true);
+        let root = temporary.path();
+        stage(root, "preparado\n");
+        let hook = root.join(".git/hooks/pre-commit");
+        fs::write(&hook, "#!/bin/sh\nexit 1\n").unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+        let mut input = request(root, false);
+        input.body = "mensaje largo\n".repeat(512 * 1024);
+
+        assert!(matches!(
+            commit(root, input),
+            Err(CommitError::GitFailed(error))
+                if error.starts_with("No se pudo enviar el mensaje:")
+        ));
+        assert!(!root.join(".git/index.lock").exists());
     }
 
     #[test]
