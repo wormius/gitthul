@@ -158,7 +158,7 @@ describe('Shell', () => {
     expect(
       await screen.findByRole('region', { name: 'Referencias de gitthul' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('grid', { name: 'Commits de gitthul' })).toBeInTheDocument();
+    expect(await screen.findByRole('grid', { name: 'Commits de gitthul' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Cambios' })).toBeInTheDocument();
 
     await user.click(launcher('Abrir una pestaña de terminal'));
