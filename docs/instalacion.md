@@ -2,9 +2,9 @@
 
 Los paquetes publicados están en [GitHub Releases](https://github.com/wormius/gitthul/releases).
 Utiliza el correspondiente a tu sistema y arquitectura. La sección
-**Configuración → Actualizaciones** muestra la versión
-instalada; la [consulta de nuevas versiones](versiones-publicadas.md) todavía
-no está disponible.
+**Configuración → Actualizaciones** muestra la versión instalada y permite
+[consultar nuevas versiones estables](versiones-publicadas.md). La consulta al
+iniciar es opcional y está desactivada por defecto.
 
 ## Dependencias
 
@@ -137,7 +137,7 @@ En macOS, abre el `.dmg`, arrastra GitThul a Aplicaciones y ábrelo desde allí.
 Puedes conservar su acceso en el Dock.
 
 Elige `aarch64` para Apple Silicon o `x64` para Intel. Los paquetes de Windows
-son para x64. En `1.0.0`, Windows no usa un certificado comercial y macOS usa
+son para x64. En `1.0.1`, Windows no usa un certificado comercial y macOS usa
 firma ad hoc, sin notarización de Apple; el sistema puede mostrar avisos o
 impedir su apertura según su política de seguridad.
 
@@ -172,7 +172,7 @@ para tu distribución. Como alternativa, ejecuta el archivo desde la carpeta
 donde lo guardaste, sustituyendo el nombre si es distinto:
 
 ```bash
-./GitThul_1.0.0_amd64.AppImage --appimage-extract-and-run
+./GitThul_1.0.1_amd64.AppImage --appimage-extract-and-run
 ```
 
 Esta opción extrae los archivos temporalmente, ejecuta la aplicación y limpia
