@@ -1,16 +1,8 @@
-/*
- * La barra del visor va en un solo renglón: a la izquierda de qué archivo se
- * habla, a la derecha cómo se lee.
- *
- * Nació en dos, porque con los controles rotulados la ruta era lo primero que
- * se recortaba al estrecharse la columna. Desde que los controles son solo
- * icono el sitio sobra, y el segundo renglón solo gastaba alto en una vista que
- * lo que quiere es enseñar líneas. La ruta sigue siendo la que cede espacio
- * —`min-width: 0` y elipsis—, que es lo que aquella decisión protegía.
- */
+/* La identidad cede primero su origen; los controles cambian de fila juntos. */
 .bar {
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
@@ -19,15 +11,15 @@
 }
 
 .identity {
-  flex: 1 1 auto;
+  position: relative;
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
-  min-width: min(12rem, 30%);
+  min-width: 0;
 }
 
 .path {
-  flex: 1 1 auto;
+  flex: 1 1 12rem;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -41,27 +33,80 @@
 
 .source {
   flex: none;
+  white-space: nowrap;
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
 
-/* Los controles se envuelven en vez de recortarse: con el panel derecho abierto
-   la columna central se estrecha y ninguno de ellos es prescindible. Van a la
-   derecha, que es el borde por el que se los busca: la ruta manda a la
-   izquierda y estos son el mando de cómo se lee. */
-.controls {
-  flex: 0 1 auto;
-  min-width: 0;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+/* Sigue teniendo ancho medible para que ocultarlo no alterne el modo en bucle. */
+.compact .source {
+  position: absolute;
+  visibility: hidden;
+}
+
+.controls,
+.controlItems {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: var(--space-2);
 }
 
-/*
- * Cerrar es el único control que no cambia cómo se lee: saca de la vista. Va en
- * rojo para que no se confunda con los que alternan, y solo por color — nada de
- * tamaño ni de peso, que moverían la barra al pasar por encima.
- */
+.controls {
+  padding: 0;
+  min-width: 0;
+}
+
+.controlGroup {
+  min-width: 0;
+}
+
+.controlItems {
+  width: max-content;
+}
+
+.controlItems > * {
+  flex: none;
+}
+
+.closeSlot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: var(--diff-controls-height, auto);
+}
+
+.stacked {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--space-2);
+}
+
+/* La reserva simétrica centra los controles respecto de toda la barra. */
+.stacked .controls {
+  display: grid;
+  align-items: start;
+  column-gap: var(--space-1);
+  grid-template-columns: var(--diff-close-width, 2rem) minmax(0, 1fr) var(--diff-close-width, 2rem);
+}
+
+.stacked .controlGroup {
+  grid-column: 2;
+  justify-self: center;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.stacked .closeSlot {
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* El área desplazable no debe recortar el foco de sus controles. */
+.stacked .controlItems :is(button, select):focus-visible {
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
 .close {
   color: var(--text-danger);
 }

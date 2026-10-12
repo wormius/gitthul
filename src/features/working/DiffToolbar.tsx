@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 import type { DiffSource } from '@core/domain/diff';
 import { useI18n } from '@i18n/useI18n';
@@ -153,6 +153,61 @@ export function DiffToolbar({
   onClose,
 }: DiffToolbarProps) {
   const { t } = useI18n();
+  const barRef = useRef<HTMLDivElement>(null);
+  const pathRef = useRef<HTMLHeadingElement>(null);
+  const sourceRef = useRef<HTMLSpanElement>(null);
+  const itemsRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLDivElement>(null);
+  const [arrangement, setArrangement] = useState({
+    layout: 'inline',
+    closeWidth: 0,
+    controlsHeight: 0,
+  });
+  const origin = sourceLabel(source, t);
+
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    const path = pathRef.current;
+    const source = sourceRef.current;
+    const items = itemsRef.current;
+    const close = closeRef.current;
+    if (!bar || !path || !source || !items || !close) return;
+    let disposed = false;
+    const measure = () => {
+      if (disposed) return;
+      const barStyle = getComputedStyle(bar);
+      const available =
+        bar.clientWidth - parseFloat(barStyle.paddingLeft) - parseFloat(barStyle.paddingRight);
+      if (available <= 0) return;
+      const gap = parseFloat(barStyle.columnGap);
+      const controls =
+        items.offsetWidth + close.offsetWidth + parseFloat(getComputedStyle(items).gap);
+      const minimumPath = parseFloat(getComputedStyle(path).flexBasis);
+      const identityGap = parseFloat(getComputedStyle(source.parentElement!).gap);
+      const compactWidth = minimumPath + gap + controls;
+      const layout =
+        available >= compactWidth + identityGap + source.offsetWidth
+          ? 'inline'
+          : available >= compactWidth
+            ? 'compact'
+            : 'stacked';
+      setArrangement((current) =>
+        current.layout === layout &&
+        current.closeWidth === close.offsetWidth &&
+        current.controlsHeight === items.offsetHeight
+          ? current
+          : { layout, closeWidth: close.offsetWidth, controlsHeight: items.offsetHeight },
+      );
+    };
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    for (const element of [bar, items, source, close]) observer?.observe(element);
+    void document.fonts?.ready.then(measure);
+    return () => {
+      disposed = true;
+      observer?.disconnect();
+    };
+  }, [textual, options.content, options.encoding, reportedEncoding, decodingErrors, origin]);
 
   const columns: readonly SegmentedOption<DiffColumns>[] = [
     { value: 'unified', label: t('working.diff.columnsOne'), icon: <OneColumnIcon /> },
@@ -170,125 +225,149 @@ export function DiffToolbar({
   ];
 
   return (
-    <div className={styles.bar}>
+    <div
+      ref={barRef}
+      className={[styles.bar, styles[arrangement.layout]].filter(Boolean).join(' ')}
+      data-layout={arrangement.layout}
+      style={
+        arrangement.closeWidth
+          ? ({
+              '--diff-close-width': `${arrangement.closeWidth}px`,
+              '--diff-controls-height': `${arrangement.controlsHeight}px`,
+            } as CSSProperties)
+          : undefined
+      }
+    >
       <header className={styles.identity}>
-        <h2 className={styles.path}>{path}</h2>
-        <span className={styles.source}>{sourceLabel(source, t)}</span>
+        <h2 ref={pathRef} className={styles.path} title={path}>
+          {path}
+        </h2>
+        <span
+          ref={sourceRef}
+          className={styles.source}
+          aria-hidden={arrangement.layout === 'compact'}
+        >
+          {origin}
+        </span>
       </header>
 
       <Toolbar className={styles.controls} label={t('working.diff.toolbar', { path })}>
-        <SegmentedControl
-          label={t('working.diff.content')}
-          hideLabels
-          value={options.content}
-          onChange={(content) => {
-            onOptionsChange({
-              content:
-                content === options.content
-                  ? options.content === 'diff'
-                    ? 'file'
-                    : 'diff'
-                  : content,
-            });
-          }}
-          options={contents}
-        />
-
-        {textual && options.content === 'diff' && (
-          <>
-            <SegmentedControl
-              label={t('working.diff.columns')}
-              hideLabels
-              value={options.columns}
-              onChange={(value) => {
-                onOptionsChange({
-                  columns:
-                    value === options.columns
-                      ? options.columns === 'unified'
-                        ? 'split'
-                        : 'unified'
-                      : value,
-                });
-              }}
-              options={columns}
+        <div className={styles.controlGroup}>
+          <div ref={itemsRef} className={styles.controlItems}>
+            <IconButton
+              icon={<HistoryIcon />}
+              pressed={historyOpen}
+              aria-label={
+                historyOpen
+                  ? t('working.fileHistory.close', { path })
+                  : t('gesture.working.viewFileHistory', { path })
+              }
+              title={
+                historyOpen
+                  ? t('working.fileHistory.close', { path })
+                  : t('gesture.working.viewFileHistory', { path })
+              }
+              onClick={onToggleHistory}
             />
             <SegmentedControl
-              label={t('working.diff.scope')}
+              label={t('working.diff.content')}
               hideLabels
-              value={options.scope}
-              onChange={(scope) => {
+              value={options.content}
+              onChange={(content) => {
                 onOptionsChange({
-                  scope:
-                    scope === options.scope
-                      ? options.scope === 'hunks'
+                  content:
+                    content === options.content
+                      ? options.content === 'diff'
                         ? 'file'
-                        : 'hunks'
-                      : scope,
+                        : 'diff'
+                      : content,
                 });
               }}
-              options={scopes}
+              options={contents}
             />
-            {/* Alternar, no marcar: en una barra de iconos una casilla con su
+
+            {textual && options.content === 'diff' && (
+              <>
+                <SegmentedControl
+                  label={t('working.diff.columns')}
+                  hideLabels
+                  value={options.columns}
+                  onChange={(value) => {
+                    onOptionsChange({
+                      columns:
+                        value === options.columns
+                          ? options.columns === 'unified'
+                            ? 'split'
+                            : 'unified'
+                          : value,
+                    });
+                  }}
+                  options={columns}
+                />
+                <SegmentedControl
+                  label={t('working.diff.scope')}
+                  hideLabels
+                  value={options.scope}
+                  onChange={(scope) => {
+                    onOptionsChange({
+                      scope:
+                        scope === options.scope
+                          ? options.scope === 'hunks'
+                            ? 'file'
+                            : 'hunks'
+                          : scope,
+                    });
+                  }}
+                  options={scopes}
+                />
+                {/* Alternar, no marcar: en una barra de iconos una casilla con su
                 texto era lo único que quedaba escrito. El calderón es la marca
                 con la que se enseñan los espacios en cualquier editor. */}
-            <IconButton
-              icon={<PilcrowIcon />}
-              variant="ghost"
-              pressed={options.ignoreWhitespace}
-              aria-label={t('working.diff.ignoreWhitespace')}
-              title={t('working.diff.ignoreWhitespace')}
-              onClick={() => {
-                onOptionsChange({ ignoreWhitespace: !options.ignoreWhitespace });
-              }}
-            />
-          </>
-        )}
+                <IconButton
+                  icon={<PilcrowIcon />}
+                  variant="ghost"
+                  pressed={options.ignoreWhitespace}
+                  aria-label={t('working.diff.ignoreWhitespace')}
+                  title={t('working.diff.ignoreWhitespace')}
+                  onClick={() => {
+                    onOptionsChange({ ignoreWhitespace: !options.ignoreWhitespace });
+                  }}
+                />
+              </>
+            )}
 
-        {textual && (
+            {textual && (
+              <IconButton
+                icon={
+                  <Frame>
+                    <path d="M3 4h10M3 8h8a2 2 0 0 1 0 4H8m2-2-2 2 2 2" {...STROKE} />
+                  </Frame>
+                }
+                variant="ghost"
+                pressed={options.wrap ?? false}
+                aria-label={t('working.diff.wrap')}
+                title={t('working.diff.wrap')}
+                onClick={() => onOptionsChange({ wrap: !options.wrap })}
+              />
+            )}
+            {textual && (
+              <EncodingSelect
+                value={options.encoding}
+                detected={reportedEncoding}
+                decodingErrors={decodingErrors}
+                onChange={(encoding) => onOptionsChange({ encoding })}
+              />
+            )}
+          </div>
+        </div>
+        <div ref={closeRef} className={styles.closeSlot}>
           <IconButton
-            icon={
-              <Frame>
-                <path d="M3 4h10M3 8h8a2 2 0 0 1 0 4H8m2-2-2 2 2 2" {...STROKE} />
-              </Frame>
-            }
-            variant="ghost"
-            pressed={options.wrap ?? false}
-            aria-label={t('working.diff.wrap')}
-            title={t('working.diff.wrap')}
-            onClick={() => onOptionsChange({ wrap: !options.wrap })}
+            icon={<CloseIcon />}
+            className={styles.close}
+            aria-label={t('working.diff.close', { path })}
+            onClick={onClose}
           />
-        )}
-        {textual && (
-          <EncodingSelect
-            value={options.encoding}
-            detected={reportedEncoding}
-            decodingErrors={decodingErrors}
-            onChange={(encoding) => onOptionsChange({ encoding })}
-          />
-        )}
-
-        <IconButton
-          icon={<HistoryIcon />}
-          pressed={historyOpen}
-          aria-label={
-            historyOpen
-              ? t('working.fileHistory.close', { path })
-              : t('gesture.working.viewFileHistory', { path })
-          }
-          title={
-            historyOpen
-              ? t('working.fileHistory.close', { path })
-              : t('gesture.working.viewFileHistory', { path })
-          }
-          onClick={onToggleHistory}
-        />
-
-        <IconButton
-          icon={<CloseIcon />}
-          className={styles.close}
-          aria-label={t('working.diff.close', { path })}
-          onClick={onClose}
-        />
+        </div>
       </Toolbar>
     </div>
   );

@@ -45,7 +45,8 @@ describe('DiffToolbar', () => {
       render(<Harness textual={textual} />);
       const button = screen.getByRole('button', { name: 'Ver el historial de src/app.ts' });
       expect(button).toHaveAttribute('aria-pressed', 'false');
-      button.focus();
+      await user.tab();
+      expect(button).toHaveFocus();
       await user.keyboard('{Enter}');
       expect(button).toHaveAccessibleName('Cerrar el historial de src/app.ts');
       expect(button).toHaveAttribute('aria-pressed', 'true');
