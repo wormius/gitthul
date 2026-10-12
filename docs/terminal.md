@@ -5,6 +5,11 @@ Cmd+Shift+T en macOS. Utiliza el contexto activo o la carpeta seleccionada. Los
 comandos se ejecutan en un shell real y pueden modificar los archivos y el estado
 Git de esa carpeta.
 
+El panel de referencias muestra una barra de carga mientras lee y prepara el
+historial, y al cargar más commits cuando te acercas al final. Puedes escribir
+y ejecutar comandos mientras se prepara el grafo. Si la lectura falla, el panel
+muestra el error y ofrece **Reintentar** sin cerrar la terminal.
+
 En Unix, GitThul abre el shell configurado para tu cuenta. Cuando utilizas zsh,
 este carga su configuración habitual, incluidos los plugins de Oh My Zsh. La
 terminal admite color y ajusta sus dimensiones al tamaño del panel y de la

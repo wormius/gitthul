@@ -6,7 +6,7 @@ import type { RefsSnapshot, Stash } from '@core/domain/refs';
 import type { WorkingStatus } from '@core/domain/status';
 
 import { buildCommitRows } from './commits';
-import { buildGraph, type GraphLayout } from './graph';
+import { buildGraph, buildGraphAsync, type GraphLayout } from './graph';
 
 const CLEAN: WorkingStatus = { staged: [], unstaged: [], conflicted: [], clean: true };
 const DIRTY: WorkingStatus = {
@@ -409,6 +409,20 @@ describe('buildGraph · los bordes', () => {
  * segundos: se pasa de un minuto.
  */
 describe('rendimiento', () => {
+  it('el cálculo por bloques conserva cada nodo, enlace y stash del grafo sincrónico', async () => {
+    const { history, refs, status } = buildLargeRepo({ commitCount: 1_000, branchCount: 8 });
+    const rows = buildCommitRows(history.commits, status, refs.stashes);
+    const expected = buildGraph(rows, refs);
+    const actual = await buildGraphAsync(rows, refs);
+    expect(actual.laneCount).toBe(expected.laneCount);
+    expect(actual.rowCount).toBe(expected.rowCount);
+    for (let index = 0; index < rows.length; index++) {
+      expect(actual.nodeAt(index)).toEqual(expected.nodeAt(index));
+      expect(actual.passesAt(index)).toEqual(expected.passesAt(index));
+      expect(actual.linksAt(index)).toEqual(expected.linksAt(index));
+    }
+  });
+
   it('reparte las calles de cien mil commits sin montar nada', () => {
     const { history, status, refs } = buildLargeRepo({ commitCount: 100_000, branchCount: 8 });
     const rows = buildCommitRows(history.commits, status, refs.stashes);

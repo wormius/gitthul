@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { GitPort } from '@core/ports/GitPort';
+import type { CommitPage } from '@core/domain/commit';
 import { NO_LATENCY } from '@core/adapters/mock/latency';
 import { createMockGitPort } from '@core/adapters/mock/mockGitPort';
 import { createMockTerminalPort } from '@core/adapters/mock/mockTerminalPort';
@@ -58,6 +59,85 @@ describe('TerminalView', () => {
       git: createMockGitPort({ latency: NO_LATENCY }),
       terminal: createMockTerminalPort(),
     };
+  });
+
+  it('muestra el progreso del historial y deja ejecutar comandos mientras se lee', async () => {
+    const page = await ports.git.readCommits('gitthul', { limit: 500 });
+    let complete: ((page: CommitPage) => void) | undefined;
+    ports = {
+      ...ports,
+      git: {
+        ...ports.git,
+        readCommits: () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      },
+    };
+    renderTerminal({ repoId: 'gitthul' });
+    expect(screen.getByRole('progressbar', { name: 'Leyendo los commits' })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox'), 'echo disponible{Enter}');
+    expect(await screen.findByText('disponible')).toBeInTheDocument();
+    act(() => {
+      complete?.(page);
+    });
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+    expect(
+      within(screen.getByRole('list', { name: 'Referencias' })).getAllByRole('listitem').length,
+    ).toBeGreaterThan(1);
+  });
+
+  it('permite reintentar un error de carga del historial sin perder la terminal', async () => {
+    const read = ports.git.readCommits;
+    const readCommits = vi
+      .fn<GitPort['readCommits']>()
+      .mockRejectedValueOnce(new Error('lectura fallida'))
+      .mockImplementation(read);
+    ports = { ...ports, git: { ...ports.git, readCommits } };
+    renderTerminal({ repoId: 'gitthul' });
+    expect(await screen.findByText('La operación de Git falló')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Reintentar' }));
+    await waitFor(() =>
+      expect(screen.queryByText('La operación de Git falló')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+    expect(readCommits).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
+  });
+
+  it('no repite una página fallida por cada render mientras el usuario escribe', async () => {
+    const page = await ports.git.readCommits('gitthul', { limit: 3 });
+    let listener: Parameters<GitPort['watchRepository']>[1] | undefined;
+    const readCommits = vi.fn<GitPort['readCommits']>((_id, request) =>
+      request?.skip
+        ? Promise.reject(new Error('lectura fallida'))
+        : Promise.resolve({ ...page, commits: [...page.commits], hasMore: true }),
+    );
+    ports = {
+      ...ports,
+      git: {
+        ...ports.git,
+        readCommits,
+        watchRepository: (_id, next) => {
+          listener = next;
+          return Promise.resolve(() => {});
+        },
+      },
+    };
+    renderTerminal({ repoId: 'gitthul' });
+    await waitFor(() => expect(readCommits).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+    await userEvent.setup().type(screen.getByRole('textbox'), 'echo funciona{Enter}');
+    expect(await screen.findByText('funciona')).toBeInTheDocument();
+    expect(readCommits).toHaveBeenCalledTimes(2);
+    act(() => {
+      listener?.({ git: true, worktree: false });
+    });
+    // Un historial nuevo con el mismo tamaño sí puede pedir su siguiente página.
+    await waitFor(() => expect(readCommits).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+    expect(readCommits).toHaveBeenCalledTimes(4);
   });
 
   it('CU-1: ejecutar un comando muestra su salida', async () => {
@@ -393,13 +473,16 @@ describe('TerminalView', () => {
     expect(stop).toHaveBeenCalledOnce();
   });
 
-  it('CU-9: sin repositorio de base, la terminal muestra ~ como prompt', () => {
+  it('CU-9: sin repositorio de base, la terminal muestra ~ como prompt', async () => {
     const { container } = renderTerminal({ repoId: null, cwd: '' });
 
     // El prompt es aria-hidden, así que lo buscamos directamente en el DOM.
     const prompt = container.querySelector('[data-terminal-input] span');
 
     expect(prompt?.textContent).toContain('~$');
+    await act(async () => {
+      await Promise.resolve();
+    });
   });
 
   it('P6.2: divide, enfoca y cierra panes sin vaciar la Terminal', async () => {
@@ -453,12 +536,13 @@ describe('TerminalView', () => {
     expect(screen.getByText('servidor')).toBeInTheDocument();
   });
 
-  it('CU-9: con repositorio muestra el último segmento de la ruta', () => {
+  it('CU-9: con repositorio muestra el último segmento de la ruta', async () => {
     const { container } = renderTerminal({ cwd: '/home/user/my-repo' });
 
     const prompt = container.querySelector('[data-terminal-input] span');
 
     expect(prompt?.textContent).toContain('my-repo$');
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
   });
 
   it('la línea de entrada se vacía después de ejecutar', async () => {

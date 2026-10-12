@@ -60,6 +60,7 @@
  */
 
 import type { Sha } from '@core/domain/commit';
+import { runCooperatively } from '@app/runCooperatively';
 import type { RefsSnapshot } from '@core/domain/refs';
 import { GRAPH_BRANCH_COUNT } from '@design/tokenCatalog';
 
@@ -122,7 +123,27 @@ const COLOR_ORDER: readonly number[] = [1, 6, 3, 5, 7, 4, 2, 8];
  * provisional sigue hasta el borde inferior como cualquier padre no cargado.
  */
 export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot): GraphLayout {
+  const steps = graphSteps(rows, refs);
+  let result = steps.next();
+  while (!result.done) result = steps.next();
+  return result.value;
+}
+
+/** Mismo trazado, cediendo tiempo a la terminal y cancelable al cambiar de repositorio. */
+export function buildGraphAsync(
+  rows: readonly CommitTableRow[],
+  refs: RefsSnapshot,
+  signal?: AbortSignal,
+): Promise<GraphLayout> {
+  return runCooperatively(graphSteps(rows, refs), signal);
+}
+
+function* graphSteps(
+  rows: readonly CommitTableRow[],
+  refs: RefsSnapshot,
+): Generator<void, GraphLayout> {
   const rowCount = rows.length;
+  let renderedLaneCount = 0;
 
   const nodeLane = new Int32Array(rowCount);
   const nodeColor = new Int32Array(rowCount);
@@ -238,6 +259,7 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
   }
 
   function pushLink(lane: number, color: number, up: boolean, kind = KIND_COMMIT): void {
+    renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
     linkLane.push(lane);
     linkColor.push(color);
     linkUp.push(up ? 1 : 0);
@@ -251,6 +273,7 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
       if (waiting[lane] === undefined || lane === excluded) continue;
 
       passLane.push(lane);
+      renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
       passColor.push(laneColor[lane] ?? 0);
       passKind.push(laneKind[lane] ?? KIND_COMMIT);
       passStashId.push(laneStashId[lane] ?? 0);
@@ -258,6 +281,7 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
   }
 
   function closeRow(row: number, lane: number, kind: number, color: number): void {
+    renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
     nodeLane[row] = lane;
     nodeKind[row] = kind;
     nodeColor[row] = color;
@@ -268,6 +292,7 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
   let row = 0;
 
   while (row < rowCount) {
+    if (row % 256 === 0) yield;
     const current = rows[row];
 
     if (current === undefined) break;
@@ -452,28 +477,25 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
    * allí se bifurca hacia el nodo del commit sin cubrir la rama.
    */
   for (let index = 0; index < rowCount; index += 1) {
+    if (index % 4096 === 0) yield;
     if (nodeKind[index] !== KIND_STASH) continue;
 
     nodeColor[index] = stashColorById.get(nodeStashId[index] ?? 0) ?? 1;
   }
 
   for (let index = 0; index < passLane.length; index += 1) {
+    if (index % 4096 === 0) yield;
     if (passKind[index] !== KIND_STASH) continue;
 
     passColor[index] = stashColorById.get(passStashId[index] ?? 0) ?? 1;
   }
 
   for (let index = 0; index < linkLane.length; index += 1) {
+    if (index % 4096 === 0) yield;
     if (linkKind[index] !== KIND_STASH) continue;
 
     linkColor[index] = stashColorById.get(linkStashId[index] ?? 0) ?? 1;
   }
-
-  let renderedLaneCount = 0;
-
-  for (const lane of nodeLane) renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
-  for (const lane of passLane) renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
-  for (const lane of linkLane) renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
 
   return {
     rowCount,

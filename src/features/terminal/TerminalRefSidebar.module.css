@@ -16,6 +16,10 @@
   min-height: 0;
 }
 
+.progress {
+  flex: none;
+}
+
 .row {
   display: flex;
   align-items: center;
