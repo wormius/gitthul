@@ -3,6 +3,8 @@
 Abre **Configuración → Actualizaciones** para consultar la versión instalada
 de GitThul y pulsa **Buscar ahora** para buscar una versión estable más reciente
 en [GitHub Releases](https://github.com/wormius/gitthul/releases).
+También puedes pulsar **GitThul y su versión** en la barra inferior para abrir
+directamente esta sección; abrirla no inicia una búsqueda.
 
 La búsqueda considera únicamente versiones estables publicadas del repositorio
 oficial de GitThul. No hay un canal Beta.
@@ -11,6 +13,10 @@ Si hay una nueva versión, la sección muestra su número y aparece un aviso con
 **Abrir descargas**. Ese botón abre la página de esa versión en el navegador del
 sistema. Elige el paquete para tu sistema y sigue la guía de
 [instalación](instalacion.md). GitThul no descarga ni instala paquetes automáticamente.
+La barra inferior muestra junto a la versión un icono de actualización con **+1**.
+El indicador permanece durante la sesión aunque cierres el aviso o falle una
+nueva consulta. Una búsqueda que confirme que no hay una versión más reciente
+lo retira.
 
 Puedes activar **Buscar actualizaciones al arrancar** para realizar una consulta
 al iniciar la aplicación. Esta opción está desactivada por defecto.

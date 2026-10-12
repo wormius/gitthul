@@ -194,6 +194,14 @@ export function useShellGestureDefinitions(): readonly GestureDefinition[] {
         },
       },
       {
+        id: 'shell.openUpdates',
+        label: t('bottomBar.openUpdates'),
+        triggers: ['button', 'search'],
+        run: () => {
+          store.openSettings('updates');
+        },
+      },
+      {
         id: 'shell.openLogs',
         label: t('gesture.openLogs'),
         triggers: ['button', 'search'],

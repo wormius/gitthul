@@ -77,6 +77,8 @@ export const esES: Messages = {
   'bottomBar.launchers': 'Abrir vistas',
   'bottomBar.utilities': 'Utilidades',
   'bottomBar.version': 'GitThul {version}',
+  'bottomBar.openUpdates': 'Abrir Actualizaciones',
+  'bottomBar.updateAvailable': 'Actualización disponible: {version}',
   'bottomBar.toLightMode': 'Cambiar al modo claro',
   'bottomBar.toDarkMode': 'Cambiar al modo oscuro',
 

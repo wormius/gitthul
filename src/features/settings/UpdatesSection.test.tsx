@@ -47,7 +47,7 @@ function mount(
 
 beforeEach(() => {
   initSettingsData(DEFAULT_SETTINGS);
-  useReleaseStore.setState({ check: { status: 'idle' } });
+  useReleaseStore.setState({ check: { status: 'idle' }, availableRelease: null });
 });
 
 describe('stable release checks', () => {

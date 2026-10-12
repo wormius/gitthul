@@ -156,3 +156,16 @@ export function NotificationsIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+/** Una versión nueva: flechas de actualización con +1 en el centro. */
+export function NewReleaseIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M13.2 6A5.5 5.5 0 0 0 3.8 4M2.8 10A5.5 5.5 0 0 0 12.2 12M13.2 2.8V6H10M2.8 13.2V10H6"
+        {...STROKE}
+      />
+      <path d="M4.7 8h3M6.2 6.5v3M9 7l1.3-.8v3.4" {...STROKE} />
+    </svg>
+  );
+}

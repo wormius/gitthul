@@ -71,6 +71,8 @@ export const en: Messages = {
   'bottomBar.launchers': 'Open views',
   'bottomBar.utilities': 'Utilities',
   'bottomBar.version': 'GitThul {version}',
+  'bottomBar.openUpdates': 'Open update settings',
+  'bottomBar.updateAvailable': 'Update available: {version}',
   'bottomBar.toLightMode': 'Switch to light mode',
   'bottomBar.toDarkMode': 'Switch to dark mode',
 
