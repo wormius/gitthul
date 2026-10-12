@@ -23,7 +23,7 @@
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
-  min-width: 0;
+  min-width: min(12rem, 30%);
 }
 
 .path {
@@ -50,7 +50,8 @@
    derecha, que es el borde por el que se los busca: la ruta manda a la
    izquierda y estos son el mando de cómo se lee. */
 .controls {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);

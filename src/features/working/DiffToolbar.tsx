@@ -21,6 +21,8 @@ interface DiffToolbarProps {
   decodingErrors?: boolean;
   /** Con un binario no hay columnas, ni hunks, ni espacios que ignorar. */
   textual: boolean;
+  historyOpen: boolean;
+  onToggleHistory: () => void;
   onClose: () => void;
 }
 
@@ -126,6 +128,14 @@ function WholeFileIcon() {
   );
 }
 
+function HistoryIcon() {
+  return (
+    <Frame>
+      <path d="M2 6.5a6 6 0 1 1 .5 5M2 3v3.5h3.5M8 4.5V8l2.5 1.5" {...STROKE} />
+    </Frame>
+  );
+}
+
 /**
  * La barra del visor: qué se enseña, cómo y con qué se leyó — CU-5.
  *
@@ -138,6 +148,8 @@ export function DiffToolbar({
   reportedEncoding,
   decodingErrors,
   textual,
+  historyOpen,
+  onToggleHistory,
   onClose,
 }: DiffToolbarProps) {
   const { t } = useI18n();
@@ -254,6 +266,22 @@ export function DiffToolbar({
             onChange={(encoding) => onOptionsChange({ encoding })}
           />
         )}
+
+        <IconButton
+          icon={<HistoryIcon />}
+          pressed={historyOpen}
+          aria-label={
+            historyOpen
+              ? t('working.fileHistory.close', { path })
+              : t('gesture.working.viewFileHistory', { path })
+          }
+          title={
+            historyOpen
+              ? t('working.fileHistory.close', { path })
+              : t('gesture.working.viewFileHistory', { path })
+          }
+          onClick={onToggleHistory}
+        />
 
         <IconButton
           icon={<CloseIcon />}

@@ -185,6 +185,8 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
 
   const options = useWorkingStore((state) => state.diffOptions);
   const setOptions = useWorkingStore((state) => state.setDiffOptions);
+  const historyOpen = useWorkingStore((state) => state.fileHistory?.path === diff.path);
+  const toggleFileHistory = useWorkingStore((state) => state.toggleDiffFileHistory);
 
   const { path, source } = diff;
   const { columns, scope, content, encoding, ignoreWhitespace } = options;
@@ -302,6 +304,8 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
         data.data.file.content.decodingErrors
       }
       textual={textual}
+      historyOpen={historyOpen}
+      onToggleHistory={toggleFileHistory}
       onClose={onClose}
     />
   );

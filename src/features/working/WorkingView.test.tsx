@@ -1962,6 +1962,57 @@ describe('WorkingView', () => {
     ).not.toBeInTheDocument();
   });
 
+  it.each([false, true])(
+    'el botón del diff alterna el historial sin perder su comparación (amend: %s)',
+    async (amend) => {
+      const user = userEvent.setup();
+      const ports = makePorts();
+      const readHistory = vi.spyOn(ports.git, 'readFileHistory');
+      renderApp(ports);
+      await openRepo(user, GITTHUL_PATH);
+      const tracking = await screen.findByRole('region', { name: 'Cambios' });
+      await user.click(within(tracking).getByText('inventario.md'));
+      const diff = await screen.findByRole('region', { name: 'Diff de docs/inventario.md' });
+      if (amend) act(() => useWorkingStore.getState().setCommitDraft({ amend }));
+      const button = within(diff).getByRole('button', {
+        name: 'Ver el historial de docs/inventario.md',
+      });
+      expect(button).toHaveAttribute('aria-pressed', 'false');
+      await user.click(button);
+
+      const history = await screen.findByRole('region', {
+        name: 'Historial de docs/inventario.md',
+      });
+      expect(diff).toBeVisible();
+      expect(useWorkingStore.getState().diff?.source).toEqual({ kind: 'worktree' });
+      expect(readHistory).toHaveBeenCalledWith('gitthul', 'docs/inventario.md', expect.anything());
+      const closeHistory = within(diff).getByRole('button', {
+        name: 'Cerrar el historial de docs/inventario.md',
+      });
+      expect(closeHistory).toHaveAttribute('aria-pressed', 'true');
+
+      await user.click(closeHistory);
+      expect(history).not.toBeInTheDocument();
+      expect(diff).toBeVisible();
+      expect(useWorkingStore.getState().diff?.source).toEqual({ kind: 'worktree' });
+      await user.click(button);
+      const reopenedHistory = await screen.findByRole('region', {
+        name: 'Historial de docs/inventario.md',
+      });
+      const versions = await within(reopenedHistory).findAllByRole('listitem');
+      await user.click(within(versions[1] as HTMLElement).getByRole('button'));
+      expect(useWorkingStore.getState().diff?.source.kind).toBe('commit');
+      expect(within(versions[1] as HTMLElement).getByRole('button')).toHaveAttribute(
+        'aria-current',
+        'true',
+      );
+      await user.click(
+        within(diff).getByRole('button', { name: 'Cerrar el diff de docs/inventario.md' }),
+      );
+      expect(reopenedHistory).toBeVisible();
+    },
+  );
+
   it('pasar un archivo al staging lo mueve de Cambios a Stage sin recargar la vista', async () => {
     const user = userEvent.setup();
 

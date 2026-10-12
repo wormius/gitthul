@@ -16,8 +16,9 @@ const INITIAL: DiffOptions = {
   encoding: 'utf-8',
 };
 
-function Harness() {
+function Harness({ textual = true }: { textual?: boolean }) {
   const [options, setOptions] = useState(INITIAL);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   return (
     <I18nProvider initialLocale="es-MX">
@@ -27,7 +28,9 @@ function Harness() {
         options={options}
         onOptionsChange={(patch) => setOptions((current) => ({ ...current, ...patch }))}
         reportedEncoding="utf-8"
-        textual
+        textual={textual}
+        historyOpen={historyOpen}
+        onToggleHistory={() => setHistoryOpen((open) => !open)}
         onClose={() => {}}
       />
     </I18nProvider>
@@ -35,6 +38,23 @@ function Harness() {
 }
 
 describe('DiffToolbar', () => {
+  it.each([false, true])(
+    'permite alternar el historial con el teclado (texto: %s)',
+    async (textual) => {
+      const user = userEvent.setup();
+      render(<Harness textual={textual} />);
+      const button = screen.getByRole('button', { name: 'Ver el historial de src/app.ts' });
+      expect(button).toHaveAttribute('aria-pressed', 'false');
+      button.focus();
+      await user.keyboard('{Enter}');
+      expect(button).toHaveAccessibleName('Cerrar el historial de src/app.ts');
+      expect(button).toHaveAttribute('aria-pressed', 'true');
+      await user.keyboard(' ');
+      expect(button).toHaveAccessibleName('Ver el historial de src/app.ts');
+      expect(button).toHaveAttribute('aria-pressed', 'false');
+    },
+  );
+
   it('offers automatic detection and the wider encoding collection', async () => {
     render(<Harness />);
     const select = screen.getByRole('combobox', { name: 'Codificación' });

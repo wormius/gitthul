@@ -1149,7 +1149,7 @@ export function WorkingView({ base }: WorkingViewProps) {
    * WIP y los guardados no son SHA, pero sí montan `StagingPanel`, que tiene que
    * ocupar el panel completo igual que `CommitDetails`.
    */
-  const centered = compare === null && selectedCommits.size > 1;
+  const centered = fileHistory === null && compare === null && selectedCommits.size > 1;
 
   /*
    * Las dos ramas de la operación a medias. `bisect` y `none` no tienen dos que
@@ -1208,6 +1208,18 @@ export function WorkingView({ base }: WorkingViewProps) {
                   onApply: actions.continueOperation,
                 })}
         />
+      ) : fileHistory !== null ? (
+        <FileHistoryPanel
+          repoId={base.repoId}
+          path={fileHistory.path}
+          activeSha={fileHistory.at}
+          openLatest={fileHistory.openLatest}
+          menuFor={commitMenuFor}
+          onOpenDiff={(sha) => {
+            actions.openDiff(fileHistory.path, { kind: 'commit', sha });
+          }}
+          onClose={closeFileHistory}
+        />
       ) : editingAmend && status?.clean && refs ? (
         <CommitComposer
           repoId={base.repoId}
@@ -1227,18 +1239,6 @@ export function WorkingView({ base }: WorkingViewProps) {
           headSha={refs.head.sha}
           menuContext={menuContext}
           actions={actions}
-        />
-      ) : fileHistory !== null ? (
-        <FileHistoryPanel
-          repoId={base.repoId}
-          path={fileHistory.path}
-          activeSha={fileHistory.at}
-          openLatest={fileHistory.openLatest}
-          menuFor={commitMenuFor}
-          onOpenDiff={(sha) => {
-            actions.openDiff(fileHistory.path, { kind: 'commit', sha });
-          }}
-          onClose={closeFileHistory}
         />
       ) : compare !== null ? (
         <ComparePanel
