@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 
 import type { FileChange } from '@core/domain/status';
 import { useI18n } from '@i18n/useI18n';
@@ -158,12 +158,7 @@ export function FileList({
     return ids;
   }, [paths]);
 
-  const [expanded, setExpanded] = useControlledExpansion(allFolders);
-
-  useEffect(() => {
-    if (treeExpanded === undefined) return;
-    setExpanded(treeExpanded ? allFolders : new Set());
-  }, [allFolders, setExpanded, treeExpanded]);
+  const [expanded, setExpanded] = useControlledExpansion(allFolders, treeExpanded);
 
   const rowMenu = useCallback(
     (id: string): RowMenu => {
@@ -361,7 +356,11 @@ function TreeRow({ row, rowMenu, render, byPath }: TreeRowProps) {
 }
 
 /**
- * El plegado del árbol, arrancando con todo abierto.
+ * El plegado del árbol, arrancando con todo abierto salvo una orden global.
+ *
+ * Abrir/cerrar todo fija el estado inicial de cada carpeta; los toggles locales
+ * son excepciones que sobreviven a selección, filtro y actualizaciones de archivos.
+ * Solo una nueva orden global descarta esas excepciones.
  *
  * No vive en el store porque no sobrevive a nada: cambiar de commit trae otras
  * carpetas, y recordar que `src/app/` estaba plegada en la lista de otro commit
@@ -369,26 +368,43 @@ function TreeRow({ row, rowMenu, render, byPath }: TreeRowProps) {
  */
 function useControlledExpansion(
   all: ReadonlySet<string>,
+  command: boolean | undefined,
 ): [ReadonlySet<string>, (next: ReadonlySet<string>) => void] {
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const [state, setState] = useState<{
+    command: boolean | undefined;
+    exceptions: ReadonlySet<string>;
+  }>(() => ({ command, exceptions: new Set() }));
+  let exceptions = state.exceptions;
+
+  if (state.command !== command) {
+    exceptions = new Set();
+    setState({ command, exceptions });
+  }
+
+  const defaultExpanded = command !== false;
 
   const expanded = useMemo(() => {
-    const open = new Set(all);
+    const open = new Set<string>();
 
-    for (const id of collapsed) open.delete(id);
+    for (const id of all) if (defaultExpanded !== exceptions.has(id)) open.add(id);
 
     return open;
-  }, [all, collapsed]);
+  }, [all, defaultExpanded, exceptions]);
 
   const setExpanded = useCallback(
     (next: ReadonlySet<string>) => {
-      const shut = new Set<string>();
+      setState((current) => {
+        const toggled = new Set(current.command === command ? current.exceptions : []);
 
-      for (const id of all) if (!next.has(id)) shut.add(id);
+        for (const id of all) {
+          if (next.has(id) !== defaultExpanded) toggled.add(id);
+          else toggled.delete(id);
+        }
 
-      setCollapsed(shut);
+        return { command, exceptions: toggled };
+      });
     },
-    [all],
+    [all, command, defaultExpanded],
   );
 
   return [expanded, setExpanded];
