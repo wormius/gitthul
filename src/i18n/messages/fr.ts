@@ -1236,6 +1236,7 @@ export const fr: Messages = {
   'working.actionBar.pullMerge': 'Pull avec fusion',
   'working.actionBar.pushForce': 'Effectuer un push avec --force-with-lease',
   'view.terminal.title': 'Terminal',
+  'view.terminal.starting': 'Préparation du terminal…',
   'view.terminal.railLabel': 'Références',
   'view.terminal.railFilter': 'Filtrer les références',
   'view.terminal.refCopied': 'Référence copiée',

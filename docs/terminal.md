@@ -5,6 +5,11 @@ Cmd+Shift+T en macOS. Utiliza el contexto activo o la carpeta seleccionada. Los
 comandos se ejecutan en un shell real y pueden modificar los archivos y el estado
 Git de esa carpeta.
 
+Durante el inicio aparece **Preparando la terminal…** con una barra de progreso.
+En repositorios grandes, la preparación puede tardar mientras se guarda el punto
+de recuperación. Puedes seguir usando la aplicación o cerrar la pestaña para
+cancelar el arranque. El shell acepta comandos cuando termina la preparación.
+
 El panel de referencias muestra una barra de carga mientras lee y prepara el
 historial, y al cargar más commits cuando te acercas al final. Puedes escribir
 y ejecutar comandos mientras se prepara el grafo. Si la lectura falla, el panel

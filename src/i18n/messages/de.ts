@@ -1239,6 +1239,7 @@ export const de: Messages = {
   'working.actionBar.pushForce': 'Push mit --force-with-lease ausführen',
 
   'view.terminal.title': 'Terminal',
+  'view.terminal.starting': 'Terminal wird vorbereitet…',
   'view.terminal.railLabel': 'Referenzen',
   'view.terminal.railFilter': 'Referenzen filtern',
   'view.terminal.refCopied': 'Referenz kopiert',

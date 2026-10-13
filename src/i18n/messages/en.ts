@@ -1223,6 +1223,7 @@ export const en: Messages = {
   'working.actionBar.pushForce': 'Push with --force-with-lease',
 
   'view.terminal.title': 'Terminal',
+  'view.terminal.starting': 'Preparing the terminal…',
   'view.terminal.railLabel': 'References',
   'view.terminal.railFilter': 'Filter references',
   'view.terminal.refCopied': 'Reference copied',

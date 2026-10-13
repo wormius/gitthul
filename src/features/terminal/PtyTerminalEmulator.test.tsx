@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cloneElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalPtyPort, TerminalSessionRequest } from '@core/ports/TerminalPort';
@@ -114,6 +115,7 @@ function pane(
       cwd="/repo"
       outputLabel={id}
       errorMessage="error"
+      startingLabel="Preparando la terminal…"
       searchLabel="Buscar en el historial"
       searchClearLabel="Vaciar búsqueda"
       searchPreviousLabel="Coincidencia anterior"
@@ -183,10 +185,15 @@ describe('PtyTerminalEmulator', () => {
       clientHeight: { value: 480 },
     });
     await waitFor(() => expect(createSession).toHaveBeenCalledOnce());
+    expect(screen.getByRole('progressbar', { name: 'Preparando la terminal…' })).toBeVisible();
     const request = createSession.mock.calls[0]?.[0];
     const instance = xterm.instances[0];
     if (!request || !instance) throw new Error('la sesión debe existir');
     expect(request).toMatchObject({ cols: 80, rows: 24 });
+    expect(fireEvent.keyDown(host, { key: 'g' })).toBe(false);
+    instance.receiveInput?.('\u001b[1;1R');
+    expect(write).toHaveBeenCalledExactlyOnceWith(request.sessionId, '\u001b[1;1R');
+    write.mockClear();
 
     instance.cols = 52;
     instance.rows = 13;
@@ -197,6 +204,7 @@ describe('PtyTerminalEmulator', () => {
       await starting;
     });
     expect(resize).toHaveBeenLastCalledWith(request.sessionId, 52, 13);
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
 
     const keys = ['echo g', '\u007f', '\u001b[3~', '\t', '\u001b[1;12R'];
     for (const key of keys) instance.receiveInput?.(key);
@@ -209,6 +217,98 @@ describe('PtyTerminalEmulator', () => {
     act(() => request.onExit?.({ code: 0, signal: null, success: true }));
     instance.receiveInput?.('\u007f');
     expect(write).toHaveBeenCalledTimes(keys.length);
+  });
+
+  it('permite desmontar durante el arranque y descarta callbacks de la sesión cerrada', async () => {
+    let ready!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const createSession = vi.fn((_request: TerminalSessionRequest) => pending);
+    const closeSession = vi.fn(() => Promise.resolve());
+    const onCwd = vi.fn();
+    const port: TerminalPtyPort = {
+      kind: 'pty',
+      createSession,
+      closeSession,
+      write: vi.fn(() => Promise.resolve()),
+      resize: vi.fn(() => Promise.resolve()),
+    };
+    const view = render(<ThemeProvider>{pane(port, 'pending-pane', onCwd)}</ThemeProvider>);
+    await waitFor(() => expect(createSession).toHaveBeenCalledOnce());
+    const request = createSession.mock.calls[0]![0];
+    const instance = xterm.instances[0]!;
+    expect(screen.getByRole('progressbar')).toBeVisible();
+    view.unmount();
+    expect(closeSession).toHaveBeenCalledExactlyOnceWith(request.sessionId);
+    request.onData(Uint8Array.from([65]));
+    request.onCwd?.('/closed');
+    request.onExit?.({ code: 0, signal: null, success: true });
+    expect(instance.write).not.toHaveBeenCalled();
+    expect(instance.writeln).not.toHaveBeenCalled();
+    expect(onCwd).not.toHaveBeenCalled();
+    await act(async () => {
+      ready();
+      await pending;
+    });
+    expect(closeSession).toHaveBeenCalledTimes(2);
+    expect(closeSession).toHaveBeenLastCalledWith(request.sessionId);
+    expect(instance.focus).not.toHaveBeenCalled();
+  });
+
+  it('un arranque anterior que termina tarde cierra solo su propia sesión', async () => {
+    const requests: TerminalSessionRequest[] = [];
+    const complete: Array<() => void> = [];
+    const closeSession = vi.fn(() => Promise.resolve());
+    const port: TerminalPtyPort = {
+      kind: 'pty',
+      createSession: vi.fn((request: TerminalSessionRequest) => {
+        requests.push(request);
+        return new Promise<void>((resolve) => complete.push(resolve));
+      }),
+      closeSession,
+      write: vi.fn(() => Promise.resolve()),
+      resize: vi.fn(() => Promise.resolve()),
+    };
+    const insert = { current: null as ((text: string) => void) | null };
+    const first = cloneElement(pane(port, 'retry-pane'), { onInsertRef: insert });
+    const view = render(<ThemeProvider>{first}</ThemeProvider>);
+    await waitFor(() => expect(requests).toHaveLength(1));
+    view.rerender(
+      <ThemeProvider>{cloneElement(first, { errorMessage: 'new error' })}</ThemeProvider>,
+    );
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests[0]!.sessionId).not.toBe(requests[1]!.sessionId);
+    await act(async () => {
+      complete[1]!();
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    requests[0]!.onExit?.({ code: 7, signal: null, success: false });
+    insert.current?.('git status');
+    expect(xterm.instances[1]?.paste).toHaveBeenCalledWith('git status');
+    await act(async () => {
+      complete[0]!();
+      await Promise.resolve();
+    });
+    expect(closeSession).toHaveBeenCalledTimes(2);
+    expect(closeSession).toHaveBeenLastCalledWith(requests[0]!.sessionId);
+    expect(closeSession).not.toHaveBeenCalledWith(requests[1]!.sessionId);
+  });
+
+  it('un fallo de arranque termina el progreso y conserva el mensaje de error', async () => {
+    const port: TerminalPtyPort = {
+      kind: 'pty',
+      createSession: vi.fn(() => Promise.reject(new Error('Fixture startup failed'))),
+      closeSession: vi.fn(() => Promise.resolve()),
+      write: vi.fn(() => Promise.resolve()),
+      resize: vi.fn(() => Promise.resolve()),
+    };
+    render(<ThemeProvider>{pane(port, 'failed-pane')}</ThemeProvider>);
+    await waitFor(() => expect(xterm.instances[0]?.writeln).toHaveBeenCalledWith('error'));
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByRole('application')).toHaveAttribute('aria-busy', 'false');
+    expect(xterm.instances[0]?.options.disableStdin).toBe(true);
   });
 
   it('da a cada pane un id efímero, transporta bytes y cierra solo el desmontado', async () => {

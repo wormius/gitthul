@@ -30,9 +30,24 @@ impl Drop for TerminalSession {
     }
 }
 
-#[derive(Default)]
+enum SessionState {
+    Starting(Arc<AtomicBool>),
+    Ready(TerminalSession),
+}
+
+#[derive(Clone, Default)]
 pub struct TerminalSessions {
-    sessions: Mutex<HashMap<String, TerminalSession>>,
+    sessions: Arc<Mutex<HashMap<String, SessionState>>>,
+}
+
+struct SessionRequest {
+    session_id: String,
+    cwd: String,
+    cols: u16,
+    rows: u16,
+    on_data: Channel<Vec<u8>>,
+    on_cwd: Channel<String>,
+    on_exit: Channel<TerminalExit>,
 }
 
 #[derive(Debug, Serialize)]
@@ -71,7 +86,7 @@ impl TerminalError {
 }
 
 #[tauri::command]
-pub fn terminal_create_session(
+pub async fn terminal_create_session(
     sessions: State<'_, TerminalSessions>,
     locks: State<'_, crate::git::GitWriteLocks>,
     session_id: String,
@@ -82,6 +97,73 @@ pub fn terminal_create_session(
     on_cwd: Channel<String>,
     on_exit: Channel<TerminalExit>,
 ) -> Result<(), TerminalError> {
+    create_session(
+        sessions.inner().clone(),
+        locks.inner().clone(),
+        SessionRequest {
+            session_id,
+            cwd,
+            cols,
+            rows,
+            on_data,
+            on_cwd,
+            on_exit,
+        },
+    )
+    .await
+}
+
+async fn create_session(
+    sessions: TerminalSessions,
+    locks: crate::git::GitWriteLocks,
+    request: SessionRequest,
+) -> Result<(), TerminalError> {
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let previous = sessions.sessions.lock().map_err(lock_error)?.insert(
+        request.session_id.clone(),
+        SessionState::Starting(Arc::clone(&cancelled)),
+    );
+    if let Some(SessionState::Starting(previous)) = &previous {
+        previous.store(true, Ordering::Release);
+    }
+    let session_id = request.session_id.clone();
+    let worker_sessions = sessions.clone();
+    let worker_cancelled = Arc::clone(&cancelled);
+    // Recovery reads and copies the repository before the shell can change it.
+    // Keep both that work and PTY creation off Tauri's UI/event thread.
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        drop(previous);
+        create_session_blocking(worker_sessions, locks, request, worker_cancelled)
+    })
+    .await
+    .unwrap_or_else(|error| Err(TerminalError::new("terminal.openFailed", json!({}), error)));
+
+    let mut map = sessions.sessions.lock().map_err(lock_error)?;
+    if matches!(map.get(&session_id), Some(SessionState::Starting(current)) if Arc::ptr_eq(current, &cancelled))
+    {
+        map.remove(&session_id);
+    }
+    result
+}
+
+fn create_session_blocking(
+    sessions: TerminalSessions,
+    locks: crate::git::GitWriteLocks,
+    request: SessionRequest,
+    cancelled: Arc<AtomicBool>,
+) -> Result<(), TerminalError> {
+    let SessionRequest {
+        session_id,
+        cwd,
+        cols,
+        rows,
+        on_data,
+        on_cwd,
+        on_exit,
+    } = request;
+    if cancelled.load(Ordering::Acquire) {
+        return Ok(());
+    }
     if !cwd.is_empty() && !Path::new(&cwd).is_dir() {
         return Err(TerminalError::new(
             "terminal.cwdNotFound",
@@ -90,7 +172,12 @@ pub fn terminal_create_session(
         ));
     }
 
-    close_if_present(&sessions, &session_id)?;
+    let recovery = crate::git::begin_terminal_recovery(&cwd, locks).map_err(|error| {
+        TerminalError::new("terminal.openFailed", json!({}), format!("{error:?}"))
+    })?;
+    if cancelled.load(Ordering::Acquire) {
+        return Ok(());
+    }
 
     let pair = native_pty_system()
         .openpty(PtySize {
@@ -115,10 +202,6 @@ pub fn terminal_create_session(
         .master
         .take_writer()
         .map_err(|error| TerminalError::new("terminal.openFailed", json!({}), error))?;
-    let recovery =
-        crate::git::begin_terminal_recovery(&cwd, locks.inner().clone()).map_err(|error| {
-            TerminalError::new("terminal.openFailed", json!({}), format!("{error:?}"))
-        })?;
     let mut child = pair.slave.spawn_command(command).map_err(|error| {
         TerminalError::new("terminal.spawnFailed", json!({ "path": cwd }), error)
     })?;
@@ -128,23 +211,14 @@ pub fn terminal_create_session(
 
     let log_context = json!({ "request": format!("sessionId={session_id}"), "repository": cwd, "phase": "event" });
     let reader_log_context = log_context.clone();
-    sessions.sessions.lock().map_err(lock_error)?.insert(
-        session_id,
-        TerminalSession {
-            master: pair.master,
-            writer,
-            killer,
-            observing_cwd: Arc::clone(&observing_cwd),
-        },
-    );
-
-    if let Some(process_id) = process_id {
-        thread::spawn(move || observe_cwd(process_id, on_cwd, observing_cwd));
-    }
-
+    let (publish_output, output_ready) = std::sync::mpsc::channel();
+    // Drain before publishing the session: closing it may make ConPTY write a
+    // final frame immediately, including when startup was cancelled meanwhile.
     thread::spawn(move || {
+        // The writer must be published before the UI can answer PTY queries.
+        let deliver = output_ready.recv().unwrap_or(false);
         if let Err(error) = drain_terminal_output(reader.as_mut(), |bytes| {
-            on_data.send(bytes.to_vec()).is_ok()
+            deliver && on_data.send(bytes.to_vec()).is_ok()
         }) {
             crate::logging::native_with_context(
                 "warn",
@@ -164,6 +238,27 @@ pub fn terminal_create_session(
             Err(_) => crate::logging::native_with_context("error", "terminal.native", "No se pudo observar la salida del proceso; comprueba el repositorio antes de continuar", None, Some(log_context)),
         }
     });
+
+    let session = TerminalSession {
+        master: pair.master,
+        writer,
+        killer,
+        observing_cwd: Arc::clone(&observing_cwd),
+    };
+    let mut map = sessions.sessions.lock().map_err(lock_error)?;
+    let current = matches!(map.get(&session_id), Some(SessionState::Starting(token)) if Arc::ptr_eq(token, &cancelled));
+    if !current || cancelled.load(Ordering::Acquire) {
+        drop(map);
+        let _ = publish_output.send(false);
+        drop(session);
+        return Ok(());
+    }
+    map.insert(session_id, SessionState::Ready(session));
+    drop(map);
+    let _ = publish_output.send(true);
+    if let Some(process_id) = process_id {
+        thread::spawn(move || observe_cwd(process_id, on_cwd, observing_cwd));
+    }
 
     Ok(())
 }
@@ -284,9 +379,9 @@ pub fn terminal_write(
     data: String,
 ) -> Result<(), TerminalError> {
     let mut map = sessions.sessions.lock().map_err(lock_error)?;
-    let session = map
-        .get_mut(&session_id)
-        .ok_or_else(|| TerminalError::session_not_found(&session_id))?;
+    let Some(SessionState::Ready(session)) = map.get_mut(&session_id) else {
+        return Err(TerminalError::session_not_found(&session_id));
+    };
     session
         .writer
         .write_all(data.as_bytes())
@@ -308,9 +403,9 @@ pub fn terminal_resize(
     rows: u16,
 ) -> Result<(), TerminalError> {
     let map = sessions.sessions.lock().map_err(lock_error)?;
-    let session = map
-        .get(&session_id)
-        .ok_or_else(|| TerminalError::session_not_found(&session_id))?;
+    let Some(SessionState::Ready(session)) = map.get(&session_id) else {
+        return Err(TerminalError::session_not_found(&session_id));
+    };
     session
         .master
         .resize(PtySize {
@@ -329,19 +424,31 @@ pub fn terminal_resize(
 }
 
 #[tauri::command]
-pub fn terminal_close_session(
+pub async fn terminal_close_session(
     sessions: State<'_, TerminalSessions>,
     session_id: String,
 ) -> Result<(), TerminalError> {
-    close_if_present(&sessions, &session_id)
+    close_session(sessions.inner().clone(), session_id).await
 }
 
-fn close_if_present(sessions: &TerminalSessions, session_id: &str) -> Result<(), TerminalError> {
-    sessions
+async fn close_session(
+    sessions: TerminalSessions,
+    session_id: String,
+) -> Result<(), TerminalError> {
+    let removed = sessions
         .sessions
         .lock()
         .map_err(lock_error)?
-        .remove(session_id);
+        .remove(&session_id);
+    match removed {
+        Some(SessionState::Starting(cancelled)) => cancelled.store(true, Ordering::Release),
+        Some(SessionState::Ready(session)) => {
+            tauri::async_runtime::spawn_blocking(move || drop(session))
+                .await
+                .map_err(|error| TerminalError::new("terminal.stateFailed", json!({}), error))?;
+        }
+        None => {}
+    }
     Ok(())
 }
 
@@ -351,12 +458,169 @@ fn lock_error<T>(error: std::sync::PoisonError<T>) -> TerminalError {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
     use std::io::{Read, Write};
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc;
+    use std::sync::Arc;
+    use std::task::{Context, Poll, Waker};
     use std::thread;
     use std::time::{Duration, Instant};
 
     use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+
+    fn request(session_id: &str, cwd: String) -> super::SessionRequest {
+        super::SessionRequest {
+            session_id: session_id.to_owned(),
+            cwd,
+            cols: 80,
+            rows: 24,
+            on_data: tauri::ipc::Channel::new(|_| Ok(())),
+            on_cwd: tauri::ipc::Channel::new(|_| Ok(())),
+            on_exit: tauri::ipc::Channel::new(|_| Ok(())),
+        }
+    }
+
+    #[test]
+    fn slow_repository_preparation_yields_and_can_be_closed_before_the_shell_starts() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().canonicalize().unwrap();
+        assert!(crate::process::command("git")
+            .args(["init", "-q", "-b", "main"])
+            .current_dir(&path)
+            .status()
+            .unwrap()
+            .success());
+        for index in 0..256 {
+            std::fs::write(path.join(format!("file-{index}.txt")), vec![b'x'; 8192]).unwrap();
+        }
+        let id = path.to_str().unwrap().to_owned();
+        let locks = crate::git::GitWriteLocks::default();
+        let repository_lock = locks.repository(&id);
+        let held_lock = Arc::clone(&repository_lock);
+        let (locked, ready) = mpsc::channel();
+        let (release, wait_release) = mpsc::channel();
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let timeout_flag = Arc::clone(&timed_out);
+        let holding = thread::spawn(move || {
+            let _guard = held_lock.lock().unwrap();
+            locked.send(()).unwrap();
+            if wait_release.recv_timeout(Duration::from_secs(5)).is_err() {
+                timeout_flag.store(true, Ordering::Release);
+            }
+        });
+        ready.recv_timeout(Duration::from_secs(5)).unwrap();
+
+        let sessions = super::TerminalSessions::default();
+        let mut starting = Box::pin(super::create_session(
+            sessions.clone(),
+            locks,
+            request("pending", id),
+        ));
+        let mut context = Context::from_waker(Waker::noop());
+        let start = Instant::now();
+        assert!(matches!(
+            starting.as_mut().poll(&mut context),
+            Poll::Pending
+        ));
+        eprintln!(
+            "Terminal startup returned to its caller in {:?}",
+            start.elapsed()
+        );
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while Arc::strong_count(&repository_lock) <= 3 && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(1));
+        }
+        assert!(Arc::strong_count(&repository_lock) > 3);
+        tauri::async_runtime::block_on(super::close_session(sessions.clone(), "pending".into()))
+            .unwrap();
+        assert!(sessions.sessions.lock().unwrap().is_empty());
+        release.send(()).unwrap();
+        holding.join().unwrap();
+        tauri::async_runtime::block_on(starting).unwrap();
+        assert!(!timed_out.load(Ordering::Acquire));
+        assert!(sessions.sessions.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_failed_background_start_removes_its_pending_session() {
+        let directory = tempfile::tempdir().unwrap();
+        let sessions = super::TerminalSessions::default();
+        let result = tauri::async_runtime::block_on(super::create_session(
+            sessions.clone(),
+            crate::git::GitWriteLocks::default(),
+            request(
+                "missing",
+                directory
+                    .path()
+                    .join("absent")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        ));
+        assert_eq!(result.unwrap_err().code, "terminal.cwdNotFound");
+        assert!(sessions.sessions.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_background_session_transports_commands_and_closes_its_real_shell() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().canonicalize().unwrap();
+        let sessions = super::TerminalSessions::default();
+        let (output, incoming) = mpsc::channel();
+        let (exited, exit) = mpsc::channel();
+        let mut request = request("background", path.to_string_lossy().into_owned());
+        request.on_data = tauri::ipc::Channel::new(move |body| {
+            let bytes = match body {
+                tauri::ipc::InvokeResponseBody::Raw(bytes) => bytes,
+                tauri::ipc::InvokeResponseBody::Json(json) => serde_json::from_str(&json).unwrap(),
+            };
+            let _ = output.send(bytes);
+            Ok(())
+        });
+        request.on_exit = tauri::ipc::Channel::new(move |_| {
+            let _ = exited.send(());
+            Ok(())
+        });
+        tauri::async_runtime::block_on(super::create_session(
+            sessions.clone(),
+            crate::git::GitWriteLocks::default(),
+            request,
+        ))
+        .unwrap();
+        {
+            let mut map = sessions.sessions.lock().unwrap();
+            let Some(super::SessionState::Ready(session)) = map.get_mut("background") else {
+                panic!("the shell must be ready after background startup");
+            };
+            #[cfg(windows)]
+            session.writer.write_all(b"\x1b[1;1R").unwrap();
+            #[cfg(windows)]
+            let probe = b"set \"gitthul_marker=background-ready\"\recho gitthul-%gitthul_marker%\r"
+                .as_slice();
+            #[cfg(not(windows))]
+            let probe = b"printf 'gitthul-%s\\n' 'background-ready'\r".as_slice();
+            session.writer.write_all(probe).unwrap();
+            session.writer.flush().unwrap();
+        }
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut received = Vec::new();
+        let mut ready = false;
+        while Instant::now() < deadline {
+            if let Ok(bytes) = incoming.recv_timeout(Duration::from_millis(100)) {
+                received.extend(bytes);
+                ready = String::from_utf8_lossy(&received).contains("gitthul-background-ready");
+                if ready {
+                    break;
+                }
+            }
+        }
+        tauri::async_runtime::block_on(super::close_session(sessions.clone(), "background".into()))
+            .unwrap();
+        exit.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(ready, "the background shell must respond to its command");
+        assert!(sessions.sessions.lock().unwrap().is_empty());
+    }
 
     #[test]
     fn windows_shell_paths_preserve_drive_unicode_spaces_and_unc() {

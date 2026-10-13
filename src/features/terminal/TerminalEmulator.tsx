@@ -55,6 +55,7 @@ export function TerminalEmulator(props: TerminalEmulatorProps) {
         {...props}
         {...clipboardProps}
         terminal={terminal}
+        startingLabel={t('view.terminal.starting')}
         openExternal={link.openExternal}
       />
     );

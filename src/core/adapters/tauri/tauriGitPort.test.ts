@@ -947,6 +947,35 @@ describe('tauriGitPort', () => {
     });
   });
 
+  it('retira un watcher cuyo arranque nativo termina después de cancelar', async () => {
+    let complete!: () => void;
+    const starting = new Promise<void>((resolve) => {
+      complete = resolve;
+    });
+    const call = vi.fn((command: string, _args?: Record<string, unknown>) =>
+      command === 'git_watch_repository' ? starting : Promise.resolve(undefined),
+    );
+    const port = createTauriGitPort(
+      createMockGitPort(),
+      call,
+      () => Promise.resolve('clone-channel'),
+      () => Promise.resolve('watch-channel'),
+    );
+    const controller = new AbortController();
+    const result = port.watchRepository('/repos/uno', vi.fn(), { signal: controller.signal });
+    const cancelled = expect(result).rejects.toBeInstanceOf(OperationCancelledError);
+    await vi.waitFor(() => expect(call.mock.calls[0]?.[0]).toBe('git_watch_repository'));
+    const operationId = call.mock.calls[0]![1]!.operationId;
+    controller.abort();
+    expect(call).toHaveBeenCalledWith('git_unwatch_repository', { operationId });
+    complete();
+    await cancelled;
+    expect(
+      call.mock.calls.filter(([command]) => command === 'git_unwatch_repository').length,
+    ).toBeGreaterThan(1);
+    expect(call.mock.calls.at(-1)).toEqual(['git_unwatch_repository', { operationId }]);
+  });
+
   it('lee y ejecuta la pila nativa de deshacer', async () => {
     const repository = {
       id: '/repos/uno',

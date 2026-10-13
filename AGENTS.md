@@ -157,6 +157,12 @@ archivo privado. Los auxiliares de autenticación usan credenciales ficticias al
 El PTY ejecuta el shell del usuario; transportar bytes y secuencias ANSI sin reconstruir
 comandos. Mantener TERM=xterm-256color, COLORTERM=truecolor y tamaño tomado del PTY.
 Leer el portapapeles solo al pegar; Ctrl+C sin selección debe poder interrumpir.
+La captura de recuperación y el arranque/cierre del PTY se ejecutan con
+spawn_blocking. La terminal muestra progreso mientras prepara la sesión;
+cerrarla durante ese periodo cancela su arranque. Conservar la captura completa
+antes de abrir el shell y permitir sus respuestas de protocolo durante el inicio.
+Crear y detener observadores recursivos del repositorio también se ejecuta fuera
+del hilo de la ventana, incluido el cambio entre GitWorking y Terminal.
 En ConPTY, drenar la salida antes de redimensionar o escribir y mantener la
 lectura hasta EOF incluso si se desconecta la UI: el cierre puede emitir un
 último frame y bloquear Windows anteriores a 11 24H2 si nadie consume el pipe.
