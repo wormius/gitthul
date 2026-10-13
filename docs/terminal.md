@@ -55,6 +55,8 @@ deshabilitado. Los fallos al acceder al portapapeles aparecen como avisos.
 
 **Mod+F** busca en la salida de la terminal. Puedes redimensionar o dividir el
 panel mientras trabajas; el shell recibe el tamaño nuevo.
+Al dividir, el panel original conserva su proceso, su salida y el texto que
+estabas escribiendo. Cerrar un panel no reinicia los que permanecen abiertos.
 
 Los comandos, el autocompletado y las sugerencias dependen de tu shell y su
 configuración. Si una sugerencia o el prompt se dibujan incorrectamente, conserva

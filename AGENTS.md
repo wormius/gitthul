@@ -161,6 +161,10 @@ La captura de recuperación y el arranque/cierre del PTY se ejecutan con
 spawn_blocking. La terminal muestra progreso mientras prepara la sesión;
 cerrarla durante ese periodo cancela su arranque. Conservar la captura completa
 antes de abrir el shell y permitir sus respuestas de protocolo durante el inicio.
+TerminalPaneTree mantiene los emuladores en una lista estable por pane.id y
+mueve sus contenedores mediante portales al árbol de distribución. Dividir,
+redimensionar o cerrar un vecino no debe desmontar las sesiones que sobreviven;
+solo retirar un panel o cerrar la superficie libera su PTY.
 Crear y detener observadores recursivos del repositorio también se ejecuta fuera
 del hilo de la ventana, incluido el cambio entre GitWorking y Terminal.
 En ConPTY, drenar la salida antes de redimensionar o escribir y mantener la

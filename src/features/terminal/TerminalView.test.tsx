@@ -589,6 +589,70 @@ describe('TerminalView', () => {
     expect(screen.getByRole('button', { name: 'Cerrar este panel de terminal' })).toBeVisible();
   });
 
+  it.each(['Dividir a la derecha', 'Dividir hacia abajo'])(
+    '%s conserva la salida, el borrador y el historial del panel original',
+    async (action) => {
+      const user = userEvent.setup();
+      renderTerminal({ repoId: null });
+      const original = screen.getByRole('textbox');
+      await user.type(original, 'echo salida-original{Enter}');
+      expect(await screen.findByText('salida-original')).toBeInTheDocument();
+      await user.type(original, 'comando pendiente');
+      await user.click(screen.getByRole('button', { name: action }));
+
+      const first = screen.getByRole('region', { name: 'Terminal 1' });
+      expect(first).not.toHaveAttribute('data-active');
+      expect(screen.getByRole('region', { name: 'Terminal 2' })).toHaveAttribute('data-active');
+      expect(within(first).getByRole('textbox')).toBe(original);
+      expect(original).toHaveValue('comando pendiente');
+      expect(within(first).getByText('salida-original')).toBeInTheDocument();
+      await user.clear(original);
+      await user.keyboard('{ArrowUp}');
+      expect(original).toHaveValue('echo salida-original');
+
+      await user.click(
+        within(screen.getByRole('region', { name: 'Terminal 2' })).getByRole('button', {
+          name: 'Cerrar este panel de terminal',
+        }),
+      );
+      expect(screen.getByRole('textbox')).toBe(original);
+      expect(screen.getByText('salida-original')).toBeInTheDocument();
+      expect(original).toHaveValue('echo salida-original');
+    },
+  );
+
+  it('conserva los paneles al dividir un vecino y al promover un panel de un split anidado', async () => {
+    const user = userEvent.setup();
+    renderTerminal({ repoId: null });
+    const first = screen.getByRole('textbox');
+    await user.type(first, 'echo uno{Enter}');
+    expect(await screen.findByText('uno')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Dividir a la derecha' }));
+    const secondPane = screen.getByRole('region', { name: 'Terminal 2' });
+    const second = within(secondPane).getByRole('textbox');
+    await user.type(second, 'echo dos{Enter}');
+    expect(await screen.findByText('dos')).toBeInTheDocument();
+    await user.click(within(secondPane).getByRole('button', { name: 'Dividir hacia abajo' }));
+    const third = within(screen.getByRole('region', { name: 'Terminal 3' })).getByRole('textbox');
+    await user.type(third, 'echo tres{Enter}');
+    expect(await screen.findByText('tres')).toBeInTheDocument();
+    expect(within(secondPane).getByRole('textbox')).toBe(second);
+    expect(within(secondPane).getByText('dos')).toBeInTheDocument();
+
+    await user.click(
+      within(screen.getByRole('region', { name: 'Terminal 2' })).getByRole('button', {
+        name: 'Cerrar este panel de terminal',
+      }),
+    );
+    expect(screen.getAllByRole('textbox')).toEqual([first, third]);
+    expect(screen.getByText('uno')).toBeInTheDocument();
+    expect(screen.getByText('tres')).toBeInTheDocument();
+    expect(screen.queryByText('dos')).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Cerrar este panel de terminal' })[0]!);
+    expect(screen.getByRole('textbox')).toBe(third);
+    expect(screen.getByText('tres')).toBeInTheDocument();
+  });
+
   it('cierra la superficie desde el único pane y ofrece abrir GitWorking cuando hay repositorio', async () => {
     const user = userEvent.setup();
     const onOpenWorking = vi.fn();
