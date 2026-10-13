@@ -24,21 +24,30 @@ export function createMockLibraryPort(
   let current: Library | null = null;
   const load = () => (current ??= library.normalizeLibrary(parseJson(storage.read()), now()));
   const save = (next: Library): Promise<Library> => {
-    if (next !== current) {
-      current = next;
-      storage.write(JSON.stringify(next));
+    try {
+      if (next !== current) {
+        storage.write(JSON.stringify(next));
+        current = next;
+      }
+      return Promise.resolve(next);
+    } catch (error) {
+      return Promise.reject(
+        error instanceof Error ? error : new Error(String(error), { cause: error }),
+      );
     }
-    return Promise.resolve(next);
   };
 
   return {
     read: () => Promise.resolve(load()),
     createSpace: (name) => save(library.createSpace(load(), name)),
+    createSpaceAndAddMany: (name, repos) =>
+      save(library.createSpaceAndAddMany(load(), name, repos)),
     renameSpace: (id, name) => save(library.renameSpace(load(), id, name)),
     deleteSpace: (id) => save(library.deleteSpace(load(), id)),
     moveSpace: (id, toIndex) => save(library.moveSpace(load(), id, toIndex)),
     setSpaceCollapsed: (id, collapsed) => save(library.setSpaceCollapsed(load(), id, collapsed)),
     addToSpace: (id, repo) => save(library.addToSpace(load(), id, repo)),
+    addManyToSpace: (id, repos, reveal) => save(library.addManyToSpace(load(), id, repos, reveal)),
     removeFromSpace: (id, repo) => save(library.removeFromSpace(load(), id, repo)),
     setView: (view) => save(library.setView(load(), view)),
     setSort: (sort) => save(library.setSort(load(), sort)),

@@ -237,6 +237,11 @@ export const fr: Messages = {
   'repositories.status.openedSpace': '{count} dépôts de {space} ont été ouverts.',
   'repositories.status.openedSpaceWithFailures':
     '{count} dépôts de {space} ouverts ; {failed} ont échoué et {cancelled} ont été annulés.',
+  'repositories.status.addedManyToSpace': 'Les {count} dépôts sélectionnés sont dans {space}.',
+  'repositories.status.addManyToSpaceFailed': 'Impossible d’ajouter les {count} dépôts à {space}.',
+  'repositories.status.addManyToSpaceCancelled':
+    'L’ajout des {count} dépôts à {space} a été annulé.',
+  'repositories.drag.multiple': '{count} dépôts',
   'repositories.status.addedToSpace': '{repo} a été ajouté à {space}.',
   'repositories.status.removedFromSpace': '{repo} a été retiré de {space}.',
   'repositories.status.movedToSpace': '{repo} a été déplacé de {from} vers {to}.',

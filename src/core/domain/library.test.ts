@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   addToSpace,
+  addManyToSpace,
   createSpace,
+  createSpaceAndAddMany,
   DEFAULT_LIBRARY,
   deleteSpace,
   moveSpace,
@@ -122,5 +124,41 @@ describe('biblioteca local', () => {
       view: { kind: 'recent' },
       layout: 'list',
     });
+  });
+
+  it('agrega una selección deduplicada sin retirarla de sus espacios originales', () => {
+    const original = {
+      ...DEFAULT_LIBRARY,
+      spaces: [
+        { id: 'space-1', name: 'Origen', repos: ['uno', 'dos'] },
+        { id: 'space-2', name: 'Destino', repos: ['dos'], collapsed: true },
+      ],
+    };
+    const added = addManyToSpace(original, 'space-2', ['uno', 'dos', 'uno', 'tres'], true);
+
+    expect(added.spaces).toEqual([
+      original.spaces[0],
+      { id: 'space-2', name: 'Destino', repos: ['dos', 'uno', 'tres'] },
+    ]);
+    expect(added.spaces[0]).toBe(original.spaces[0]);
+    expect(original.spaces[1]?.repos).toEqual(['dos']);
+    expect(added.layout).toBe('spaces');
+    expect(added.view).toEqual({ kind: 'space', id: 'space-2' });
+    expect(addManyToSpace(added, 'space-2', ['uno', 'dos', 'tres'])).toBe(added);
+    expect(addManyToSpace(original, 'ausente', ['uno'], true)).toBe(original);
+  });
+
+  it('crea el espacio, agrega todos sus miembros y lo revela como una sola transformación', () => {
+    const initial = createSpace(DEFAULT_LIBRARY, 'Origen');
+    const created = createSpaceAndAddMany(initial, '  Destino  ', ['uno', 'dos', 'uno']);
+
+    expect(created.spaces).toEqual([
+      initial.spaces[0],
+      { id: 'space-2', name: 'Destino', repos: ['uno', 'dos'] },
+    ]);
+    expect(created.layout).toBe('spaces');
+    expect(created.view).toEqual({ kind: 'space', id: 'space-2' });
+    expect(createSpaceAndAddMany(created, 'Destino', ['tres'])).toBe(created);
+    expect(createSpaceAndAddMany(created, ' ', ['tres'])).toBe(created);
   });
 });

@@ -64,6 +64,12 @@ function clickRow(row: HTMLElement, modifiers: { ctrlKey?: boolean; shiftKey?: b
   fireEvent.click(target, { button: 0, detail: 1, ...modifiers });
 }
 
+function startRowDrag(row: HTMLElement) {
+  const target = within(row).getByText(/\//);
+  fireEvent.mouseDown(target, { button: 0, detail: 1 });
+  fireEvent.dragStart(target);
+}
+
 function openedRepositoryIds() {
   return useShellStore
     .getState()
@@ -533,6 +539,163 @@ describe('RepositoriesView con biblioteca real', () => {
     await waitFor(async () =>
       expect((await ports.library.read()).spaces[0]?.repos).toContain('gitthul'),
     );
+  });
+
+  it('arrastra la selección de Lista a un destino parcial y la guarda de una sola vez', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Origen');
+    await ports.library.createSpace('Destino');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'bitacora');
+    await ports.library.addToSpace('space-2', 'gitthul');
+    const addMany = vi.spyOn(ports.library, 'addManyToSpace');
+    renderView(ports);
+    const rows = await knownRows();
+    const gitthul = rowAt(rows, '/home/example/projects/gitthul');
+    clickRow(gitthul);
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+
+    startRowDrag(gitthul);
+    const destinations = await screen.findByRole('group', { name: 'Soltar sobre un espacio' });
+    const target = within(destinations).getByText('Destino').parentElement!;
+    expect(target).toHaveAttribute('aria-disabled', 'false');
+    expect(within(destinations).getByText('Origen').parentElement).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+
+    await waitFor(async () => {
+      const library = await ports.library.read();
+      expect(library.spaces[0]?.repos).toEqual(['gitthul', 'bitacora']);
+      expect(library.spaces[1]?.repos).toEqual(['gitthul', 'bitacora']);
+      expect(library.layout).toBe('spaces');
+      expect(library.view).toEqual({ kind: 'space', id: 'space-2' });
+    });
+    expect(addMany).toHaveBeenCalledTimes(1);
+    expect(addMany).toHaveBeenCalledWith('space-2', ['gitthul', 'bitacora'], true);
+    expect(openedRepositoryIds()).toEqual([]);
+    expectContextOnlyBatchActions();
+  });
+
+  it('mantiene el lote que inició el arrastre aunque cambie después la selección', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Destino');
+    renderView(ports);
+    const rows = await knownRows();
+    const gitthul = rowAt(rows, '/home/example/projects/gitthul');
+    clickRow(gitthul);
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+    startRowDrag(gitthul);
+    clickRow(rowAt(rows, '/home/example/dotfiles'));
+    expect(useRepositoriesStore.getState().selected?.id).toBe('dotfiles');
+
+    const destinations = await screen.findByRole('group', { name: 'Soltar sobre un espacio' });
+    const target = within(destinations).getByText('Destino').parentElement!;
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+
+    await waitFor(async () =>
+      expect((await ports.library.read()).spaces[0]?.repos).toEqual(['gitthul', 'bitacora']),
+    );
+    expect(openedRepositoryIds()).toEqual([]);
+  });
+
+  it('arrastra solamente la fila ajena al lote que se tomó como origen', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Destino');
+    renderView(ports);
+    const rows = await knownRows();
+    clickRow(rowAt(rows, '/home/example/projects/gitthul'));
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+    startRowDrag(rowAt(rows, '/home/example/dotfiles'));
+
+    const destinations = await screen.findByRole('group', { name: 'Soltar sobre un espacio' });
+    const target = within(destinations).getByText('Destino').parentElement!;
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+
+    await waitFor(async () =>
+      expect((await ports.library.read()).spaces[0]?.repos).toEqual(['dotfiles']),
+    );
+    expect(useRepositoriesStore.getState().selected?.id).toBe('dotfiles');
+    expect(openedRepositoryIds()).toEqual([]);
+  });
+
+  it('arrastra tarjetas de varios espacios sin duplicar repositorios ni quitar sus membresías', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Uno');
+    await ports.library.createSpace('Dos');
+    await ports.library.createSpace('Destino');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-2', 'gitthul');
+    await ports.library.addToSpace('space-2', 'bitacora');
+    await ports.library.setLayout('spaces');
+    renderView(ports);
+    await knownRows();
+    const first = within(await screen.findByRole('listbox', { name: 'Repositorios de Uno' }));
+    const second = within(screen.getByRole('listbox', { name: 'Repositorios de Dos' }));
+    clickRow(rowAt(first.getAllByRole('option'), '/home/example/projects/gitthul'));
+    clickRow(rowAt(second.getAllByRole('option'), '/home/example/projects/bitacora'), {
+      ctrlKey: true,
+    });
+    startRowDrag(rowAt(second.getAllByRole('option'), '/home/example/projects/gitthul'));
+    const target = screen.getByRole('region', { name: 'Espacio Destino' });
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+
+    await waitFor(async () => {
+      const spaces = (await ports.library.read()).spaces;
+      expect(spaces[0]?.repos).toEqual(['gitthul']);
+      expect(spaces[1]?.repos).toEqual(['gitthul', 'bitacora']);
+      expect(spaces[2]?.repos).toEqual(['gitthul', 'bitacora']);
+    });
+    expect(openedRepositoryIds()).toEqual([]);
+  });
+
+  it('crear un espacio desde el lote permite cancelar y después agregar todos los arrastrados', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Origen');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'bitacora');
+    const create = vi.spyOn(ports.library, 'createSpaceAndAddMany');
+    renderView(ports);
+    const rows = await knownRows();
+    const gitthul = rowAt(rows, '/home/example/projects/gitthul');
+    clickRow(gitthul);
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+
+    const dropOnCreate = async () => {
+      startRowDrag(gitthul);
+      const destinations = await screen.findByRole('group', { name: 'Soltar sobre un espacio' });
+      const target = within(destinations).getByText('Nuevo espacio').parentElement!;
+      fireEvent.dragOver(target);
+      fireEvent.drop(target);
+      return screen.findByRole('dialog', { name: 'Crear un espacio' });
+    };
+    let dialog = await dropOnCreate();
+    await user.type(within(dialog).getByLabelText('Nombre del espacio'), 'Descartado');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    expect(create).not.toHaveBeenCalled();
+    expect((await ports.library.read()).spaces).toHaveLength(1);
+
+    dialog = await dropOnCreate();
+    await user.type(within(dialog).getByLabelText('Nombre del espacio'), 'Cliente');
+    await user.click(within(dialog).getByRole('button', { name: 'Crear espacio' }));
+    await waitFor(async () => {
+      const library = await ports.library.read();
+      expect(library.spaces.map((space) => space.name)).toEqual(['Origen', 'Cliente']);
+      expect(library.spaces[0]?.repos).toEqual(['gitthul', 'bitacora']);
+      expect(library.spaces[1]?.repos).toEqual(['gitthul', 'bitacora']);
+      expect(library.layout).toBe('spaces');
+      expect(library.view).toEqual({ kind: 'space', id: 'space-2' });
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith('Cliente', ['gitthul', 'bitacora']);
+    expect(openedRepositoryIds()).toEqual([]);
+    expectContextOnlyBatchActions();
   });
 
   it('crea un espacio con el repositorio al soltar sobre el destino contextual', async () => {

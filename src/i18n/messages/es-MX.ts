@@ -264,6 +264,13 @@ export const esMX = {
   'repositories.status.openedSpace': 'Se abrieron {count} repositorios de {space}.',
   'repositories.status.openedSpaceWithFailures':
     'Se abrieron {count} repositorios de {space}; {failed} fallaron y {cancelled} se cancelaron.',
+  'repositories.status.addedManyToSpace':
+    'Los {count} repositorios seleccionados están en {space}.',
+  'repositories.status.addManyToSpaceFailed':
+    'No se pudieron agregar los {count} repositorios a {space}.',
+  'repositories.status.addManyToSpaceCancelled':
+    'Se canceló agregar los {count} repositorios a {space}.',
+  'repositories.drag.multiple': '{count} repositorios',
   'repositories.status.addedToSpace': 'Se agregó {repo} a {space}.',
   'repositories.status.removedFromSpace': 'Se sacó {repo} de {space}.',
   'repositories.status.movedToSpace': 'Se movió {repo} de {from} a {to}.',

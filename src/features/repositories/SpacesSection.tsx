@@ -173,6 +173,7 @@ export function SpacesSection({
               draggable
               ghost={dragging?.kind === 'space' && dragging.space === space.id}
               dropTarget={dragOver === space.id}
+              dropEffect={dragging?.kind === 'repo' && dragging.repos.length > 1 ? 'copy' : 'move'}
               onDragStart={() => onSpaceDragStart(space)}
               onDragOver={() => onDragOver(space.id)}
               onDragEnd={onDragEnd}
@@ -186,6 +187,7 @@ export function SpacesSection({
                   avatar={avatarOf(repo.id)}
                   selected={selected.has(repo.id)}
                   canOpenOnClick={selected.size === 1}
+                  dragCount={selected.has(repo.id) ? selected.size : 1}
                   menu={menuFor(repo)}
                   onSelect={(event) => select(repo, space.id, event)}
                   onContextSelect={() => onContextSelect(repo, space.id)}

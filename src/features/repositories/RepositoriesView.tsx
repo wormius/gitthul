@@ -10,7 +10,7 @@ import {
 import { GitErrorPanel } from '@app/GitErrorPanel';
 import { useGestures } from '@app/GestureContext';
 import type { GestureRegistry } from '@app/gestures';
-import type { RepoAvatar, RepoSort, Space } from '@core/domain/library';
+import type { RepoAvatar, RepoSort, Space, SpaceId } from '@core/domain/library';
 import type { RepoId, RepoSummary } from '@core/domain/repository';
 import { useTheme } from '@design/useTheme';
 import type { I18nContextValue } from '@i18n/I18nContext';
@@ -67,6 +67,7 @@ export function RepositoriesView() {
   const listError = useRepositoriesStore((state) => state.listError);
   const folderError = useRepositoriesStore((state) => state.folderError);
   const openError = useRepositoriesStore((state) => state.openError);
+  const openErrorSource = useRepositoriesStore((state) => state.openErrorSource);
   const selected = useRepositoriesStore((state) => state.selected);
   const selectedIds = useRepositoriesStore((state) => state.selectedIds);
   const batchBusy = useRepositoriesStore((state) => state.batchBusy);
@@ -142,6 +143,20 @@ export function RepositoriesView() {
     },
     [actions, batchBusy, selectedRepos],
   );
+  const beginRepoDrag = (repo: RepoSummary, from: SpaceId | null, origin: SelectionOrigin) => {
+    if (batchBusy) {
+      setDragging(null);
+      return;
+    }
+    const repos = selectedIds.has(repo.id) ? selectedRepos : [repo];
+    if (!selectedIds.has(repo.id)) select(repo, origin);
+    setDragging({ kind: 'repo', repo, repos, from });
+  };
+  const dropRepos = (space: Space, reveal = false) => {
+    if (dragging?.kind !== 'repo') return;
+    if (dragging.repos.length > 1) actions.addManyToSpace(space, dragging.repos, reveal);
+    else actions.moveRepoToSpace(space, dragging.repo, dragging.from, reveal);
+  };
 
   const clearOnDeadSpace = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (!(event.target instanceof Element)) return;
@@ -171,7 +186,11 @@ export function RepositoriesView() {
   const draggedMemberships = useMemo(
     () =>
       dragging?.kind === 'repo'
-        ? new Set(spacesOf(library?.spaces ?? [], dragging.repo.id).map((space) => space.id))
+        ? new Set(
+            (library?.spaces ?? [])
+              .filter((space) => dragging.repos.every((repo) => space.repos.includes(repo.id)))
+              .map((space) => space.id),
+          )
         : new Set<Space['id']>(),
     [dragging, library?.spaces],
   );
@@ -227,12 +246,14 @@ export function RepositoriesView() {
         avatar={avatarOf(repo.id)}
         selected={selectedIds.has(repo.id)}
         canOpenOnClick={selectedIds.size === 1}
+        dragCount={selectedIds.has(repo.id) ? selectedRepos.length : 1}
         spaces={filtering ? spacesOf(library?.spaces ?? [], repo.id) : []}
         when={since(repo)}
         menu={rowMenuFor(repo)}
         onOpen={() => activate(repo)}
         onSelect={() => contextPick(repo, origin)}
-        onDragStart={() => setDragging({ kind: 'repo', repo, from: null })}
+        onClickSelect={() => select(repo, origin)}
+        onDragStart={() => beginRepoDrag(repo, null, origin)}
         onDragEnd={() => setDragging(null)}
       />
     );
@@ -310,15 +331,20 @@ export function RepositoriesView() {
               <SpaceDropTargets
                 spaces={library.spaces}
                 alreadyIn={draggedMemberships}
+                dropEffect={dragging.repos.length > 1 ? 'copy' : 'move'}
                 over={dragOver}
                 onDragOver={setDragOver}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={(target) => {
                   if (target === CREATE_SPACE_TARGET) {
-                    openDialog({ kind: 'createSpace', repo: dragging.repo });
+                    openDialog(
+                      dragging.repos.length > 1
+                        ? { kind: 'createSpace', repos: dragging.repos }
+                        : { kind: 'createSpace', repo: dragging.repo },
+                    );
                   } else {
                     const space = library.spaces.find((candidate) => candidate.id === target);
-                    if (space) actions.moveRepoToSpace(space, dragging.repo, dragging.from, true);
+                    if (space) dropRepos(space, true);
                   }
                   setDragging(null);
                 }}
@@ -354,7 +380,7 @@ export function RepositoriesView() {
                       actions.setView({ kind: 'space', id: space.id });
                       setDragging({ kind: 'space', space: space.id });
                     }}
-                    onRepoDragStart={(repo, from) => setDragging({ kind: 'repo', repo, from })}
+                    onRepoDragStart={(repo, from) => beginRepoDrag(repo, from, spaceOrigin(from))}
                     onDragOver={setDragOver}
                     onDragEnd={() => setDragging(null)}
                     onDrop={(space, index) => {
@@ -362,7 +388,7 @@ export function RepositoriesView() {
                         const moved = library.spaces.find((item) => item.id === dragging.space);
                         if (moved) actions.moveSpace(moved, index);
                       } else if (dragging?.kind === 'repo') {
-                        actions.moveRepoToSpace(space, dragging.repo, dragging.from);
+                        dropRepos(space);
                       }
                       setDragging(null);
                     }}
@@ -445,15 +471,19 @@ export function RepositoriesView() {
                   ))}
                 </ul>
               </section>
-            ) : openError && selected ? (
+            ) : openError ? (
               <div className={styles.centered}>
                 <GitErrorPanel
                   error={openError}
-                  fixes={{
-                    retry: () => actions.open(selected),
-                    locateRepo: () => actions.locate(selected),
-                    forgetRepo: () => openDialog({ kind: 'forget', repo: selected }),
-                  }}
+                  fixes={
+                    selected && openErrorSource === 'open'
+                      ? {
+                          retry: () => actions.open(selected),
+                          locateRepo: () => actions.locate(selected),
+                          forgetRepo: () => openDialog({ kind: 'forget', repo: selected }),
+                        }
+                      : undefined
+                  }
                 />
               </div>
             ) : selectedRepos.length > 1 ? (
@@ -509,9 +539,11 @@ export function RepositoriesView() {
         <SpaceNameDialog
           spaces={library.spaces}
           onCancel={closeDialog}
-          onConfirm={(name) =>
-            dialog.repo ? actions.createSpaceAndAdd(name, dialog.repo) : actions.createSpace(name)
-          }
+          onConfirm={(name) => {
+            if (dialog.repos) actions.createSpaceAndAddMany(name, dialog.repos);
+            else if (dialog.repo) actions.createSpaceAndAdd(name, dialog.repo);
+            else actions.createSpace(name);
+          }}
         />
       )}
       {dialog.kind === 'deleteSpace' && (

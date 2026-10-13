@@ -235,6 +235,11 @@ export const en: Messages = {
   'repositories.status.openedSpace': 'Opened {count} repositories from {space}.',
   'repositories.status.openedSpaceWithFailures':
     'Opened {count} repositories from {space}; {failed} failed and {cancelled} were cancelled.',
+  'repositories.status.addedManyToSpace': 'The {count} selected repositories are in {space}.',
+  'repositories.status.addManyToSpaceFailed': 'Could not add the {count} repositories to {space}.',
+  'repositories.status.addManyToSpaceCancelled':
+    'Adding the {count} repositories to {space} was cancelled.',
+  'repositories.drag.multiple': '{count} repositories',
   'repositories.status.addedToSpace': 'Added {repo} to {space}.',
   'repositories.status.removedFromSpace': 'Removed {repo} from {space}.',
   'repositories.status.movedToSpace': 'Moved {repo} from {from} to {to}.',

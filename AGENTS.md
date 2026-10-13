@@ -89,6 +89,10 @@ selected solo contiene un repositorio si la selección es singular. Filtrar y
 recargar descartan los IDs ocultos o retirados. Abrir/olvidar por lotes procesa
 los IDs en orden, evita duplicados y conserva los errores por entrada; olvidar
 retira entradas del catálogo sin borrar carpetas ni historial de Git.
+El arrastre guarda una copia de los repositorios seleccionados al comenzar.
+Los lotes se agregan sin retirar membresías anteriores; el arrastre singular
+desde una tarjeta conserva su traslado. Agregar o crear un espacio con un lote
+persiste miembros y navegación en una sola escritura de LibraryPort.
 
 ## Recuperación y persistencia
 

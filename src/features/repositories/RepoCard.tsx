@@ -17,6 +17,7 @@ interface RepoCardProps {
   avatar: RepoAvatar | null;
   selected: boolean;
   canOpenOnClick?: boolean;
+  dragCount?: number;
   menu: readonly MenuEntry[];
   onOpen: () => void;
   onSelect: (event: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => void;
@@ -31,6 +32,7 @@ export function RepoCard({
   avatar,
   selected,
   canOpenOnClick = true,
+  dragCount = 1,
   menu,
   onOpen,
   onSelect,
@@ -40,9 +42,11 @@ export function RepoCard({
 }: RepoCardProps) {
   const { t } = useI18n();
   const wasSelected = useRef(false);
+  const dragged = useRef(false);
   const dragPreview = useRef<HTMLDivElement>(null);
 
   const onMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    dragged.current = false;
     wasSelected.current =
       event.button === 0 &&
       selected &&
@@ -53,7 +57,7 @@ export function RepoCard({
   };
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
     event.stopPropagation();
-    if (event.detail !== 1) return;
+    if (dragged.current || event.detail !== 1) return;
     const open = wasSelected.current && !event.ctrlKey && !event.metaKey && !event.shiftKey;
     wasSelected.current = false;
     if (open) {
@@ -76,8 +80,10 @@ export function RepoCard({
   };
   const startDrag = (event: DragEvent<HTMLDivElement>) => {
     event.stopPropagation();
+    wasSelected.current = false;
+    dragged.current = true;
     event.dataTransfer?.setData('text/plain', repo.id);
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = dragCount > 1 ? 'copy' : 'move';
     previewDrag(event, dragPreview.current);
     onDragStart();
   };
@@ -108,7 +114,7 @@ export function RepoCard({
         }}
         onKeyDown={onKeyDown}
       >
-        <RepoDragPreview ref={dragPreview} repo={repo} avatar={avatar} />
+        <RepoDragPreview ref={dragPreview} repo={repo} avatar={avatar} count={dragCount} />
         <div className={styles.region}>
           <Avatar
             name={repo.name}

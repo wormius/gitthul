@@ -8,8 +8,10 @@ import { NO_LATENCY } from '@core/adapters/mock/latency';
 import { createMockGitPort } from '@core/adapters/mock/mockGitPort';
 import { createMockLibraryPort } from '@core/adapters/mock/mockLibraryPort';
 import { createMockSystemPort } from '@core/adapters/mock/mockSystemPort';
+import { createTauriLibraryPort } from '@core/adapters/tauri/tauriLibraryPort';
 import { selectPorts, type AppPorts } from '@core/adapters/selectPorts';
 import { GitOperationError, OperationCancelledError } from '@core/domain/errors';
+import { DEFAULT_LIBRARY, type Library } from '@core/domain/library';
 
 import { useRepositoriesStore } from './repositoriesStore';
 import { baseFor, useRepositoryActions } from './useRepositoryActions';
@@ -217,5 +219,181 @@ describe('repository batch actions', () => {
       key: 'repositories.status.openedSpaceWithFailures',
       params: { space: 'Work', count: 1, failed: 1, cancelled: 0 },
     });
+  });
+});
+
+describe('adding a repository selection to spaces', () => {
+  it('copies every selected ID in one mutation, expands the destination and keeps original memberships', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Origen');
+    await ports.library.createSpace('Destino');
+    const repositories = await ports.git.listRepositories();
+    const [first, second] = repositories;
+    await ports.library.addManyToSpace('space-1', [first!.id, second!.id]);
+    await ports.library.addToSpace('space-2', second!.id);
+    await ports.library.setSpaceCollapsed('space-2', true);
+    const actions = await loadedActions(ports);
+    useRepositoriesStore.getState().selectMany(new Set([first!.id, second!.id]), 'space:space-1');
+    const target = useRepositoriesStore.getState().library!.spaces[1]!;
+    const addMany = vi.spyOn(ports.library, 'addManyToSpace');
+    const remove = vi.spyOn(ports.library, 'removeFromSpace');
+    const setLayout = vi.spyOn(ports.library, 'setLayout');
+    const setView = vi.spyOn(ports.library, 'setView');
+
+    act(() => actions.addManyToSpace(target, [first!, second!, first!], true));
+    await batchFinished();
+    expect(addMany).toHaveBeenCalledExactlyOnceWith(target.id, [first!.id, second!.id], true);
+    expect(remove).not.toHaveBeenCalled();
+    expect(setLayout).not.toHaveBeenCalled();
+    expect(setView).not.toHaveBeenCalled();
+    expect((await ports.library.read()).spaces).toEqual([
+      { id: 'space-1', name: 'Origen', repos: [first!.id, second!.id] },
+      { id: 'space-2', name: 'Destino', repos: [second!.id, first!.id] },
+    ]);
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
+    expect(useRepositoriesStore.getState().selected).toBeNull();
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('space:space-2');
+    expect(useShellStore.getState().status).toMatchObject({
+      key: 'repositories.status.addedManyToSpace',
+      params: { count: 2, space: 'Destino' },
+    });
+  });
+
+  it('creates a space with the complete selection atomically and closes the dialog after success', async () => {
+    const ports = makePorts();
+    const actions = await loadedActions(ports);
+    const [first, second] = useRepositoriesStore.getState().repositories!;
+    useRepositoriesStore.getState().selectMany(new Set([first!.id, second!.id]));
+    useRepositoriesStore.getState().openDialog({ kind: 'createSpace' });
+    const createMany = vi.spyOn(ports.library, 'createSpaceAndAddMany');
+    const createSingle = vi.spyOn(ports.library, 'createSpace');
+
+    act(() => actions.createSpaceAndAddMany('  Entrega  ', [first!, second!, first!]));
+    await batchFinished();
+    expect(createMany).toHaveBeenCalledExactlyOnceWith('Entrega', [first!.id, second!.id]);
+    expect(createSingle).not.toHaveBeenCalled();
+    expect(useRepositoriesStore.getState().dialog).toEqual({ kind: 'none' });
+    expect(useRepositoriesStore.getState().library).toMatchObject({
+      spaces: [{ name: 'Entrega', repos: [first!.id, second!.id] }],
+      layout: 'spaces',
+      view: { kind: 'space', id: 'space-1' },
+    });
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('space:space-1');
+  });
+
+  it('does not claim success when the drop destination no longer exists', async () => {
+    const ports = makePorts();
+    const actions = await loadedActions(ports);
+    const [first, second] = useRepositoriesStore.getState().repositories!;
+    useRepositoriesStore.getState().selectMany(new Set([first!.id, second!.id]));
+
+    act(() =>
+      actions.addManyToSpace(
+        { id: 'missing', name: 'Desaparecido', repos: [] },
+        [first!, second!],
+        true,
+      ),
+    );
+    await batchFinished();
+    expect(useRepositoriesStore.getState().openError).toMatchObject({
+      code: 'unknown',
+      output: 'The space "Desaparecido" no longer exists',
+    });
+    expect(useRepositoriesStore.getState().openErrorSource).toBe('space');
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
+    expect((await ports.library.read()).spaces).toEqual([]);
+    expect(useShellStore.getState().status).toMatchObject({
+      tone: 'warning',
+      key: 'repositories.status.addManyToSpaceFailed',
+    });
+  });
+
+  it('a rejected native write allows a real retry of the same drop and preserves its concrete error', async () => {
+    const ports = makePorts();
+    let disk: Library = {
+      ...DEFAULT_LIBRARY,
+      spaces: [{ id: 'space-1', name: 'Entrega', repos: [] }],
+    };
+    let writes = 0;
+    const library = createTauriLibraryPort((command, args) => {
+      if (command === 'library_read') return Promise.resolve(structuredClone(disk));
+      writes += 1;
+      if (writes === 1) return Promise.reject(new Error('Permission denied'));
+      disk = structuredClone(args?.['library']) as Library;
+      return Promise.resolve(undefined);
+    });
+    const actions = await loadedActions({ ...ports, library });
+    const [first, second] = useRepositoriesStore.getState().repositories!;
+    useRepositoriesStore.getState().selectMany(new Set([first!.id, second!.id]));
+    const target = disk.spaces[0]!;
+
+    act(() => actions.addManyToSpace(target, [first!, second!], true));
+    await batchFinished();
+    expect(useRepositoriesStore.getState().openError).toMatchObject({
+      output: 'Permission denied',
+    });
+    expect(disk.spaces[0]?.repos).toEqual([]);
+    expect((await library.read()).spaces[0]?.repos).toEqual([]);
+    act(() => actions.addManyToSpace(target, [first!, second!], true));
+    await batchFinished();
+    expect(writes).toBe(2);
+    expect(disk.spaces[0]?.repos).toEqual([first!.id, second!.id]);
+    expect(useRepositoriesStore.getState().openError).toBeNull();
+    expect(useShellStore.getState().status?.tone).toBe('success');
+  });
+
+  it('guards repeated drops during persistence and restores the complete captured selection', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Entrega');
+    const actions = await loadedActions(ports);
+    const [first, second, unrelated] = useRepositoriesStore.getState().repositories!;
+    const target = useRepositoriesStore.getState().library!.spaces[0]!;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const originalAdd = ports.library.addManyToSpace;
+    const addMany = vi
+      .spyOn(ports.library, 'addManyToSpace')
+      .mockImplementation((id, ids, reveal) => pending.then(() => originalAdd(id, ids, reveal)));
+    const createMany = vi.spyOn(ports.library, 'createSpaceAndAddMany');
+    const markOpened = vi.spyOn(ports.git, 'markOpened');
+
+    act(() => {
+      actions.addManyToSpace(target, [first!, second!]);
+      actions.addManyToSpace(target, [unrelated!]);
+      actions.createSpaceAndAddMany('Otro', [unrelated!]);
+      actions.openMany([unrelated!]);
+      useRepositoriesStore.getState().select(unrelated!);
+    });
+    expect(useRepositoriesStore.getState().batchBusy).toBe(true);
+    expect(addMany).toHaveBeenCalledOnce();
+    expect(createMany).not.toHaveBeenCalled();
+    expect(markOpened).not.toHaveBeenCalled();
+    act(() => release());
+    await batchFinished();
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
+    expect((await ports.library.read()).spaces[0]?.repos).toEqual([first!.id, second!.id]);
+  });
+
+  it('keeps the creation dialog and selection when the name collides with an existing space', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Entrega');
+    const actions = await loadedActions(ports);
+    const [first, second] = useRepositoriesStore.getState().repositories!;
+    useRepositoriesStore.getState().selectMany(new Set([first!.id, second!.id]));
+    useRepositoriesStore.getState().openDialog({ kind: 'createSpace' });
+    const createMany = vi.spyOn(ports.library, 'createSpaceAndAddMany');
+
+    act(() => actions.createSpaceAndAddMany('Entrega', [first!, second!]));
+    await batchFinished();
+    expect(createMany).not.toHaveBeenCalled();
+    expect(useRepositoriesStore.getState().dialog.kind).toBe('createSpace');
+    expect(useRepositoriesStore.getState().openError).toMatchObject({
+      output: 'A space named "Entrega" already exists',
+    });
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
+    expect((await ports.library.read()).spaces[0]?.repos).toEqual([]);
   });
 });

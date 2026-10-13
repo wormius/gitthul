@@ -12,6 +12,7 @@ export type SpaceDropTarget = string;
 interface SpaceDropTargetsProps {
   spaces: readonly Space[];
   alreadyIn: ReadonlySet<SpaceId>;
+  dropEffect?: 'copy' | 'move';
   over: SpaceDropTarget | null;
   onDragOver: (target: SpaceDropTarget) => void;
   onDragLeave: () => void;
@@ -22,6 +23,7 @@ interface SpaceDropTargetsProps {
 export function SpaceDropTargets({
   spaces,
   alreadyIn,
+  dropEffect = 'move',
   over,
   onDragOver,
   onDragLeave,
@@ -31,7 +33,7 @@ export function SpaceDropTargets({
 
   const dragOver = (target: SpaceDropTarget) => (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (event.dataTransfer) event.dataTransfer.dropEffect = dropEffect;
     onDragOver(target);
   };
   const drop = (target: SpaceDropTarget) => (event: DragEvent<HTMLElement>) => {

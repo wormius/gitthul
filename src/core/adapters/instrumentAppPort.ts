@@ -28,10 +28,12 @@ const LABELS: Record<string, Record<string, string>> = {
   library: {
     read: 'leer biblioteca',
     createSpace: 'crear espacio',
+    createSpaceAndAddMany: 'crear espacio con repositorios',
     renameSpace: 'renombrar espacio',
     deleteSpace: 'eliminar espacio',
     moveSpace: 'ordenar espacios',
     addToSpace: 'agregar repositorio al espacio',
+    addManyToSpace: 'agregar repositorios al espacio',
     removeFromSpace: 'retirar repositorio del espacio',
     setSpaceCollapsed: 'plegar o desplegar espacio',
     setView: 'cambiar vista de biblioteca',

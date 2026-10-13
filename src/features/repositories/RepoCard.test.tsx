@@ -20,6 +20,8 @@ function renderCard(selected: boolean, props: Partial<ComponentProps<typeof Repo
   const onOpen = vi.fn();
   const onSelect = vi.fn();
   const onContextSelect = vi.fn();
+  const onDragStart = vi.fn();
+  const onDragEnd = vi.fn();
 
   render(
     <I18nProvider initialLocale="es-MX">
@@ -31,14 +33,21 @@ function renderCard(selected: boolean, props: Partial<ComponentProps<typeof Repo
         onOpen={onOpen}
         onSelect={onSelect}
         onContextSelect={onContextSelect}
-        onDragStart={vi.fn()}
-        onDragEnd={vi.fn()}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
         {...props}
       />
     </I18nProvider>,
   );
 
-  return { card: screen.getByRole('option'), onOpen, onSelect, onContextSelect };
+  return {
+    card: screen.getByRole('option'),
+    onOpen,
+    onSelect,
+    onContextSelect,
+    onDragStart,
+    onDragEnd,
+  };
 }
 
 describe('RepoCard', () => {
@@ -97,6 +106,41 @@ describe('RepoCard', () => {
     expect(onOpen).not.toHaveBeenCalled();
     expect(onSelect).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    { count: 1, effect: 'move', label: 'gitthul' },
+    { count: 3, effect: 'copy', label: '3 repositorios' },
+  ])(
+    'el arrastre de $count repositorios conserva la selección y anuncia el lote',
+    ({ count, effect, label }) => {
+      const { card, onOpen, onSelect, onDragStart, onDragEnd } = renderCard(true, {
+        dragCount: count,
+        canOpenOnClick: count === 1,
+      });
+      const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: '' };
+
+      fireEvent.mouseDown(card, { button: 0 });
+      fireEvent.dragStart(card, { dataTransfer });
+      fireEvent.dragEnd(card);
+      fireEvent.click(card, { button: 0, detail: 1 });
+
+      expect(onDragStart).toHaveBeenCalledOnce();
+      expect(onDragEnd).toHaveBeenCalledOnce();
+      expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', REPOSITORY.id);
+      expect(dataTransfer.effectAllowed).toBe(effect);
+      expect(onSelect).not.toHaveBeenCalled();
+      expect(onOpen).not.toHaveBeenCalled();
+      const [preview] = dataTransfer.setDragImage.mock.calls[0] as [HTMLElement];
+      expect(preview).toHaveAttribute('data-name', label);
+      expect(preview).not.toHaveTextContent(REPOSITORY.path);
+
+      fireEvent.mouseDown(card, { button: 0 });
+      fireEvent.click(card, { button: 0, detail: 1 });
+
+      if (count === 1) expect(onOpen).toHaveBeenCalledOnce();
+      else expect(onSelect).toHaveBeenCalledOnce();
+    },
+  );
 
   it('Espacio modifica la selección y conserva los modificadores sin abrir', () => {
     const { card, onOpen, onSelect } = renderCard(true);

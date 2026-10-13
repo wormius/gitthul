@@ -378,6 +378,17 @@ export function VirtualList<T>({
                   height: row.size,
                   transform: `translateY(${String(row.start - virtualizer.options.scrollMargin)}px)`,
                 }}
+                onMouseDownCapture={(event) => {
+                  if (event.button !== 0 || !(event.target instanceof Element)) return;
+                  const draggable = event.target.closest('[draggable="true"]');
+                  if (draggable === null || !event.currentTarget.contains(draggable)) return;
+
+                  // Un hijo arrastrable puede conservar la selección deteniendo
+                  // el mousedown, pero el cursor de teclado debe seguir a esa fila.
+                  activeIndexRef.current = row.index;
+                  activeKeyRef.current = id;
+                  setActiveIndex(row.index);
+                }}
                 onMouseDown={(event) => {
                   // Solo el clic izquierdo selecciona: el derecho abre el menú
                   // contextual sin cambiar la selección ni disparar el diff.

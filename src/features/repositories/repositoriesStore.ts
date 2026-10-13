@@ -13,12 +13,13 @@ export type RepositoriesDialog =
   | { kind: 'create'; parentPath?: string }
   | { kind: 'clone' }
   | { kind: 'avatar'; repo: RepoSummary }
-  | { kind: 'createSpace'; repo?: RepoSummary }
+  | { kind: 'createSpace'; repo?: RepoSummary; repos?: readonly RepoSummary[] }
   | { kind: 'deleteSpace'; space: Space };
 
 export type SelectionOrigin = 'recent' | 'all' | `space:${SpaceId}`;
 export type RepositoriesDrag =
-  { kind: 'space'; space: SpaceId } | { kind: 'repo'; repo: RepoSummary; from: SpaceId | null };
+  | { kind: 'space'; space: SpaceId }
+  | { kind: 'repo'; repo: RepoSummary; repos: readonly RepoSummary[]; from: SpaceId | null };
 export const RECENT_ORIGIN: SelectionOrigin = 'recent';
 export const ALL_ORIGIN: SelectionOrigin = 'all';
 export const spaceOrigin = (id: SpaceId): SelectionOrigin => `space:${id}`;
@@ -36,6 +37,7 @@ export interface RepositoriesState {
   listError: GitOperationError | null;
   folderError: GitOperationError | null;
   openError: GitOperationError | null;
+  openErrorSource: 'open' | 'space';
   selected: RepoSummary | null;
   selectedIds: ReadonlySet<RepoId>;
   selectedFrom: SelectionOrigin;
@@ -59,7 +61,7 @@ export interface RepositoriesActions {
   setBatchFailures: (failures: readonly RepositoryBatchFailure[]) => void;
   setFilter: (filter: string) => void;
   setFolderError: (error: GitOperationError | null) => void;
-  setOpenError: (error: GitOperationError | null) => void;
+  setOpenError: (error: GitOperationError | null, source?: 'open' | 'space') => void;
   openDialog: (dialog: RepositoriesDialog) => void;
   closeDialog: () => void;
   setRenaming: (id: SpaceId | null) => void;
@@ -76,6 +78,7 @@ function freshState(): RepositoriesState {
     listError: null,
     folderError: null,
     openError: null,
+    openErrorSource: 'open',
     selected: null,
     selectedIds: new Set(),
     selectedFrom: ALL_ORIGIN,
@@ -136,7 +139,7 @@ export const useRepositoriesStore = create<RepositoriesState & RepositoriesActio
       openError: null,
     })),
   setFolderError: (folderError) => set({ folderError }),
-  setOpenError: (openError) => set({ openError }),
+  setOpenError: (openError, openErrorSource = 'open') => set({ openError, openErrorSource }),
   openDialog: (dialog) => set({ dialog }),
   closeDialog: () => set({ dialog: { kind: 'none' } }),
   setRenaming: (renaming) => set({ renaming }),
