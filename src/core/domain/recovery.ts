@@ -23,15 +23,6 @@ export interface RecoverySnapshot {
   configurationWarning?: boolean;
 }
 
-export interface RecoveryPreview {
-  /** Token opaco que vincula la confirmación con el estado inspeccionado del repositorio. */
-  token: string;
-  repository: string;
-  fileCount: number;
-  paths: readonly string[];
-  includesGitState: boolean;
-}
-
 export interface RecoveryCleanupResult {
   removed: number;
   freedBytes: number;

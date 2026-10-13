@@ -269,10 +269,10 @@ export function RefPanel({
                     behind={branch.upstream ? branch.behind : undefined}
                     menu={localBranchMenu(menuContext, branch)}
                     menuLabel={t('working.menu.branch.label', { branch: branch.name })}
-                    drag={{ kind: 'branch', name: branch.name }}
+                    drag={{ kind: 'branch', name: branch.name, ref: branch.id }}
                     colorIndex={refColors.get(branch.name)}
                     onDrop={(source) => {
-                      handleDrop(source, { kind: 'branch', name: branch.name });
+                      handleDrop(source, { kind: 'branch', name: branch.name, ref: branch.id });
                     }}
                     selected={
                       selectedRef?.kind === 'localBranch' && selectedRef.name === branch.name
@@ -368,10 +368,10 @@ export function RefPanel({
                     behind={branch.behind}
                     menu={remoteBranchMenu(menuContext, branch)}
                     menuLabel={t('working.menu.branch.label', { branch: branch.name })}
-                    drag={{ kind: 'branch', name: branch.name }}
+                    drag={{ kind: 'branch', name: branch.name, ref: branch.id }}
                     colorIndex={refColors.get(branch.name)}
                     onDrop={(source) => {
-                      handleDrop(source, { kind: 'branch', name: branch.name });
+                      handleDrop(source, { kind: 'branch', name: branch.name, ref: branch.id });
                     }}
                     selected={
                       selectedRef?.kind === 'remoteBranch' && selectedRef.name === branch.name
@@ -477,10 +477,10 @@ export function RefPanel({
                   nestedInTree
                   menu={tagMenu(menuContext, tag)}
                   menuLabel={t('working.menu.tag.label', { tag: tag.name })}
-                  drag={{ kind: 'tag', name: tag.name }}
+                  drag={{ kind: 'tag', name: tag.name, ref: tag.id }}
                   colorIndex={refColors.get(tag.name)}
                   onDrop={(source) => {
-                    handleDrop(source, { kind: 'tag', name: tag.name });
+                    handleDrop(source, { kind: 'tag', name: tag.name, ref: tag.id });
                   }}
                   selected={selectedRef?.kind === 'tag' && selectedRef.name === tag.name}
                 />

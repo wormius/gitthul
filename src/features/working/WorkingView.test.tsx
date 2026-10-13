@@ -990,6 +990,34 @@ describe('WorkingView', () => {
     }
   });
 
+  it('abre el archivo sin seguimiento guardado usando el origen del stash', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const untracked = (await ports.git.readStatus('gitthul')).unstaged.find(
+      (file) => file.change === 'untracked',
+    );
+    if (!untracked) throw new Error('El fixture necesita un archivo sin seguimiento');
+    const readDiff = vi.spyOn(ports.git, 'readDiff');
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    await screen.findByRole('region', { name: 'Cambios' });
+    await user.click(screen.getByRole('button', { name: 'Crear stash' }));
+    await waitFor(() => expect(useWorkingStore.getState().pendingWrites).toBe(0));
+    const stash = (await ports.git.readRefs('gitthul')).stashes[0]!;
+    const panel = await screen.findByRole('region', {
+      name: `Detalles del commit ${stash.sha.slice(0, 7)}`,
+    });
+    await user.dblClick(within(panel).getByText(untracked.path.split('/').at(-1)!));
+    expect(await screen.findByRole('region', { name: /^Diff de / })).toBeVisible();
+    expect(useWorkingStore.getState().diff?.source).toEqual({ kind: 'stash', sha: stash.sha });
+    expect(readDiff).toHaveBeenCalledWith(
+      'gitthul',
+      expect.objectContaining({ path: untracked.path, source: { kind: 'stash', sha: stash.sha } }),
+      expect.anything(),
+    );
+    await screen.findByText(`En el stash ${stash.sha.slice(0, 7)}`);
+  });
+
   it('descartar un guardado exige confirmar el mismo OID que mostró la fila', async () => {
     const user = userEvent.setup();
     const ports = makePorts();
@@ -1826,6 +1854,56 @@ describe('WorkingView', () => {
     ).toBeVisible();
   });
 
+  it('tres commits adyacentes de distintas líneas de historia comparan sus extremos', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const commits = (await ports.git.readCommits('gitthul', { limit: 3 })).commits;
+    const [newest, branchTip, oldest] = commits;
+
+    if (!newest || !branchTip || !oldest) throw new Error('El fixture necesita tres commits');
+
+    // El merge aparece encima de su segundo padre; la fila adyacente no
+    // continúa su primer padre y no forma una secuencia combinable con él.
+    const readCommits = ports.git.readCommits;
+    vi.spyOn(ports.git, 'readCommits').mockImplementation(async (repoId, page, query) => {
+      const result = await readCommits(repoId, page, query);
+      return {
+        ...result,
+        commits: result.commits.map((commit) =>
+          commit.sha === newest.sha ? { ...commit, parents: [oldest.sha, branchTip.sha] } : commit,
+        ),
+      };
+    });
+
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+
+    const grid = await screen.findByRole('grid', { name: 'Commits de gitthul' });
+    const rows = commits.map((commit) =>
+      within(grid).getByText(shortSha(commit.sha)).closest<HTMLElement>('[role="row"]'),
+    );
+    const [first, second, third] = rows;
+
+    if (!first || !second || !third) throw new Error('La tabla no montó suficientes filas');
+
+    fireEvent.mouseDown(first, { button: 0 });
+    fireEvent.mouseDown(second, { button: 0, ctrlKey: true });
+    fireEvent.mouseDown(third, { button: 0, ctrlKey: true });
+
+    expect(
+      await screen.findByRole('region', {
+        name: `Comparar ${shortSha(oldest.sha)} con ${shortSha(newest.sha)}`,
+      }),
+    ).toBeVisible();
+    expect(useWorkingStore.getState().compare).toMatchObject({
+      kind: 'refs',
+      source: { ref: oldest.sha },
+      target: { ref: newest.sha },
+      trigger: 'selection',
+    });
+    expect(screen.queryByRole('region', { name: /^Diff combinado de 3 commits/ })).toBeNull();
+  });
+
   it.each([
     ['commit y stash', 'commit-stash'],
     ['stash y WIP', 'stash-wip'],
@@ -1960,6 +2038,97 @@ describe('WorkingView', () => {
     expect(
       screen.queryByRole('region', { name: 'Historial de docs/inventario.md' }),
     ).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])(
+    'el botón del diff alterna el historial sin perder su comparación (amend: %s)',
+    async (amend) => {
+      const user = userEvent.setup();
+      const ports = makePorts();
+      const readHistory = vi.spyOn(ports.git, 'readFileHistory');
+      renderApp(ports);
+      await openRepo(user, GITTHUL_PATH);
+      const tracking = await screen.findByRole('region', { name: 'Cambios' });
+      await user.click(within(tracking).getByText('inventario.md'));
+      const diff = await screen.findByRole('region', { name: 'Diff de docs/inventario.md' });
+      if (amend) act(() => useWorkingStore.getState().setCommitDraft({ amend }));
+      const button = within(diff).getByRole('button', {
+        name: 'Ver el historial de docs/inventario.md',
+      });
+      expect(button).toHaveAttribute('aria-pressed', 'false');
+      await user.click(button);
+
+      const history = await screen.findByRole('region', {
+        name: 'Historial de docs/inventario.md',
+      });
+      expect(diff).toBeVisible();
+      expect(useWorkingStore.getState().diff?.source).toEqual({ kind: 'worktree' });
+      expect(readHistory).toHaveBeenCalledWith('gitthul', 'docs/inventario.md', expect.anything());
+      const closeHistory = within(diff).getByRole('button', {
+        name: 'Cerrar el historial de docs/inventario.md',
+      });
+      expect(closeHistory).toHaveAttribute('aria-pressed', 'true');
+
+      await user.click(closeHistory);
+      expect(history).not.toBeInTheDocument();
+      expect(diff).toBeVisible();
+      expect(useWorkingStore.getState().diff?.source).toEqual({ kind: 'worktree' });
+      await user.click(button);
+      const reopenedHistory = await screen.findByRole('region', {
+        name: 'Historial de docs/inventario.md',
+      });
+      const versions = await within(reopenedHistory).findAllByRole('listitem');
+      await user.click(within(versions[1] as HTMLElement).getByRole('button'));
+      expect(useWorkingStore.getState().diff?.source.kind).toBe('commit');
+      expect(within(versions[1] as HTMLElement).getByRole('button')).toHaveAttribute(
+        'aria-current',
+        'true',
+      );
+      await user.click(
+        within(diff).getByRole('button', { name: 'Cerrar el diff de docs/inventario.md' }),
+      );
+      expect(reopenedHistory).toBeVisible();
+    },
+  );
+
+  it('aplaza los avisos del watcher durante stash y refresca al terminar', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const createStash = ports.git.createStash.bind(ports.git);
+    let finish: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const create = vi.spyOn(ports.git, 'createStash').mockImplementation(async (...args) => {
+      await gate;
+      return createStash(...args);
+    });
+    const readStatus = vi.spyOn(ports.git, 'readStatus');
+    let notify: ((change: { worktree: boolean; git: boolean }) => void) | undefined;
+    vi.spyOn(ports.git, 'watchRepository').mockImplementation((_id, listener) => {
+      notify = listener;
+      return Promise.resolve(() => undefined);
+    });
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    await screen.findByRole('region', { name: 'Cambios' });
+    await user.click(screen.getByRole('button', { name: 'Crear stash' }));
+    expect(useWorkingStore.getState().pendingWrites).toBe(1);
+    const before = readStatus.mock.calls.length;
+    act(() => {
+      notify?.({ worktree: true, git: false });
+      notify?.({ worktree: true, git: true });
+    });
+    expect(readStatus).toHaveBeenCalledTimes(before);
+    await act(async () => {
+      finish();
+      await gate;
+    });
+    await waitFor(() => expect(useWorkingStore.getState().pendingWrites).toBe(0));
+    await waitFor(() => expect(useWorkingStore.getState().context?.hasWip).toBe(false));
+    expect(create).toHaveBeenCalledOnce();
+    expect(readStatus.mock.calls.length).toBeGreaterThan(before);
+    expect(screen.getByRole('button', { name: 'Crear stash' })).toBeDisabled();
   });
 
   it('pasar un archivo al staging lo mueve de Cambios a Stage sin recargar la vista', async () => {
@@ -2637,6 +2806,56 @@ describe('WorkingView', () => {
     });
   });
 
+  it.each([false, true])(
+    'un stash completo descarta una lectura anterior del watcher (metadatos: %s)',
+    async (metadata) => {
+      const user = userEvent.setup();
+      const ports = makePorts();
+      const readStatus = ports.git.readStatus.bind(ports.git);
+      const initial = await readStatus('gitthul');
+      const untracked = initial.unstaged.filter((file) => file.change === 'untracked');
+      expect(untracked.length).toBeGreaterThan(0);
+      const stale: WorkingStatus = { ...initial, staged: [], unstaged: untracked, conflicted: [] };
+      let delayNext = false;
+      let finish: ((value: WorkingStatus) => void) | undefined;
+      vi.spyOn(ports.git, 'readStatus').mockImplementation((id, query) => {
+        if (!delayNext) return readStatus(id, query);
+        delayNext = false;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      });
+      let notify: ((change: { worktree: boolean; git: boolean }) => void) | undefined;
+      vi.spyOn(ports.git, 'watchRepository').mockImplementation((_id, listener) => {
+        notify = listener;
+        return Promise.resolve(() => undefined);
+      });
+      const create = vi.spyOn(ports.git, 'createStash');
+      renderApp(ports);
+      await openRepo(user, GITTHUL_PATH);
+      await screen.findByRole('region', { name: 'Cambios' });
+      delayNext = true;
+      act(() => notify?.({ worktree: true, git: metadata }));
+      await waitFor(() => expect(finish).toBeDefined());
+
+      await user.click(screen.getByRole('button', { name: 'Crear stash' }));
+      await waitFor(() => expect(useWorkingStore.getState().pendingWrites).toBe(0));
+      expect(create).toHaveBeenCalledOnce();
+      expect(create).toHaveBeenCalledWith(
+        'gitthul',
+        expect.any(String),
+        expect.objectContaining({ includeUntracked: true }),
+      );
+      expect((await readStatus('gitthul')).clean).toBe(true);
+      await act(async () => {
+        finish?.(stale);
+        await Promise.resolve();
+      });
+      expect(useWorkingStore.getState().context?.hasWip).toBe(false);
+      expect(screen.getByRole('button', { name: 'Crear stash' })).toBeDisabled();
+    },
+  );
+
   it('un Pop conflictivo abre Resolver sin esperar al watcher y solo se ejecuta una vez', async () => {
     const user = userEvent.setup();
     const ports = makePorts();
@@ -2919,6 +3138,100 @@ describe('WorkingView', () => {
     await user.click(within(details).getByRole('radio', { name: 'Lista' }));
     expect(within(details).queryByRole('checkbox', { name: 'Todos los archivos' })).toBeNull();
   });
+
+  it.each([false, true])(
+    'reabrir el historial desde Ver todos conserva el filtro y los toggles de carpetas (todo expandido: %s)',
+    async (treeExpanded) => {
+      const ports = makePorts();
+      const readCommit = ports.git.readCommit;
+      vi.spyOn(ports.git, 'readCommit').mockImplementation(async (...args) => {
+        const details = await readCommit(...args);
+        return {
+          ...details,
+          files: details.files.filter((file) => file.path !== 'docs/inventario.md'),
+        };
+      });
+      const pendingTrees: Array<(tree: Awaited<ReturnType<AppPorts['git']['readTree']>>) => void> =
+        [];
+      const readTree = vi.spyOn(ports.git, 'readTree').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            pendingTrees.push(resolve);
+          }),
+      );
+      const readHistory = vi.spyOn(ports.git, 'readFileHistory');
+      const user = userEvent.setup();
+      renderApp(ports);
+      await openRepo(user, GITTHUL_PATH);
+      const grid = await screen.findByRole('grid', { name: 'Commits de gitthul' });
+      const row = within(grid).getAllByRole('row').slice(4)[0];
+      if (!row) throw new Error('La tabla no montó ninguna fila de commit');
+      await act(async () => {
+        useWorkingStore.getState().setFileTreeExpanded(treeExpanded);
+        fireEvent.mouseDown(row, { button: 0 });
+        await Promise.resolve();
+      });
+
+      for (let cycle = 0; cycle < 3; cycle += 1) {
+        const details = await screen.findByRole('region', { name: /^Detalles del commit / });
+        if (cycle === 0) await user.click(within(details).getByRole('radio', { name: 'Árbol' }));
+        const filter = within(details).getByRole('searchbox', {
+          name: 'Filtrar los archivos por ruta',
+        });
+        expect(filter).toHaveValue(cycle === 0 ? '' : 'inventario.md');
+        const showAll = within(details).getByRole('checkbox', { name: 'Todos los archivos' });
+        expect(showAll).not.toBeChecked();
+        await user.click(showAll);
+        if (cycle === 0) await user.type(filter, 'inventario.md');
+        expect(within(details).queryByText('inventario.md')).not.toBeInTheDocument();
+        expect(readTree).toHaveBeenCalledTimes(cycle + 1);
+        const resolveTree = pendingTrees.shift();
+        if (!resolveTree) throw new Error('No se inició la lectura del árbol');
+        await act(async () => {
+          resolveTree([{ path: 'docs/inventario.md', kind: 'file' }]);
+          await Promise.resolve();
+        });
+
+        const folder = await within(details).findByRole('treeitem', { name: /^docs/ });
+        expect(folder).toHaveAttribute('aria-expanded', String(treeExpanded));
+        const arrow = folder.firstElementChild;
+        if (!arrow) throw new Error('La carpeta no tiene flecha');
+        // Primero abre el historial. Los toggles se prueban al volver, cuando
+        // el panel se monta otra vez con el filtro que ya estaba escrito.
+        if (cycle === 0) {
+          if (!treeExpanded) await user.click(arrow);
+        } else {
+          if (treeExpanded) await user.click(within(folder).getByText('docs'));
+          expect(folder).toHaveAttribute('aria-expanded', 'false');
+          expect(within(details).queryByText('inventario.md')).not.toBeInTheDocument();
+          await user.click(arrow);
+          expect(folder).toHaveAttribute('aria-expanded', 'true');
+          expect(within(details).getByText('inventario.md')).toBeVisible();
+          await user.click(within(folder).getByText('docs'));
+          expect(folder).toHaveAttribute('aria-expanded', 'false');
+          await user.click(within(folder).getByText('docs'));
+        }
+        expect(folder).toHaveAttribute('aria-expanded', 'true');
+        expect(within(details).getByText('inventario.md')).toBeVisible();
+        expect(useWorkingStore.getState().fileTreeExpanded).toBe(treeExpanded);
+
+        fireEvent.contextMenu(within(details).getByText('inventario.md'));
+        await user.click(await screen.findByRole('menuitem', { name: 'Ver el historial' }));
+        const history = await screen.findByRole('region', {
+          name: 'Historial de docs/inventario.md',
+        });
+        await waitFor(() => expect(readHistory).toHaveBeenCalledTimes(cycle + 1));
+        expect((await within(history).findAllByRole('listitem')).length).toBeGreaterThan(0);
+        await user.click(
+          within(history).getByRole('button', {
+            name: 'Cerrar el historial de docs/inventario.md',
+          }),
+        );
+        expect(history).not.toBeInTheDocument();
+        expect(useWorkingStore.getState().fileFilter).toBe('inventario.md');
+      }
+    },
+  );
 
   it('las listas de cambios y staging no ofrecen Ver todos en modo árbol', async () => {
     const ports = makePorts();

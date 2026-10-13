@@ -4,6 +4,7 @@
 //! unificado solo aporta hunks: sus cabeceras humanas nunca se usan para
 //! recuperar rutas.
 
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Component, Path};
@@ -38,7 +39,8 @@ pub enum DiffSource {
     Worktree,
     Index,
     Commit { sha: String },
-    Range { from: String, to: String },
+    Stash { sha: String },
+    Range { from: Option<String>, to: String },
     WorkingRange { from: String },
 }
 
@@ -48,6 +50,9 @@ enum ResolvedSource {
     Index,
     Commit {
         before: Option<String>,
+        after: String,
+    },
+    Stash {
         after: String,
     },
     Range {
@@ -80,6 +85,18 @@ pub struct FileDiff {
     pub(super) source: DiffSource,
     pub(super) precondition: DiffPrecondition,
     pub(super) content: DiffContent,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileChange {
+    path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    previous_path: Option<String>,
+    change: ChangeType,
+    binary: bool,
+    insertions: u64,
+    deletions: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -207,6 +224,148 @@ struct NumStat {
     changed_lines: u64,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct FileStats {
+    binary: bool,
+    insertions: u64,
+    deletions: u64,
+}
+
+/// Lists the net changes of exactly the source used by the file viewer.
+/// Histories may differ while their two endpoint trees are identical.
+pub fn read_files_cancellable(
+    repository: &Path,
+    source: &DiffSource,
+    cancelled: &AtomicBool,
+) -> Result<Vec<FileChange>, ReadDiffError> {
+    ensure_not_cancelled(cancelled)?;
+    let resolved = resolve_source(repository, source)?;
+    let raw = raw_diff_with_identity(repository, &resolved, cancelled)?;
+    let mut args = diff_args(&resolved, "--numstat");
+    args.extend([
+        "-z".to_owned(),
+        "--no-ext-diff".to_owned(),
+        "--no-textconv".to_owned(),
+        "--find-renames".to_owned(),
+        "--find-copies".to_owned(),
+        "--".to_owned(),
+    ]);
+    let borrowed = args.iter().map(String::as_str).collect::<Vec<_>>();
+    let output = git_output_cancellable(repository, &borrowed, false, cancelled)?;
+    let stats = parse_file_stats(&output.stdout)?;
+    let mut files = Vec::new();
+    let mut seen = HashSet::new();
+    for (path, entry) in collect_raw_entries(&raw.stdout)? {
+        ensure_not_cancelled(cancelled)?;
+        if !seen.insert(path.clone()) {
+            continue;
+        }
+        let stats = stats.get(&path).copied().unwrap_or_default();
+        files.push(FileChange {
+            path: strict_path(&path)?,
+            previous_path: entry
+                .previous_path
+                .as_deref()
+                .map(strict_path)
+                .transpose()?,
+            change: entry.change,
+            binary: stats.binary,
+            insertions: stats.insertions,
+            deletions: stats.deletions,
+        });
+    }
+    if is_worktree_source(&resolved) {
+        let untracked = git_output_cancellable(
+            repository,
+            &["ls-files", "--others", "--exclude-standard", "-z", "--"],
+            false,
+            cancelled,
+        )?;
+        for path in untracked
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|path| !path.is_empty())
+        {
+            ensure_not_cancelled(cancelled)?;
+            let path = strict_path(path)?;
+            if let Some(position) = files.iter().position(|file| file.path == path) {
+                // A path removed from the index can still exist in the starting
+                // revision. Compare its actual working bytes instead of listing
+                // Git's index-based deletion and an unrelated untracked addition.
+                let diff = read_cancellable(
+                    repository,
+                    DiffRequest {
+                        path: path.clone(),
+                        source: source.clone(),
+                        context: Some(0),
+                        ignore_whitespace: false,
+                        encoding: None,
+                    },
+                    cancelled,
+                )?;
+                if diff.change == ChangeType::Unmodified {
+                    files.remove(position);
+                } else {
+                    let (binary, insertions, deletions) = match diff.content {
+                        DiffContent::Binary { .. } => (true, 0, 0),
+                        DiffContent::Text { hunks, .. } => (
+                            false,
+                            hunks
+                                .iter()
+                                .flat_map(|hunk| &hunk.lines)
+                                .filter(|line| line.kind == DiffLineKind::Added)
+                                .count() as u64,
+                            hunks
+                                .iter()
+                                .flat_map(|hunk| &hunk.lines)
+                                .filter(|line| line.kind == DiffLineKind::Removed)
+                                .count() as u64,
+                        ),
+                    };
+                    files[position] = FileChange {
+                        path,
+                        previous_path: diff.previous_path,
+                        change: diff.change,
+                        binary,
+                        insertions,
+                        deletions,
+                    };
+                }
+                continue;
+            }
+            let absolute = repository.join(&path);
+            let metadata = fs::symlink_metadata(&absolute).map_err(|_| ReadDiffError::GitFailed)?;
+            let content = if metadata.file_type().is_symlink() {
+                let target = fs::read_link(&absolute).map_err(|_| ReadDiffError::GitFailed)?;
+                path_bytes(&target)?.to_vec()
+            } else {
+                let mut content = Vec::new();
+                fs::File::open(&absolute)
+                    .map_err(|_| ReadDiffError::GitFailed)?
+                    .take(MAX_TEXT_BYTES + 1)
+                    .read_to_end(&mut content)
+                    .map_err(|_| ReadDiffError::GitFailed)?;
+                content
+            };
+            let binary = encoding::is_binary(&content);
+            files.push(FileChange {
+                path,
+                previous_path: None,
+                change: ChangeType::Untracked,
+                binary,
+                insertions: if binary || content.len() as u64 > MAX_TEXT_BYTES {
+                    0
+                } else {
+                    content.split_inclusive(|byte| *byte == b'\n').count() as u64
+                },
+                deletions: 0,
+            });
+        }
+    }
+    ensure_not_cancelled(cancelled)?;
+    Ok(files)
+}
+
 pub fn read(repository: &Path, request: DiffRequest) -> Result<FileDiff, ReadDiffError> {
     read_cancellable(repository, request, &AtomicBool::new(false))
 }
@@ -224,9 +383,10 @@ pub fn read_cancellable(
     let raw = raw_diff_for_path(repository, &resolved, &request.path, cancelled)?;
     ensure_not_cancelled(cancelled)?;
     let mut entry = parse_raw_entry(&raw.stdout, path)?;
-    if entry
-        .as_ref()
-        .is_some_and(|entry| entry.change == ChangeType::Added)
+    if !matches!(resolved, ResolvedSource::Stash { .. })
+        && entry
+            .as_ref()
+            .is_some_and(|entry| entry.change == ChangeType::Added)
     {
         let identity = raw_diff_with_identity(repository, &resolved, cancelled)?;
         ensure_not_cancelled(cancelled)?;
@@ -238,8 +398,7 @@ pub fn read_cancellable(
     }
     // An empty historical diff means the path did not change in that commit.
     // Only a path absent from the index can be untracked in a live comparison.
-    let untracked = entry.is_none()
-        && is_worktree_source(&resolved)
+    let outside_index = is_worktree_source(&resolved)
         && fs::symlink_metadata(repository.join(&request.path)).is_ok()
         && git_output_cancellable(
             repository,
@@ -249,6 +408,12 @@ pub fn read_cancellable(
         )?
         .stdout
         .is_empty();
+    let untracked = entry.is_none() && outside_index;
+    let recreated = outside_index
+        && matches!(resolved, ResolvedSource::WorkingRange { .. })
+        && entry
+            .as_ref()
+            .is_some_and(|entry| entry.change == ChangeType::Deleted);
 
     let mut entry = entry.unwrap_or(RawEntry {
         previous_path: None,
@@ -264,6 +429,25 @@ pub fn read_cancellable(
     if is_worktree_source(&resolved) {
         entry.after = worktree_snapshot(repository, &request.path, entry.after.as_ref())?;
         ensure_not_cancelled(cancelled)?;
+    }
+    if recreated {
+        entry.change =
+            if entry.before == entry.after {
+                ChangeType::Unmodified
+            } else if entry.before.as_ref().zip(entry.after.as_ref()).is_some_and(
+                |(before, after)| {
+                    before.mode != after.mode
+                        && !matches!(
+                            (before.mode, after.mode),
+                            (GitFileMode::Regular, GitFileMode::Executable)
+                                | (GitFileMode::Executable, GitFileMode::Regular)
+                        )
+                },
+            ) {
+                ChangeType::TypeChanged
+            } else {
+                ChangeType::Modified
+            };
     }
 
     let previous_path = entry
@@ -355,7 +539,8 @@ pub fn read_cancellable(
                 encoding::decode(&after, requested).map_err(ReadDiffError::UnsupportedEncoding)?;
             let shown = if after.is_empty() { &old } else { &new };
             // Only the original UTF-8 patch can safely be applied by Git by hunk/line.
-            let supports_partial = old.encoding == "utf-8"
+            let supports_partial = !recreated
+                && old.encoding == "utf-8"
                 && new.encoding == "utf-8"
                 && !old.errors
                 && !new.errors
@@ -365,7 +550,7 @@ pub fn read_cancellable(
                     .all(|side| {
                         matches!(side.mode, GitFileMode::Regular | GitFileMode::Executable)
                     });
-            let patch = if supports_partial {
+            let patch = if supports_partial && !matches!(resolved, ResolvedSource::Stash { .. }) {
                 patch_with_source(
                     repository,
                     &request,
@@ -496,8 +681,11 @@ fn resolve_source(repository: &Path, source: &DiffSource) -> Result<ResolvedSour
     match source {
         DiffSource::Worktree => Ok(ResolvedSource::Worktree),
         DiffSource::Index => Ok(ResolvedSource::Index),
-        DiffSource::Commit { sha } => {
+        DiffSource::Commit { sha } | DiffSource::Stash { sha } => {
             let after = resolve_commit(repository, sha)?;
+            if matches!(source, DiffSource::Stash { .. }) {
+                return Ok(ResolvedSource::Stash { after });
+            }
             let repo = gix::open(repository).map_err(|_| ReadDiffError::GitFailed)?;
             let id = gix::ObjectId::from_hex(after.as_bytes())
                 .map_err(|_| ReadDiffError::RevisionNotFound(sha.clone()))?;
@@ -512,7 +700,14 @@ fn resolve_source(repository: &Path, source: &DiffSource) -> Result<ResolvedSour
             Ok(ResolvedSource::Commit { before, after })
         }
         DiffSource::Range { from, to } => Ok(ResolvedSource::Range {
-            before: resolve_commit(repository, from)?,
+            before: match from {
+                Some(from) => resolve_commit(repository, from)?,
+                None => output_text(&git_output(
+                    repository,
+                    &["hash-object", "-t", "tree", "--stdin"],
+                    false,
+                )?)?,
+            },
             after: resolve_commit(repository, to)?,
         }),
         DiffSource::WorkingRange { from } => Ok(ResolvedSource::WorkingRange {
@@ -552,6 +747,12 @@ fn raw_diff_for_path(
     path: &str,
     cancelled: &AtomicBool,
 ) -> Result<Output, ReadDiffError> {
+    if matches!(source, ResolvedSource::Stash { .. }) {
+        // Git combines the tracked tree and untracked parent before deciding
+        // identity. Comparing only the third parent invents tracked deletions
+        // and false renames. Stash show has no pathspec; select by raw -z below.
+        return raw_diff_with_identity(repository, source, cancelled);
+    }
     let mut args = diff_args(source, "--raw");
     args.extend([
         "-z".to_owned(),
@@ -657,9 +858,21 @@ fn numstat(
     if no_index {
         owned.push("/dev/null".to_owned());
     }
-    owned.extend(paths.iter().map(|path| (*path).to_owned()));
+    if !matches!(source, ResolvedSource::Stash { .. }) {
+        owned.extend(paths.iter().map(|path| (*path).to_owned()));
+    }
     let args = owned.iter().map(String::as_str).collect::<Vec<_>>();
     let output = git_output_cancellable(repository, &args, no_index, cancelled)?;
+    if matches!(source, ResolvedSource::Stash { .. }) {
+        let stats = parse_file_stats(&output.stdout)?
+            .get(request.path.as_bytes())
+            .copied()
+            .unwrap_or_default();
+        return Ok(NumStat {
+            binary: stats.binary,
+            changed_lines: stats.insertions + stats.deletions,
+        });
+    }
     parse_numstat(&output.stdout)
 }
 
@@ -667,6 +880,13 @@ fn diff_args(source: &ResolvedSource, format: &str) -> Vec<String> {
     match source {
         ResolvedSource::Worktree => vec!["diff".to_owned(), format.to_owned()],
         ResolvedSource::Index => vec!["diff".to_owned(), "--cached".to_owned(), format.to_owned()],
+        ResolvedSource::Stash { after, .. } => vec![
+            "stash".to_owned(),
+            "show".to_owned(),
+            "--include-untracked".to_owned(),
+            format.to_owned(),
+            after.clone(),
+        ],
         ResolvedSource::Commit {
             before: Some(before),
             after,
@@ -781,8 +1001,15 @@ fn git_command(repository: &Path) -> Command {
 }
 
 fn parse_raw_entry(bytes: &[u8], wanted: &[u8]) -> Result<Option<RawEntry>, ReadDiffError> {
+    Ok(collect_raw_entries(bytes)?
+        .into_iter()
+        .find_map(|(path, entry)| (path == wanted).then_some(entry)))
+}
+
+fn collect_raw_entries(bytes: &[u8]) -> Result<Vec<(Vec<u8>, RawEntry)>, ReadDiffError> {
     let fields = bytes.split(|byte| *byte == 0).collect::<Vec<_>>();
     let mut index = 0;
+    let mut entries = Vec::new();
     while index < fields.len() && !fields[index].is_empty() {
         let header = fields[index];
         index += 1;
@@ -804,17 +1031,49 @@ fn parse_raw_entry(bytes: &[u8], wanted: &[u8]) -> Result<Option<RawEntry>, Read
         } else {
             (None, first_path)
         };
-        if destination != wanted {
-            continue;
-        }
-        return Ok(Some(RawEntry {
-            previous_path,
-            change: change_type(code)?,
-            before: snapshot(parts[2], parts[0])?,
-            after: snapshot(parts[3], parts[1])?,
-        }));
+        entries.push((
+            destination.to_vec(),
+            RawEntry {
+                previous_path,
+                change: change_type(code)?,
+                before: snapshot(parts[2], parts[0])?,
+                after: snapshot(parts[3], parts[1])?,
+            },
+        ));
     }
-    Ok(None)
+    Ok(entries)
+}
+
+fn parse_file_stats(bytes: &[u8]) -> Result<HashMap<Vec<u8>, FileStats>, ReadDiffError> {
+    let fields = bytes.split(|byte| *byte == 0).collect::<Vec<_>>();
+    let mut stats = HashMap::new();
+    let mut index = 0;
+    while index < fields.len() && !fields[index].is_empty() {
+        let mut parts = fields[index].splitn(3, |byte| *byte == b'\t');
+        index += 1;
+        let added = parts.next().ok_or(ReadDiffError::MalformedOutput)?;
+        let removed = parts.next().ok_or(ReadDiffError::MalformedOutput)?;
+        let inline = parts.next().ok_or(ReadDiffError::MalformedOutput)?;
+        let path = if inline.is_empty() {
+            let destination = fields
+                .get(index + 1)
+                .ok_or(ReadDiffError::MalformedOutput)?;
+            index += 2;
+            *destination
+        } else {
+            inline
+        };
+        let binary = added == b"-" && removed == b"-";
+        stats.insert(
+            path.to_vec(),
+            FileStats {
+                binary,
+                insertions: if binary { 0 } else { parse_u64(added)? },
+                deletions: if binary { 0 } else { parse_u64(removed)? },
+            },
+        );
+    }
+    Ok(stats)
 }
 
 fn snapshot(oid: &[u8], mode: &[u8]) -> Result<Option<DiffSideSnapshot>, ReadDiffError> {
@@ -1211,14 +1470,15 @@ mod tests {
     use tempfile::TempDir;
 
     use super::{
-        read, read_cancellable, ChangeType, DiffContent, DiffLineKind, DiffRequest, DiffSource,
-        GitFileMode, ReadDiffError,
+        read, read_cancellable, read_files_cancellable, ChangeType, DiffContent, DiffLineKind,
+        DiffRequest, DiffSource, GitFileMode, ReadDiffError,
     };
 
     fn repository() -> TempDir {
         let temporary = tempfile::tempdir().unwrap();
         git(temporary.path(), &["init", "--quiet"]);
         git(temporary.path(), &["config", "user.name", "GitThul"]);
+        git(temporary.path(), &["config", "core.autocrlf", "false"]);
         git(
             temporary.path(),
             &["config", "user.email", "gitthul@example.invalid"],
@@ -1280,6 +1540,414 @@ mod tests {
             ignore_whitespace: false,
             encoding: None,
         }
+    }
+
+    #[test]
+    fn stash_untracked_files_read_their_saved_blobs_and_pop_restores_every_side() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("tracked.txt"), "base\n").unwrap();
+        fs::write(path.join("deleted.txt"), "deleted base\n").unwrap();
+        fs::write(path.join("keep.txt"), "same\n").unwrap();
+        fs::write(path.join("old-name.txt"), "rename base\n").unwrap();
+        fs::write(path.join(".gitignore"), "ignored.txt\n").unwrap();
+        git(path, &["add", "."]);
+        git(path, &["commit", "-qm", "base"]);
+        fs::write(path.join("tracked.txt"), "staged\n").unwrap();
+        git(path, &["add", "tracked.txt"]);
+        fs::write(path.join("tracked.txt"), "working\n").unwrap();
+        fs::remove_file(path.join("deleted.txt")).unwrap();
+        git(path, &["mv", "old-name.txt", "renamed.txt"]);
+        fs::write(path.join("ignored.txt"), "must stay\n").unwrap();
+        fs::create_dir(path.join("folder")).unwrap();
+        let new_files: &[(&str, &[u8])] = &[
+            ("folder/nuevo [1].txt", b"new text\nsecond line"),
+            ("empty.txt", b""),
+            ("copy.txt", b"same\n"),
+            ("image.png", b"\x89PNG\0\x01\x02\x03"),
+            ("utf16.txt", b"\xff\xfeh\0o\0l\0a\0\n\0"),
+        ];
+        for (name, bytes) in new_files {
+            fs::write(path.join(name), bytes).unwrap();
+        }
+        let options = serde_json::from_value(serde_json::json!({
+            "includeUntracked": true,
+            "precondition": super::super::status::reset_precondition(path),
+        }))
+        .unwrap();
+        let undo = super::super::undo::UndoStacks::default();
+        crate::git::create_stash_with_recovery("fixture", path, &undo, "saved", &options).unwrap();
+        let sha = git_text(path, &["rev-parse", "refs/stash"]);
+        let source = DiffSource::Stash { sha: sha.clone() };
+        assert_eq!(git_text(path, &["status", "--porcelain"]), "");
+        assert!(path.join("ignored.txt").exists());
+        assert_eq!(git_text(path, &["stash", "list"]).lines().count(), 1);
+        let files = read_files_cancellable(path, &source, &AtomicBool::new(false)).unwrap();
+        assert_eq!(files.len(), new_files.len() + 3);
+
+        for (name, bytes) in new_files {
+            assert!(!path.join(name).exists());
+            assert!(files
+                .iter()
+                .any(|file| file.path == *name && file.change == ChangeType::Added));
+            let saved = read(path, request(name, source.clone())).unwrap();
+            assert_eq!(saved.change, ChangeType::Added, "{name}");
+            assert_eq!(saved.precondition.before, None);
+            let blob = saved.precondition.after.as_ref().unwrap();
+            assert_eq!(
+                super::git_output(path, &["cat-file", "blob", &blob.oid], false)
+                    .unwrap()
+                    .stdout,
+                *bytes
+            );
+            let contents =
+                super::super::files::read_blob_encoded(path, (*name).into(), &blob.oid, None)
+                    .unwrap();
+            let contents = serde_json::to_value(contents).unwrap();
+            assert_eq!(contents["size"], bytes.len());
+            match (&saved.content, *name) {
+                (
+                    DiffContent::Binary {
+                        old_size, new_size, ..
+                    },
+                    "image.png",
+                ) => {
+                    assert_eq!(*old_size, None);
+                    assert_eq!(*new_size, Some(bytes.len() as u64));
+                    assert_eq!(contents["binary"], true);
+                }
+                (DiffContent::Text { hunks, .. }, "empty.txt") => assert!(hunks.is_empty()),
+                (
+                    DiffContent::Text {
+                        encoding, hunks, ..
+                    },
+                    "utf16.txt",
+                ) => {
+                    assert_eq!(*encoding, "utf-16le");
+                    assert_eq!(contents["text"], "hola\n");
+                    assert!(!hunks.is_empty());
+                }
+                (DiffContent::Text { hunks, .. }, _) => assert!(!hunks.is_empty()),
+                other => panic!("unexpected stash content: {other:?}"),
+            }
+            // Today's disk contents cannot replace the immutable saved version.
+            fs::create_dir_all(path.join(name).parent().unwrap()).unwrap();
+            fs::write(path.join(name), b"later content\n").unwrap();
+            let again = read(path, request(name, source.clone())).unwrap();
+            assert_eq!(again.precondition, saved.precondition);
+            assert_eq!(
+                serde_json::to_value(again.content).unwrap(),
+                serde_json::to_value(saved.content).unwrap()
+            );
+            fs::remove_file(path.join(name)).unwrap();
+        }
+        let tracked = read(path, request("tracked.txt", source.clone())).unwrap();
+        assert_eq!(tracked.change, ChangeType::Modified);
+        let renamed = read(path, request("renamed.txt", source.clone())).unwrap();
+        assert_eq!(renamed.change, ChangeType::Renamed);
+        assert_eq!(renamed.previous_path.as_deref(), Some("old-name.txt"));
+        assert_eq!(
+            read(path, request("deleted.txt", source)).unwrap().change,
+            ChangeType::Deleted
+        );
+        let pop = serde_json::from_value(serde_json::json!({
+            "drop": true,
+            "expectedStash": sha,
+            "precondition": super::super::status::reset_precondition(path),
+        }))
+        .unwrap();
+        crate::git::apply_stash_with_recovery("fixture", path, &undo, 0, &pop).unwrap();
+        for (name, bytes) in new_files {
+            assert_eq!(fs::read(path.join(name)).unwrap(), *bytes);
+        }
+        assert_eq!(
+            fs::read_to_string(path.join("tracked.txt")).unwrap(),
+            "working\n"
+        );
+        assert_eq!(git_text(path, &["show", ":tracked.txt"]), "staged");
+        assert!(!path.join("deleted.txt").exists());
+        assert!(!path.join("old-name.txt").exists());
+        assert_eq!(
+            fs::read_to_string(path.join("renamed.txt")).unwrap(),
+            "rename base\n"
+        );
+        assert_eq!(git_text(path, &["stash", "list"]), "");
+        assert_eq!(
+            read(path, request("copy.txt", DiffSource::Stash { sha }))
+                .unwrap()
+                .change,
+            ChangeType::Added
+        );
+    }
+
+    #[test]
+    fn tracked_only_stash_keeps_normal_commit_diff_semantics() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("tracked.txt"), "base\n").unwrap();
+        git(path, &["add", "."]);
+        git(path, &["commit", "-qm", "base"]);
+        fs::write(path.join("tracked.txt"), "saved\n").unwrap();
+        git(path, &["stash", "push", "-qm", "tracked only"]);
+        let sha = git_text(path, &["rev-parse", "refs/stash"]);
+        let stash = read(
+            path,
+            request("tracked.txt", DiffSource::Stash { sha: sha.clone() }),
+        )
+        .unwrap();
+        let commit = read(path, request("tracked.txt", DiffSource::Commit { sha })).unwrap();
+        assert_eq!(stash.precondition, commit.precondition);
+        assert_eq!(
+            serde_json::to_value(stash.content).unwrap(),
+            serde_json::to_value(commit.content).unwrap()
+        );
+    }
+
+    fn commit_all(path: &Path, message: &str) -> String {
+        git(path, &["add", "--all"]);
+        git(path, &["commit", "--quiet", "-m", message]);
+        git_text(path, &["rev-parse", "HEAD"])
+    }
+
+    #[test]
+    fn comparison_of_recommitted_merged_branch_has_no_files_when_trees_match() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("app.txt"), "base\n").unwrap();
+        let base = commit_all(path, "base");
+        git(path, &["switch", "--quiet", "-c", "dev"]);
+        git(path, &["switch", "--quiet", "-c", "feature"]);
+        fs::write(path.join("app.txt"), "feature one\n").unwrap();
+        commit_all(path, "one");
+        fs::write(path.join("added.txt"), "feature two\n").unwrap();
+        commit_all(path, "two");
+        fs::write(path.join("app.txt"), "feature three\n").unwrap();
+        let feature = commit_all(path, "three");
+        git(path, &["switch", "--quiet", "dev"]);
+        git(
+            path,
+            &["merge", "--quiet", "--no-ff", "feature", "-m", "merge"],
+        );
+        git(path, &["reset", "--soft", &base]);
+        let dev = commit_all(path, "recommit WIP");
+        assert_ne!(dev, feature);
+        assert_eq!(
+            git_text(path, &["rev-parse", "dev^{tree}"]),
+            git_text(path, &["rev-parse", "feature^{tree}"])
+        );
+        assert!(git_text(path, &["diff", "--name-only", "dev", "feature", "--"]).is_empty());
+        for (from, to) in [("dev", "feature"), ("feature", "dev")] {
+            assert!(read_files_cancellable(
+                path,
+                &DiffSource::Range {
+                    from: Some(from.into()),
+                    to: to.into()
+                },
+                &AtomicBool::new(false)
+            )
+            .unwrap()
+            .is_empty());
+        }
+    }
+
+    #[test]
+    fn comparison_lists_net_file_identity_statistics_and_modes_in_both_directions() {
+        let temporary = repository();
+        let path = temporary.path();
+        for (file, content) in [
+            ("old name.txt", "rename me\n"),
+            ("deleted.txt", "old\nline\n"),
+            ("modified.txt", "before\n"),
+            ("script.sh", "echo fixture\n"),
+        ] {
+            fs::write(path.join(file), content).unwrap();
+        }
+        fs::write(path.join("asset.bin"), [0, 1, 2]).unwrap();
+        let base = commit_all(path, "base");
+        git(path, &["mv", "old name.txt", "new name.txt"]);
+        fs::remove_file(path.join("deleted.txt")).unwrap();
+        fs::write(path.join("modified.txt"), "after\nmore\n").unwrap();
+        fs::write(path.join("added.txt"), "brand new\nanother addition\n").unwrap();
+        fs::write(path.join("asset.bin"), [0, 4, 5]).unwrap();
+        git(path, &["add", "--all"]);
+        git(path, &["update-index", "--chmod=+x", "script.sh"]);
+        git(path, &["commit", "--quiet", "-m", "changed"]);
+        let head = git_text(path, &["rev-parse", "HEAD"]);
+        let forward = DiffSource::Range {
+            from: Some(base.clone()),
+            to: head.clone(),
+        };
+        let files = read_files_cancellable(path, &forward, &AtomicBool::new(false)).unwrap();
+        assert_eq!(files.len(), 6);
+        let renamed = files
+            .iter()
+            .find(|file| file.path == "new name.txt")
+            .unwrap();
+        assert_eq!(renamed.previous_path.as_deref(), Some("old name.txt"));
+        assert_eq!(renamed.change, ChangeType::Renamed);
+        assert_eq!((renamed.insertions, renamed.deletions), (0, 0));
+        let modified = files
+            .iter()
+            .find(|file| file.path == "modified.txt")
+            .unwrap();
+        assert_eq!((modified.insertions, modified.deletions), (2, 1));
+        assert!(files
+            .iter()
+            .any(|file| file.path == "asset.bin" && file.binary));
+        let mode = files.iter().find(|file| file.path == "script.sh").unwrap();
+        assert_eq!(mode.change, ChangeType::Modified);
+        assert_eq!((mode.insertions, mode.deletions), (0, 0));
+        for file in &files {
+            let diff = read(path, request(&file.path, forward.clone())).unwrap();
+            assert_eq!(diff.change, file.change);
+            assert_eq!(diff.previous_path, file.previous_path);
+        }
+        let reverse = read_files_cancellable(
+            path,
+            &DiffSource::Range {
+                from: Some(head),
+                to: base,
+            },
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert!(reverse
+            .iter()
+            .any(|file| file.path == "added.txt" && file.change == ChangeType::Deleted));
+        assert!(reverse
+            .iter()
+            .any(|file| file.path == "deleted.txt" && file.change == ChangeType::Added));
+        assert!(reverse.iter().any(|file| file.path == "old name.txt"
+            && file.change == ChangeType::Renamed
+            && file.previous_path.as_deref() == Some("new name.txt")));
+    }
+
+    #[test]
+    fn combined_root_range_starts_with_an_empty_tree_and_omits_transient_changes() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("root.txt"), "root\n").unwrap();
+        commit_all(path, "root");
+        fs::write(path.join("transient.txt"), "temporary\n").unwrap();
+        commit_all(path, "add temporary");
+        fs::remove_file(path.join("transient.txt")).unwrap();
+        fs::write(path.join("last.txt"), "last\n").unwrap();
+        let last = commit_all(path, "last");
+        let source = DiffSource::Range {
+            from: None,
+            to: last,
+        };
+        let files = read_files_cancellable(path, &source, &AtomicBool::new(false)).unwrap();
+        assert_eq!(
+            files
+                .iter()
+                .map(|file| file.path.as_str())
+                .collect::<Vec<_>>(),
+            ["last.txt", "root.txt"]
+        );
+        assert!(files.iter().all(|file| file.change == ChangeType::Added));
+        let root = read(path, request("root.txt", source)).unwrap();
+        assert!(root.precondition.before.is_none());
+        assert_eq!(root.change, ChangeType::Added);
+    }
+
+    #[test]
+    fn working_comparison_nets_staged_and_unstaged_changes_and_includes_only_unignored_new_files() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("tracked.txt"), "base\n").unwrap();
+        fs::write(path.join(".gitignore"), "ignored.txt\n").unwrap();
+        let base = commit_all(path, "base");
+        fs::write(path.join("tracked.txt"), "staged\n").unwrap();
+        git(path, &["add", "tracked.txt"]);
+        fs::write(path.join("tracked.txt"), "base\n").unwrap();
+        fs::write(path.join("new.txt"), "new\n").unwrap();
+        fs::write(path.join("ignored.txt"), "ignored\n").unwrap();
+        let files = read_files_cancellable(
+            path,
+            &DiffSource::WorkingRange { from: base },
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "new.txt");
+        assert_eq!(files[0].change, ChangeType::Untracked);
+        assert_eq!((files[0].insertions, files[0].deletions), (1, 0));
+    }
+
+    #[test]
+    fn working_comparison_recognizes_recreated_untracked_revision_files() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("restored.txt"), "base\n").unwrap();
+        let base = commit_all(path, "base");
+        git(path, &["rm", "--quiet", "--cached", "restored.txt"]);
+        let source = DiffSource::WorkingRange { from: base };
+        assert!(
+            read_files_cancellable(path, &source, &AtomicBool::new(false))
+                .unwrap()
+                .is_empty()
+        );
+        let diff = read(path, request("restored.txt", source.clone())).unwrap();
+        assert_eq!(diff.change, ChangeType::Unmodified);
+        let DiffContent::Text { hunks, .. } = diff.content else {
+            panic!("expected text")
+        };
+        assert!(hunks.is_empty());
+        fs::write(path.join("restored.txt"), "new\nline\n").unwrap();
+        let files = read_files_cancellable(path, &source, &AtomicBool::new(false)).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].change, ChangeType::Modified);
+        assert_eq!((files[0].insertions, files[0].deletions), (2, 1));
+        let diff = read(path, request("restored.txt", source)).unwrap();
+        assert_eq!(diff.change, ChangeType::Modified);
+        let DiffContent::Text { hunks, .. } = diff.content else {
+            panic!("expected text")
+        };
+        assert!(hunks
+            .iter()
+            .flat_map(|hunk| &hunk.lines)
+            .any(|line| line.kind == DiffLineKind::Added && line.text == "new"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn comparison_keeps_tabs_and_newlines_as_literal_path_bytes() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("base.txt"), "base\n").unwrap();
+        let base = commit_all(path, "base");
+        for file in ["new\tname.txt", "new\nname.txt"] {
+            fs::write(path.join(file), "new\nlines\n").unwrap();
+        }
+        let head = commit_all(path, "literal paths");
+        let files = read_files_cancellable(
+            path,
+            &DiffSource::Range {
+                from: Some(base),
+                to: head,
+            },
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert_eq!(files.len(), 2);
+        assert!(files
+            .iter()
+            .all(|file| file.insertions == 2 && file.deletions == 0));
+        assert!(files.iter().any(|file| file.path == "new\tname.txt"));
+        assert!(files.iter().any(|file| file.path == "new\nname.txt"));
+    }
+
+    #[test]
+    fn file_comparison_preserves_cancellation_and_invalid_revision_errors() {
+        let temporary = repository();
+        assert!(matches!(
+            read_files_cancellable(temporary.path(), &DiffSource::Index, &AtomicBool::new(true)),
+            Err(ReadDiffError::Cancelled)
+        ));
+        assert!(
+            matches!(read_files_cancellable(temporary.path(), &DiffSource::Range { from: Some("missing".into()), to: "missing".into() }, &AtomicBool::new(false)), Err(ReadDiffError::RevisionNotFound(revision)) if revision == "missing")
+        );
     }
 
     #[test]
@@ -1555,7 +2223,7 @@ mod tests {
         for source in [
             DiffSource::Commit { sha: head.clone() },
             DiffSource::Range {
-                from: base.clone(),
+                from: Some(base.clone()),
                 to: head.clone(),
             },
             DiffSource::Index,
@@ -1732,7 +2400,7 @@ mod tests {
             request(
                 "historia.txt",
                 DiffSource::Range {
-                    from: root,
+                    from: Some(root),
                     to: second,
                 },
             ),
@@ -1829,7 +2497,7 @@ mod tests {
         let mut whitespace_request = request(
             "espacios.txt",
             DiffSource::Range {
-                from: base,
+                from: Some(base),
                 to: head,
             },
         );

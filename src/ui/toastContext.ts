@@ -6,10 +6,11 @@ import { createContext } from 'react';
  */
 
 export type ToastVariant = 'info' | 'success' | 'warning' | 'danger';
+export type ToastDismissReason = 'close' | 'timeout' | 'action' | 'programmatic';
 
 export interface ToastAction {
   label: string;
-  onAction: () => void;
+  onAction: () => void | Promise<void>;
 }
 
 export interface ToastOptions {
@@ -21,6 +22,10 @@ export interface ToastOptions {
    * antes tiene que ofrecerlo aquí.
    */
   action?: ToastAction;
+  /** Varias elecciones, debajo del mensaje. Conserva `action` como primera si existe. */
+  actions?: readonly ToastAction[];
+  /** El cierre programático permite retirar el aviso sin registrar una elección. */
+  onDismiss?: (reason: ToastDismissReason) => void;
   /** Milisegundos en pantalla. Cero lo deja hasta que alguien lo cierre. */
   duration?: number;
 }

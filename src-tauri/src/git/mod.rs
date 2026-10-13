@@ -4,6 +4,10 @@
 //! una última ficha para poder seguir mostrando rutas ausentes, pero cada lista
 //! refresca las carpetas disponibles: el estado Git real siempre manda.
 
+pub(crate) mod backup;
+#[cfg(test)]
+mod backup_audit_tests;
+pub(crate) mod backup_store;
 mod commit;
 mod conflict;
 mod detail;
@@ -184,9 +188,9 @@ pub struct GitWriteLocks {
     resolutions: resolve::ResolutionSnapshots,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct GitWatchers {
-    watchers: Mutex<HashMap<String, watch::RepositoryWatcher>>,
+    watchers: Arc<Mutex<HashMap<String, watch::RepositoryWatcher>>>,
 }
 
 #[derive(Clone, Default)]
@@ -239,7 +243,7 @@ impl GitReadOperations {
 }
 
 impl GitWriteLocks {
-    fn repository(&self, id: &str) -> Arc<Mutex<()>> {
+    pub(crate) fn repository(&self, id: &str) -> Arc<Mutex<()>> {
         let mut locks = self.locks.lock().unwrap_or_else(|error| error.into_inner());
         // Los worktrees comparten referencias y metadatos: también comparten el bloqueo.
         let key = gix::open(id)
@@ -874,25 +878,47 @@ pub async fn git_read_diff(
     reads.finish(&operation_id);
     joined
         .map_err(|_| GitCommandError::internal("La tarea de diff se interrumpió"))?
-        .map_err(|error| match error {
-            diff::ReadDiffError::Cancelled => {
-                GitCommandError::internal("La lectura del diff fue cancelada")
-            }
-            diff::ReadDiffError::InvalidPathEncoding => {
-                GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
-            }
-            diff::ReadDiffError::RevisionNotFound(revision) => {
-                GitCommandError::new("history.startNotFound", json!({ "start": revision }))
-            }
-            diff::ReadDiffError::UnsupportedEncoding(encoding) => {
-                GitCommandError::new("text.encodingUnsupported", json!({ "encoding": encoding }))
-            }
-            diff::ReadDiffError::InvalidPath
-            | diff::ReadDiffError::GitFailed
-            | diff::ReadDiffError::MalformedOutput => {
-                GitCommandError::internal("Git no pudo leer el diff")
-            }
-        })
+        .map_err(|error| map_diff_error(error, &id))
+}
+
+#[tauri::command]
+pub async fn git_read_diff_files(
+    id: String,
+    source: diff::DiffSource,
+    operation_id: String,
+    reads: State<'_, GitReadOperations>,
+) -> Result<Vec<diff::FileChange>, GitCommandError> {
+    let path = existing_repository(&id)?;
+    let reads = reads.inner().clone();
+    let cancelled = reads.begin(&operation_id);
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        diff::read_files_cancellable(&path, &source, &cancelled)
+    })
+    .await;
+    reads.finish(&operation_id);
+    joined
+        .map_err(|_| GitCommandError::internal("La comparación de archivos se interrumpió"))?
+        .map_err(|error| map_diff_error(error, &id))
+}
+
+fn map_diff_error(error: diff::ReadDiffError, id: &str) -> GitCommandError {
+    match error {
+        diff::ReadDiffError::Cancelled => GitCommandError::new("operation.cancelled", json!({})),
+        diff::ReadDiffError::InvalidPathEncoding => {
+            GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
+        }
+        diff::ReadDiffError::RevisionNotFound(revision) => {
+            GitCommandError::new("history.startNotFound", json!({ "start": revision }))
+        }
+        diff::ReadDiffError::UnsupportedEncoding(encoding) => {
+            GitCommandError::new("text.encodingUnsupported", json!({ "encoding": encoding }))
+        }
+        diff::ReadDiffError::InvalidPath
+        | diff::ReadDiffError::GitFailed
+        | diff::ReadDiffError::MalformedOutput => {
+            GitCommandError::internal("Git no pudo leer el diff")
+        }
+    }
 }
 
 #[tauri::command]
@@ -2969,44 +2995,61 @@ async fn run_undo_operation(
 }
 
 #[tauri::command]
-pub fn git_watch_repository(
+pub async fn git_watch_repository(
     id: String,
     operation_id: String,
     on_change: Channel<watch::RepositoryChange>,
     watchers: State<'_, GitWatchers>,
 ) -> Result<(), GitCommandError> {
-    let path = std::path::PathBuf::from(&id);
-    if !path.exists() {
-        return Err(GitCommandError::new(
-            "repo.notFound",
-            json!({ "repo": id, "path": id }),
-        ));
-    }
-    if repository::discover(&path).is_err() {
-        return Err(GitCommandError::new(
-            "repo.notARepository",
-            json!({ "path": id }),
-        ));
-    }
-    let watcher = watch::start(&path, move |event| {
-        let _ = on_change.send(event);
+    let watchers = watchers.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = std::path::PathBuf::from(&id);
+        if !path.exists() {
+            return Err(GitCommandError::new(
+                "repo.notFound",
+                json!({ "repo": id, "path": id }),
+            ));
+        }
+        if repository::discover(&path).is_err() {
+            return Err(GitCommandError::new(
+                "repo.notARepository",
+                json!({ "path": id }),
+            ));
+        }
+        let watcher = watch::start(&path, move |event| {
+            let _ = on_change.send(event);
+        })
+        .map_err(|_| GitCommandError::internal("No se pudo observar el repositorio"))?;
+        let previous = watchers
+            .watchers
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .insert(operation_id, watcher);
+        drop(previous);
+        Ok(())
     })
-    .map_err(|_| GitCommandError::internal("No se pudo observar el repositorio"))?;
-    watchers
-        .watchers
-        .lock()
-        .unwrap_or_else(|error| error.into_inner())
-        .insert(operation_id, watcher);
-    Ok(())
+    .await
+    .map_err(|_| GitCommandError::internal("No se pudo iniciar el observador del repositorio"))?
 }
 
 #[tauri::command]
-pub fn git_unwatch_repository(operation_id: String, watchers: State<'_, GitWatchers>) {
-    watchers
+pub async fn git_unwatch_repository(
+    operation_id: String,
+    watchers: State<'_, GitWatchers>,
+) -> Result<(), GitCommandError> {
+    let watcher = watchers
         .watchers
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .remove(&operation_id);
+    if let Some(watcher) = watcher {
+        tauri::async_runtime::spawn_blocking(move || drop(watcher))
+            .await
+            .map_err(|_| {
+                GitCommandError::internal("No se pudo detener el observador del repositorio")
+            })?;
+    }
+    Ok(())
 }
 
 async fn run_local_write<F>(

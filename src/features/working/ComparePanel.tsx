@@ -7,7 +7,7 @@ import type { Commit } from '@core/domain/commit';
 import { shortSha } from '@core/domain/commit';
 import type { DiffSource } from '@core/domain/diff';
 import type { RepoId } from '@core/domain/repository';
-import type { FileChange } from '@core/domain/status';
+import type { FileChange, WorkingStatus } from '@core/domain/status';
 import type { GitPort, GitQuery } from '@core/ports/GitPort';
 import { useI18n } from '@i18n/useI18n';
 import { EmptyState } from '@ui/EmptyState';
@@ -20,12 +20,13 @@ import { commitFileMenu } from './contextMenus';
 import { FileList, type FileMenuTarget } from './FileList';
 import { FileListToolbar } from './FileListToolbar';
 import type { RowMenu } from './CommitRow';
-import { mergeFileChanges, visibleFiles } from './staging';
+import { visibleFiles } from './staging';
 import { useWorkingStore, type WorkingCompare } from './workingStore';
 
 interface ComparePanelProps {
   repoId: RepoId;
   compare: WorkingCompare;
+  status: WorkingStatus | null;
   menuContext: MenuBuildContext;
   onClose: () => void;
 }
@@ -33,29 +34,18 @@ interface ComparePanelProps {
 /**
  * Hasta dónde se recorre cada extremo para saber qué tiene de más.
  *
- * `GitPort` no expone «dame la diferencia entre estas dos referencias», así que
- * la comparación se calcula recorriendo los dos lados y restándolos. El tope
- * existe para que comparar dos ramas de una historia enorme no cueste la
- * historia entera; el falso de hoy tiene trescientos y pico commits y nunca lo
- * toca.
+ * Este recorrido solo calcula los recuentos del historial. Los archivos salen
+ * del diff neto entre los extremos, sin límites de commits ni uniones de sus
+ * cambios intermedios.
  */
 const WALK_LIMIT = 5000;
-
-/**
- * Cuántos commits del rango se abren para saber qué archivos tocaron.
- *
- * Cada uno cuesta un `readCommit`, y van en paralelo. Pasado el tope, la lista
- * de archivos es la de los más recientes y el panel lo dice en vez de fingir que
- * están todos.
- */
-const FILES_LIMIT = 200;
 
 interface CompareData {
   /** Commits que solo tiene el primer extremo. Vacío en el diff combinado. */
   sourceOnly: readonly Commit[];
   targetOnly: readonly Commit[];
   files: readonly FileChange[];
-  /** La lista de archivos se armó con parte del rango, no con todo. */
+  /** Los recuentos de commits solo recorrieron parte de la historia. */
   truncated: boolean;
   /**
    * Los dos extremos con los que el visor pide el diff de un archivo — CU-5.
@@ -80,24 +70,6 @@ function CloseIcon() {
   );
 }
 
-/** Los archivos que tocaron esos commits, sumados en una lista sola. */
-async function filesOf(
-  git: GitPort,
-  repoId: RepoId,
-  commits: readonly Commit[],
-  query: GitQuery,
-): Promise<{ files: readonly FileChange[]; truncated: boolean }> {
-  const considered = commits.slice(0, FILES_LIMIT);
-  const details = await Promise.all(
-    considered.map((commit) => git.readCommit(repoId, commit.sha, query)),
-  );
-
-  return {
-    files: mergeFileChanges(details.flatMap((detail) => detail.files)),
-    truncated: commits.length > considered.length,
-  };
-}
-
 async function loadCompare(
   git: GitPort,
   repoId: RepoId,
@@ -105,29 +77,26 @@ async function loadCompare(
   query: GitQuery,
 ): Promise<CompareData> {
   if (compare.kind === 'combined') {
-    // El diff combinado ya sabe qué commits suma: son los que se marcaron, y son
-    // contiguos —lo comprueba el menú antes de ofrecerlo—.
-    const details = await Promise.all(
-      compare.shas.map((sha) => git.readCommit(repoId, sha, query)),
-    );
-
-    // `shas` llega del más viejo al más nuevo. El efecto neto de aplicarlos
-    // juntos es lo que va del **padre** del primero al último; sin el padre
-    // faltarían los cambios del commit más antiguo de la selección. Un commit
-    // raíz no tiene padre, y entonces el rango arranca en él mismo.
-    const oldest = details[0]?.commit;
-    const newest = details[details.length - 1]?.commit;
+    const first = compare.shas[0];
+    const last = compare.shas[compare.shas.length - 1];
+    if (first === undefined || last === undefined) {
+      throw new Error('La comparación necesita commits seleccionados');
+    }
+    const oldest = (await git.readCommit(repoId, first, query)).commit;
+    // Incluye el primer commit: un rango que empieza en la raíz compara desde
+    // el árbol vacío. Los cambios que se anulan dentro del rango desaparecen.
+    const range: DiffSource = {
+      kind: 'range',
+      from: oldest.parents[0] ?? null,
+      to: last,
+    };
 
     return {
       sourceOnly: [],
       targetOnly: [],
-      files: mergeFileChanges([...details].reverse().flatMap((detail) => detail.files)),
+      files: await git.readDiffFiles(repoId, range, query),
       truncated: false,
-      range: {
-        kind: 'range',
-        from: oldest?.parents[0] ?? oldest?.sha ?? '',
-        to: newest?.sha ?? '',
-      },
+      range,
     };
   }
 
@@ -147,9 +116,7 @@ async function loadCompare(
     throw new Error('WIP solo puede ser el extremo más reciente de una comparación');
   }
 
-  const [refs, status] = targetIsWip
-    ? await Promise.all([git.readRefs(repoId, query), git.readStatus(repoId, query)])
-    : [null, null];
+  const refs = targetIsWip ? await git.readRefs(repoId, query) : null;
   const targetRef = targetIsWip ? refs?.head.sha : revisionRef(compare.target);
 
   if (targetRef === null || targetRef === undefined) {
@@ -167,27 +134,22 @@ async function loadCompare(
   const sourceOnly = left.commits.filter((commit) => !rightShas.has(commit.sha));
   const targetOnly = right.commits.filter((commit) => !leftShas.has(commit.sha));
 
-  const historyFiles = await filesOf(git, repoId, [...sourceOnly, ...targetOnly], query);
-  const files =
-    status === null
-      ? historyFiles.files
-      : mergeFileChanges([
-          ...historyFiles.files,
-          ...status.staged,
-          ...status.unstaged,
-          ...status.conflicted,
-        ]);
+  // Fija las revisiones que se leyeron: si una rama o tag se mueve después,
+  // abrir un archivo sigue comparando los mismos árboles que esta lista.
+  const range: DiffSource = targetIsWip
+    ? { kind: 'workingRange', from: left.commits[0]?.sha ?? sourceRef }
+    : {
+        kind: 'range',
+        from: left.commits[0]?.sha ?? sourceRef,
+        to: right.commits[0]?.sha ?? targetRef,
+      };
 
   return {
     sourceOnly,
     targetOnly,
-    files,
-    truncated: historyFiles.truncated,
-    // Rama, tag o SHA: los tres son lo que el puerto sabe resolver, y `Sha` es
-    // una cadena precisamente para no tener dos tipos que dicen lo mismo.
-    range: targetIsWip
-      ? { kind: 'workingRange', from: sourceRef }
-      : { kind: 'range', from: sourceRef, to: targetRef },
+    files: await git.readDiffFiles(repoId, range, query),
+    truncated: left.hasMore || right.hasMore,
+    range,
   };
 }
 
@@ -210,7 +172,7 @@ const NOTHING: ReadonlySet<string> = new Set();
  * Clic en un archivo abre el visor con `source: { kind: 'range', from, to }` —
  * CU-5 y CU-14.
  */
-export function ComparePanel({ repoId, compare, menuContext, onClose }: ComparePanelProps) {
+export function ComparePanel({ repoId, compare, status, menuContext, onClose }: ComparePanelProps) {
   const { t } = useI18n();
   const { git } = usePorts();
 
@@ -225,13 +187,17 @@ export function ComparePanel({ repoId, compare, menuContext, onClose }: CompareP
   const filterFocus = useWorkingStore((state) => state.filterFocus);
 
   const [selected, setSelected] = useState<ReadonlySet<string>>(NOTHING);
+  const historyVersion = useWorkingStore((state) => state.historyVersion);
+  const liveStatus = compare.kind === 'refs' && compare.target.kind === 'wip' ? status : null;
 
   const load = useCallback(
     (query: GitQuery) => loadCompare(git, repoId, compare, query),
-    [compare, git, repoId],
+    // Historial y WIP son señales de invalidación, no argumentos de lectura.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [compare, git, repoId, historyVersion, liveStatus],
   );
 
-  const data = useAsyncData(load);
+  const data = useAsyncData(load, { resourceKey: JSON.stringify([repoId, compare]) });
 
   const range = data.status === 'ready' ? data.data.range : null;
 
@@ -333,7 +299,7 @@ export function ComparePanel({ repoId, compare, menuContext, onClose }: CompareP
 
           {data.data.truncated && (
             <p className={styles.truncated}>
-              {t('working.compare.truncated', { count: FILES_LIMIT })}
+              {t('working.compare.truncated', { count: WALK_LIMIT })}
             </p>
           )}
 

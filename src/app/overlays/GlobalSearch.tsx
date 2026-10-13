@@ -29,10 +29,10 @@ import {
 } from './searchEngine';
 
 const OPTIONS: readonly [SettingsSectionId, MessageKey][] = [
-  ['recovery', 'settings.recovery.autoCleanup'],
-  ['recovery', 'settings.recovery.maxCheckpoints'],
-  ['recovery', 'settings.recovery.maxAgeDays'],
-  ['recovery', 'settings.recovery.maxMiB'],
+  ['recovery', 'settings.storage.cleanup'],
+  ['recovery', 'settings.backup.title'],
+  ['recovery', 'settings.backup.enabled'],
+  ['recovery', 'settings.backup.maxMiB'],
   ['appearance', 'settings.appearance.fonts'],
   ['appearance', 'settings.appearance.mode'],
   ['appearance', 'settings.appearance.theme'],

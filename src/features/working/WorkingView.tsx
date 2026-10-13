@@ -8,7 +8,12 @@ import { activeTab, type WorkingBase } from '@app/tabs';
 import { useAsyncData } from '@app/useAsyncData';
 import type { Commit } from '@core/domain/commit';
 import { shortSha } from '@core/domain/commit';
-import { describeError, isCancelled, toGitOperationError } from '@core/domain/errors';
+import {
+  describeError,
+  isCancelled,
+  OperationCancelledError,
+  toGitOperationError,
+} from '@core/domain/errors';
 import { stashName, type RefsSnapshot } from '@core/domain/refs';
 import type { RepoId, Repository, UndoEntry } from '@core/domain/repository';
 import type { WorkingStatus } from '@core/domain/status';
@@ -173,16 +178,26 @@ export function WorkingView({ base }: WorkingViewProps) {
     useWorkingStore.getState().setWipName(settings.workingWipNames[base.repoId] ?? null);
   }, [base.repoId, settings.workingWipNames]);
 
+  const readEpoch = useRef(0);
+  const metadataReads = useRef(0);
   const load = useCallback(
     async (query: GitQuery): Promise<WorkingData> => {
-      const [repository, refs, status, undoStack] = await Promise.all([
-        git.readRepository(base.repoId, query),
-        git.readRefs(base.repoId, query),
-        git.readStatus(base.repoId, query),
-        git.readUndoStack(base.repoId, query),
-      ]);
-
-      return { repository, refs, status, undoStack };
+      const epoch = readEpoch.current;
+      metadataReads.current += 1;
+      try {
+        const [repository, refs, status, undoStack] = await Promise.all([
+          git.readRepository(base.repoId, query),
+          git.readRefs(base.repoId, query),
+          git.readStatus(base.repoId, query),
+          git.readUndoStack(base.repoId, query),
+        ]);
+        if (epoch !== readEpoch.current || useWorkingStore.getState().pendingWrites > 0) {
+          throw new OperationCancelledError();
+        }
+        return { repository, refs, status, undoStack };
+      } finally {
+        metadataReads.current -= 1;
+      }
     },
     [git, base.repoId],
   );
@@ -226,33 +241,64 @@ export function WorkingView({ base }: WorkingViewProps) {
     const lifecycle = new AbortController();
     let stop: (() => void) | undefined;
     let pendingStatus: AbortController | undefined;
+    let deferredGit = false;
+    let deferredWorktree = false;
+
+    const refresh = (change: { git: boolean; worktree: boolean }) => {
+      if (useWorkingStore.getState().pendingWrites > 0) {
+        deferredGit ||= change.git;
+        deferredWorktree ||= change.worktree;
+        return;
+      }
+      if (change.git) {
+        pendingStatus?.abort();
+        useWorkingStore.getState().bumpHistory();
+        reload({ retain: true });
+        return;
+      }
+      if (!change.worktree) return;
+
+      pendingStatus?.abort();
+      const request = new AbortController();
+      const epoch = readEpoch.current;
+      pendingStatus = request;
+      void git.readStatus(base.repoId, { signal: request.signal }).then(
+        (fresh) => {
+          if (
+            !request.signal.aborted &&
+            epoch === readEpoch.current &&
+            useWorkingStore.getState().pendingWrites === 0
+          ) {
+            applyStatus(fresh);
+          }
+          if (pendingStatus === request) pendingStatus = undefined;
+        },
+        (error: unknown) => {
+          if (!request.signal.aborted && !isCancelled(error)) reload();
+          if (pendingStatus === request) pendingStatus = undefined;
+        },
+      );
+    };
+
+    // Invalidate synchronously at the start of a write, before React rerenders.
+    // Watcher reads can observe stash push between its index/worktree cleanups.
+    const stopWrites = useWorkingStore.subscribe((state, previous) => {
+      if (state.pendingWrites === previous.pendingWrites) return;
+      readEpoch.current += 1;
+      deferredGit ||= metadataReads.current > 0;
+      deferredWorktree ||= pendingStatus !== undefined;
+      pendingStatus?.abort();
+      pendingStatus = undefined;
+      if (state.pendingWrites > 0) return;
+
+      const change = { git: deferredGit, worktree: deferredWorktree };
+      deferredGit = false;
+      deferredWorktree = false;
+      refresh(change);
+    });
 
     void git
-      .watchRepository(
-        base.repoId,
-        (change) => {
-          if (change.git) {
-            pendingStatus?.abort();
-            useWorkingStore.getState().bumpHistory();
-            reload({ retain: true });
-            return;
-          }
-          if (!change.worktree) return;
-
-          pendingStatus?.abort();
-          const request = new AbortController();
-          pendingStatus = request;
-          void git.readStatus(base.repoId, { signal: request.signal }).then(
-            (fresh) => {
-              if (!request.signal.aborted) applyStatus(fresh);
-            },
-            (error: unknown) => {
-              if (!request.signal.aborted && !isCancelled(error)) reload();
-            },
-          );
-        },
-        { signal: lifecycle.signal },
-      )
+      .watchRepository(base.repoId, refresh, { signal: lifecycle.signal })
       .then((unsubscribe) => {
         if (lifecycle.signal.aborted) unsubscribe();
         else stop = unsubscribe;
@@ -262,6 +308,7 @@ export function WorkingView({ base }: WorkingViewProps) {
       });
 
     return () => {
+      stopWrites();
       lifecycle.abort();
       pendingStatus?.abort();
       stop?.();
@@ -1149,7 +1196,7 @@ export function WorkingView({ base }: WorkingViewProps) {
    * WIP y los guardados no son SHA, pero sí montan `StagingPanel`, que tiene que
    * ocupar el panel completo igual que `CommitDetails`.
    */
-  const centered = compare === null && selectedCommits.size > 1;
+  const centered = fileHistory === null && compare === null && selectedCommits.size > 1;
 
   /*
    * Las dos ramas de la operación a medias. `bisect` y `none` no tienen dos que
@@ -1208,6 +1255,18 @@ export function WorkingView({ base }: WorkingViewProps) {
                   onApply: actions.continueOperation,
                 })}
         />
+      ) : fileHistory !== null ? (
+        <FileHistoryPanel
+          repoId={base.repoId}
+          path={fileHistory.path}
+          activeSha={fileHistory.at}
+          openLatest={fileHistory.openLatest}
+          menuFor={commitMenuFor}
+          onOpenDiff={(sha) => {
+            actions.openDiff(fileHistory.path, { kind: 'commit', sha });
+          }}
+          onClose={closeFileHistory}
+        />
       ) : editingAmend && status?.clean && refs ? (
         <CommitComposer
           repoId={base.repoId}
@@ -1228,22 +1287,11 @@ export function WorkingView({ base }: WorkingViewProps) {
           menuContext={menuContext}
           actions={actions}
         />
-      ) : fileHistory !== null ? (
-        <FileHistoryPanel
-          repoId={base.repoId}
-          path={fileHistory.path}
-          activeSha={fileHistory.at}
-          openLatest={fileHistory.openLatest}
-          menuFor={commitMenuFor}
-          onOpenDiff={(sha) => {
-            actions.openDiff(fileHistory.path, { kind: 'commit', sha });
-          }}
-          onClose={closeFileHistory}
-        />
       ) : compare !== null ? (
         <ComparePanel
           repoId={base.repoId}
           compare={compare}
+          status={status}
           menuContext={menuContext}
           onClose={closeCompare}
         />
@@ -1251,6 +1299,7 @@ export function WorkingView({ base }: WorkingViewProps) {
         <CommitDetails
           repoId={base.repoId}
           sha={selectedStash.sha}
+          sourceKind="stash"
           menuContext={menuContext}
           showChangeDetails={false}
           allowAllFiles={false}

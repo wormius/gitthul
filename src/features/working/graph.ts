@@ -60,6 +60,7 @@
  */
 
 import type { Sha } from '@core/domain/commit';
+import { runCooperatively } from '@app/runCooperatively';
 import type { RefsSnapshot } from '@core/domain/refs';
 import { GRAPH_BRANCH_COUNT } from '@design/tokenCatalog';
 
@@ -122,7 +123,27 @@ const COLOR_ORDER: readonly number[] = [1, 6, 3, 5, 7, 4, 2, 8];
  * provisional sigue hasta el borde inferior como cualquier padre no cargado.
  */
 export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot): GraphLayout {
+  const steps = graphSteps(rows, refs);
+  let result = steps.next();
+  while (!result.done) result = steps.next();
+  return result.value;
+}
+
+/** Mismo trazado, cediendo tiempo a la terminal y cancelable al cambiar de repositorio. */
+export function buildGraphAsync(
+  rows: readonly CommitTableRow[],
+  refs: RefsSnapshot,
+  signal?: AbortSignal,
+): Promise<GraphLayout> {
+  return runCooperatively(graphSteps(rows, refs), signal);
+}
+
+function* graphSteps(
+  rows: readonly CommitTableRow[],
+  refs: RefsSnapshot,
+): Generator<void, GraphLayout> {
   const rowCount = rows.length;
+  let renderedLaneCount = 0;
 
   const nodeLane = new Int32Array(rowCount);
   const nodeColor = new Int32Array(rowCount);
@@ -216,8 +237,8 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
    *
    * Se reparten por turno, saltando los que ya lleva puestos una rama viva: dos
    * ramas que conviven en pantalla nunca comparten color mientras queden tonos
-   * libres. Con más de ocho vivas a la vez se repite, que es justo el caso en
-   * el que el trazo y la forma del nodo cargan con la distinción.
+   * libres. Con más de ocho vivas a la vez se repite el tono, conservando el
+   * carril y las conexiones que identifican cada derivación del historial.
    */
   function nextColor(): number {
     for (let step = 0; step < GRAPH_BRANCH_COUNT; step += 1) {
@@ -238,6 +259,7 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
   }
 
   function pushLink(lane: number, color: number, up: boolean, kind = KIND_COMMIT): void {
+    renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
     linkLane.push(lane);
     linkColor.push(color);
     linkUp.push(up ? 1 : 0);
@@ -251,6 +273,7 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
       if (waiting[lane] === undefined || lane === excluded) continue;
 
       passLane.push(lane);
+      renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
       passColor.push(laneColor[lane] ?? 0);
       passKind.push(laneKind[lane] ?? KIND_COMMIT);
       passStashId.push(laneStashId[lane] ?? 0);
@@ -258,6 +281,7 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
   }
 
   function closeRow(row: number, lane: number, kind: number, color: number): void {
+    renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
     nodeLane[row] = lane;
     nodeKind[row] = kind;
     nodeColor[row] = color;
@@ -268,6 +292,7 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
   let row = 0;
 
   while (row < rowCount) {
+    if (row % 256 === 0) yield;
     const current = rows[row];
 
     if (current === undefined) break;
@@ -301,7 +326,7 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
       /*
        * Cada stash vive en su posición cronológica y conserva su origen. La
        * calle 0 se reserva para la rama principal cuando no hay WIP; así los
-       * rombos no empujan la historia principal a la derecha al aparecer.
+       * nodos de stash no empujan la historia principal a la derecha al aparecer.
        */
       const existing = stashLanesBySha.get(current.stash.base)?.[0];
       const lane = existing ?? takeLane(0);
@@ -336,19 +361,22 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
     }
 
     // 1 · Las calles de rama que esperaban este commit se cierran aquí. Se
-    //     colores antes de soltarlas: una de ellas puede acabar reasignada a
-    //     una rama nueva en el mismo paso, y la línea que muere en este nodo
-    //     tiene que conservar el color con el que venía bajando.
+    //     guardan su color y tipo antes de soltarlas: una de ellas puede acabar
+    //     reasignada en el mismo paso. La llegada conserva su estilo hasta el
+    //     nodo, incluido el WIP antes de que HEAD continúe como rama normal.
     const incoming = lanesBySha.get(commit.sha);
     let incomingColors: number[] | null = null;
+    let incomingKinds: number[] | null = null;
 
     if (incoming) {
       lanesBySha.delete(commit.sha);
       incoming.sort((a, b) => a - b);
       incomingColors = [];
+      incomingKinds = [];
 
       for (const lane of incoming) {
         incomingColors.push(laneColor[lane] ?? 0);
+        incomingKinds.push(laneKind[lane] ?? KIND_COMMIT);
         waiting[lane] = undefined;
       }
     }
@@ -388,9 +416,14 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
 
     // 4 · Lo que sube: la propia calle del nodo, cada rama que muere en él y
     //     cada stash agrupado arriba que nació en este commit.
-    if (incoming && incomingColors) {
+    if (incoming && incomingColors && incomingKinds) {
       for (let index = 0; index < incoming.length; index += 1) {
-        pushLink(incoming[index] ?? 0, incomingColors[index] ?? 0, true);
+        pushLink(
+          incoming[index] ?? 0,
+          incomingColors[index] ?? 0,
+          true,
+          incomingKinds[index] ?? KIND_COMMIT,
+        );
       }
     }
 
@@ -452,28 +485,25 @@ export function buildGraph(rows: readonly CommitTableRow[], refs: RefsSnapshot):
    * allí se bifurca hacia el nodo del commit sin cubrir la rama.
    */
   for (let index = 0; index < rowCount; index += 1) {
+    if (index % 4096 === 0) yield;
     if (nodeKind[index] !== KIND_STASH) continue;
 
     nodeColor[index] = stashColorById.get(nodeStashId[index] ?? 0) ?? 1;
   }
 
   for (let index = 0; index < passLane.length; index += 1) {
+    if (index % 4096 === 0) yield;
     if (passKind[index] !== KIND_STASH) continue;
 
     passColor[index] = stashColorById.get(passStashId[index] ?? 0) ?? 1;
   }
 
   for (let index = 0; index < linkLane.length; index += 1) {
+    if (index % 4096 === 0) yield;
     if (linkKind[index] !== KIND_STASH) continue;
 
     linkColor[index] = stashColorById.get(linkStashId[index] ?? 0) ?? 1;
   }
-
-  let renderedLaneCount = 0;
-
-  for (const lane of nodeLane) renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
-  for (const lane of passLane) renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
-  for (const lane of linkLane) renderedLaneCount = Math.max(renderedLaneCount, lane + 1);
 
   return {
     rowCount,

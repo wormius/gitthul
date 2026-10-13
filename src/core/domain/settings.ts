@@ -165,6 +165,10 @@ export interface GitSettings {
 
 export interface UpdateSettings {
   checkOnStartup: boolean;
+  /** Elección persistente de no volver a ofrecer la consulta automática. */
+  promptDismissed: boolean;
+  /** Próximo aviso permitido, en milisegundos Unix; 0 permite el primer aviso. */
+  nextPromptAt: number;
 }
 
 /** Límites de recuperación aplicados de forma independiente a cada repositorio. */
@@ -186,6 +190,19 @@ export const DEFAULT_RECOVERY_SETTINGS: RecoverySettings = {
   maxCheckpoints: RECOVERY_LIMITS.maxCheckpoints.default,
   maxAgeDays: RECOVERY_LIMITS.maxAgeDays.default,
   maxMiB: RECOVERY_LIMITS.maxMiB.default,
+};
+
+/** Espacio compartido entre los respaldos de emergencia de todos los repositorios. */
+export interface BackupSettings {
+  enabled: boolean;
+  maxMiB: number;
+}
+
+export const BACKUP_LIMITS = { min: 1, max: 1048576, default: 1024 } as const;
+
+export const DEFAULT_BACKUP_SETTINGS: BackupSettings = {
+  enabled: true,
+  maxMiB: BACKUP_LIMITS.default,
 };
 
 // --- Ajustes completos ---
@@ -215,6 +232,7 @@ export interface Settings {
   /** Consulta de versiones publicadas; no descarga ni instala actualizaciones. */
   updates: UpdateSettings;
   recovery: RecoverySettings;
+  backup: BackupSettings;
   logging: { debugEnabled: boolean };
 }
 
@@ -227,6 +245,8 @@ export const DEFAULT_GIT_SETTINGS: GitSettings = {
 
 export const DEFAULT_UPDATE_SETTINGS: UpdateSettings = {
   checkOnStartup: false,
+  promptDismissed: false,
+  nextPromptAt: 0,
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -238,6 +258,7 @@ export const DEFAULT_SETTINGS: Settings = {
   git: DEFAULT_GIT_SETTINGS,
   updates: DEFAULT_UPDATE_SETTINGS,
   recovery: DEFAULT_RECOVERY_SETTINGS,
+  backup: DEFAULT_BACKUP_SETTINGS,
   logging: { debugEnabled: false },
 };
 
@@ -251,6 +272,7 @@ export interface SettingsPatch {
   git?: Partial<GitSettings>;
   updates?: Partial<UpdateSettings>;
   recovery?: Partial<RecoverySettings>;
+  backup?: Partial<BackupSettings>;
   logging?: { debugEnabled?: boolean };
 }
 
@@ -274,6 +296,7 @@ export function mergeSettings(current: Settings, patch: SettingsPatch): Settings
     logging: { ...current.logging, ...patch.logging },
     updates: patch.updates ? { ...current.updates, ...patch.updates } : current.updates,
     recovery: patch.recovery ? { ...current.recovery, ...patch.recovery } : current.recovery,
+    backup: patch.backup ? { ...current.backup, ...patch.backup } : current.backup,
   };
 }
 
@@ -348,6 +371,7 @@ export function normalizeSettings(value: unknown): Settings {
     git: normalizeGitSettings(raw['git']),
     updates: normalizeUpdateSettings(raw['updates']),
     recovery: normalizeRecoverySettings(raw['recovery']),
+    backup: normalizeBackupSettings(raw['backup']),
     logging: { debugEnabled: record(raw['logging'])['debugEnabled'] === true },
   };
 }
@@ -427,12 +451,24 @@ function normalizeProfiles(value: unknown): readonly CommitProfile[] {
 
 function normalizeUpdateSettings(value: unknown): UpdateSettings {
   const raw = record(value);
+  const nextPromptAt = raw['nextPromptAt'];
 
   return {
     checkOnStartup:
       typeof raw['checkOnStartup'] === 'boolean'
         ? raw['checkOnStartup']
         : DEFAULT_UPDATE_SETTINGS.checkOnStartup,
+    promptDismissed:
+      typeof raw['promptDismissed'] === 'boolean'
+        ? raw['promptDismissed']
+        : DEFAULT_UPDATE_SETTINGS.promptDismissed,
+    nextPromptAt:
+      typeof nextPromptAt === 'number' &&
+      Number.isInteger(nextPromptAt) &&
+      nextPromptAt >= 0 &&
+      nextPromptAt <= 8_640_000_000_000_000
+        ? nextPromptAt
+        : DEFAULT_UPDATE_SETTINGS.nextPromptAt,
   };
 }
 
@@ -446,5 +482,13 @@ function normalizeRecoverySettings(value: unknown): RecoverySettings {
     maxCheckpoints: size(raw['maxCheckpoints'], RECOVERY_LIMITS.maxCheckpoints),
     maxAgeDays: size(raw['maxAgeDays'], RECOVERY_LIMITS.maxAgeDays),
     maxMiB: size(raw['maxMiB'], RECOVERY_LIMITS.maxMiB),
+  };
+}
+
+function normalizeBackupSettings(value: unknown): BackupSettings {
+  const raw = record(value);
+  return {
+    enabled: typeof raw['enabled'] === 'boolean' ? raw['enabled'] : DEFAULT_BACKUP_SETTINGS.enabled,
+    maxMiB: size(raw['maxMiB'], BACKUP_LIMITS),
   };
 }

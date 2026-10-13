@@ -81,6 +81,41 @@
   font-size: var(--text-xs);
 }
 
+.batchResults {
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.batchResults h2,
+.failureList h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.resultActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.failureList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.failurePath {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
 .listRegion {
   display: flex;
   flex: 0 0 auto;

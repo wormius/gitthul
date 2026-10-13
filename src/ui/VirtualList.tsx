@@ -303,6 +303,16 @@ export function VirtualList<T>({
         event.preventDefault();
         move(items.length - 1, event);
         break;
+      case ' ': {
+        if (!selectable || event.target !== event.currentTarget) return;
+        const item = items[currentIndex];
+        if (item === undefined) return;
+        event.preventDefault();
+        const id = getKey(item, currentIndex);
+        activeKeyRef.current = id;
+        selection.select(id, allIds, event);
+        break;
+      }
       case 'Enter': {
         const item = items[currentIndex];
 
@@ -367,6 +377,17 @@ export function VirtualList<T>({
                 style={{
                   height: row.size,
                   transform: `translateY(${String(row.start - virtualizer.options.scrollMargin)}px)`,
+                }}
+                onMouseDownCapture={(event) => {
+                  if (event.button !== 0 || !(event.target instanceof Element)) return;
+                  const draggable = event.target.closest('[draggable="true"]');
+                  if (draggable === null || !event.currentTarget.contains(draggable)) return;
+
+                  // Un hijo arrastrable puede conservar la selección deteniendo
+                  // el mousedown, pero el cursor de teclado debe seguir a esa fila.
+                  activeIndexRef.current = row.index;
+                  activeKeyRef.current = id;
+                  setActiveIndex(row.index);
                 }}
                 onMouseDown={(event) => {
                   // Solo el clic izquierdo selecciona: el derecho abre el menú

@@ -16,7 +16,7 @@ import type {
   TransferProgress,
   UndoEntry,
 } from '@core/domain/repository';
-import type { ConflictContents, TreeEntry, WorkingStatus } from '@core/domain/status';
+import type { ConflictContents, FileChange, TreeEntry, WorkingStatus } from '@core/domain/status';
 import type {
   AutoResolveResult,
   CloneProgress,
@@ -219,6 +219,26 @@ export function createTauriGitPort(
       }
     },
     readCommit: (id, sha, options) => query<CommitDetails>('git_read_commit', { id, sha }, options),
+    readDiffFiles: async (id, source, options) => {
+      throwIfCancelled(options);
+      const operationId = `diff-${Date.now()}-${diffSequence++}`;
+      const abort = () => {
+        void call('git_cancel_diff', { operationId }).catch(() => undefined);
+      };
+      options?.signal?.addEventListener('abort', abort, { once: true });
+      try {
+        const result = await call('git_read_diff_files', { id, source, operationId });
+        throwIfCancelled(options);
+        return result as readonly FileChange[];
+      } catch (error) {
+        throwIfCancelled(options);
+        if (isRecord(error) && error.code === 'operation.cancelled')
+          throw new OperationCancelledError();
+        throw decodeTauriGitError(error);
+      } finally {
+        options?.signal?.removeEventListener('abort', abort);
+      }
+    },
     readDiff: async (id, request, options) => {
       throwIfCancelled(options);
       const operationId = `diff-${Date.now()}-${diffSequence++}`;

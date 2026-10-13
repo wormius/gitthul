@@ -1,6 +1,7 @@
 .card {
   display: flex;
   min-width: 0;
+  height: 100%;
   overflow: hidden;
   background-color: var(--surface-raised);
   border: var(--border-width) solid var(--border-subtle);

@@ -5,6 +5,28 @@ Cmd+Shift+T en macOS. Utiliza el contexto activo o la carpeta seleccionada. Los
 comandos se ejecutan en un shell real y pueden modificar los archivos y el estado
 Git de esa carpeta.
 
+Durante el inicio aparece **Preparando la terminal…** con una barra de progreso.
+En repositorios grandes, la preparación puede tardar mientras se guarda el punto
+de recuperación. Puedes seguir usando la aplicación o cerrar la pestaña para
+cancelar el arranque. El shell acepta comandos cuando termina la preparación.
+
+El panel de referencias muestra una barra de carga mientras lee y prepara el
+historial, y al cargar más commits cuando te acercas al final. Puedes escribir
+y ejecutar comandos mientras se prepara el grafo. Si la lectura falla, el panel
+muestra el error y ofrece **Reintentar** sin cerrar la terminal.
+
+Las cabeceras **Grafo** y **Mensaje** permanecen visibles al desplazarte por el
+historial. Arrastra el separador entre ellas para repartir el ancho del panel;
+también puedes enfocarlo con Tab y ajustarlo con las flechas izquierda y derecha.
+GitThul recuerda ese ajuste. El grafo no muestra una barra horizontal: amplía su
+columna para ver más ramas.
+
+En el grafo lateral, los commits se representan con anillos huecos, el WIP con
+un círculo sólido y los stashes con cuadrados sólidos. Las ramas se distinguen
+por sus colores; cambiar de rama no cambia la forma de los commits. Las conexiones
+entre commits son continuas. Los enlaces del WIP y los stashes con el historial
+son finos y punteados.
+
 En Unix, GitThul abre el shell configurado para tu cuenta. Cuando utilizas zsh,
 este carga su configuración habitual, incluidos los plugins de Oh My Zsh. La
 terminal admite color y ajusta sus dimensiones al tamaño del panel y de la
@@ -33,6 +55,8 @@ deshabilitado. Los fallos al acceder al portapapeles aparecen como avisos.
 
 **Mod+F** busca en la salida de la terminal. Puedes redimensionar o dividir el
 panel mientras trabajas; el shell recibe el tamaño nuevo.
+Al dividir, el panel original conserva su proceso, su salida y el texto que
+estabas escribiendo. Cerrar un panel no reinicia los que permanecen abiertos.
 
 Los comandos, el autocompletado y las sugerencias dependen de tu shell y su
 configuración. Si una sugerencia o el prompt se dibujan incorrectamente, conserva

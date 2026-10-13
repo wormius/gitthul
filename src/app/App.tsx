@@ -12,7 +12,8 @@ import { usePorts } from './PortsContext';
 import { Shell } from './Shell';
 import { StatusToastBridge } from './StatusToastBridge';
 import { ReleaseNotificationBridge } from './ReleaseNotificationBridge';
-import { RecoveryNotificationBridge } from './RecoveryNotificationBridge';
+import { UpdateOptInBridge } from './UpdateOptInBridge';
+import { BackupSchedulingBridge } from './BackupSchedulingBridge';
 import { subscribeShellSession } from './shellStore';
 import { isTokensGalleryPath } from './devRoutes';
 import { useNativeMenu } from './useNativeMenu';
@@ -56,7 +57,8 @@ function ShellApp() {
     >
       <StatusToastBridge />
       <ReleaseNotificationBridge />
-      <RecoveryNotificationBridge />
+      <UpdateOptInBridge />
+      <BackupSchedulingBridge />
       <AuthenticationDialogs />
       <DragLayer>
         <GestureProvider>

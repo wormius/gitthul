@@ -62,6 +62,7 @@ pub fn run() {
         .setup(|_app| {
             let _ = logging::initialize(_app.handle());
             git::recovery::initialize(_app.handle());
+            git::backup::initialize(_app.handle());
             #[cfg(target_os = "linux")]
             {
                 use tauri::Manager;
@@ -77,18 +78,14 @@ pub fn run() {
         .manage(git::GitWriteLocks::default())
         .manage(git::GitWatchers::default())
         .manage(git::GitReadOperations::default())
-        .manage(git::recovery::RecoveryPreviews::default())
+        .manage(git::backup::BackupManager::default())
         .manage(terminal::TerminalSessions::default())
         .invoke_handler(tauri::generate_handler![
             git::recovery::recovery_read,
             git::recovery::recovery_cleanup,
-            git::recovery::recovery_preview,
-            git::recovery::recovery_restore,
-            git::recovery::recovery_cancel_preview,
-            git::recovery::recovery_remove,
-            git::recovery::recovery_export,
-            git::recovery::recovery_import_legacy,
-            git::recovery::recovery_open_directory,
+            git::backup::backup_read,
+            git::backup::backup_schedule,
+            git::backup::backup_restore,
             releases::releases_check,
             auth::auth_answer,
             auth::auth_list_keys,
@@ -127,6 +124,7 @@ pub fn run() {
             git::git_read_status,
             git::git_read_conflict,
             git::git_read_diff,
+            git::git_read_diff_files,
             git::git_cancel_diff,
             git::git_read_refs,
             git::git_read_commits,
@@ -194,8 +192,17 @@ pub fn run() {
             terminal::terminal_resize,
             terminal::terminal_close_session
         ])
-        .run(context)
-        .expect("error al arrancar la ventana de GitThul");
+        .build(context)
+        .expect("error al arrancar la ventana de GitThul")
+        .run(|app, event| {
+            if matches!(
+                event,
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit
+            ) {
+                use tauri::Manager;
+                app.state::<git::backup::BackupManager>().shutdown();
+            }
+        });
 }
 
 /// Ejecuta los modos auxiliares de credenciales, SSH y askpass de Git.

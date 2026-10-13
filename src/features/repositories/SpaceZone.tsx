@@ -29,6 +29,7 @@ interface SpaceZoneProps {
   draggable: boolean;
   ghost: boolean;
   dropTarget: boolean;
+  dropEffect?: 'copy' | 'move';
   onDragStart: () => void;
   onDragOver: () => void;
   onDragEnd: () => void;
@@ -54,6 +55,7 @@ export function SpaceZone({
   draggable,
   ghost,
   dropTarget,
+  dropEffect = 'move',
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -85,7 +87,7 @@ export function SpaceZone({
   };
   const dragOver = (event: DragEvent<HTMLElement>) => {
     event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (event.dataTransfer) event.dataTransfer.dropEffect = dropEffect;
     onDragOver();
   };
   const drop = (event: DragEvent<HTMLElement>) => {
@@ -193,6 +195,8 @@ export function SpaceZone({
             <div
               role="listbox"
               aria-label={t('repositories.spaces.zoneList', { space: space.name })}
+              aria-multiselectable="true"
+              data-space-id={space.id}
               className={styles.grid}
             >
               {children}

@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS } from '@core/domain/settings';
 import { createTauriSettingsPort } from './tauriSettingsPort';
 
 describe('createTauriSettingsPort', () => {
-  it('migra un canal beta heredado y persiste solo la preferencia de consulta al iniciar', async () => {
+  it('migra un canal beta heredado y conserva las preferencias de consulta y recordatorio', async () => {
     let disk: unknown = { updates: { channel: 'beta', checkOnStartup: true } };
     const call = vi.fn((command: string, args?: Record<string, unknown>) => {
       if (command === 'settings_read') return Promise.resolve(structuredClone(disk));
@@ -13,11 +13,36 @@ describe('createTauriSettingsPort', () => {
       return Promise.resolve(undefined);
     });
     const port = createTauriSettingsPort(call);
-    expect((await port.read()).updates).toEqual({ checkOnStartup: true });
+    expect((await port.read()).updates).toEqual({
+      ...DEFAULT_SETTINGS.updates,
+      checkOnStartup: true,
+    });
     await port.patch({ updates: { checkOnStartup: false } });
     expect(disk).toMatchObject({ updates: { checkOnStartup: false } });
     expect((disk as { updates: unknown }).updates).not.toHaveProperty('channel');
-    expect((await createTauriSettingsPort(call).read()).updates).toEqual({ checkOnStartup: false });
+    expect((await createTauriSettingsPort(call).read()).updates).toEqual(DEFAULT_SETTINGS.updates);
+  });
+
+  it('conserva un aplazamiento de una semana y la supresión al volver a abrir los ajustes', async () => {
+    let disk: unknown = DEFAULT_SETTINGS;
+    const call = vi.fn((command: string, args?: Record<string, unknown>) => {
+      if (command === 'settings_read') return Promise.resolve(structuredClone(disk));
+      disk = structuredClone(args?.['settings']);
+      return Promise.resolve(undefined);
+    });
+    const port = createTauriSettingsPort(call);
+    await port.read();
+    const nextPromptAt = Date.UTC(2026, 9, 20);
+    await port.patch({ updates: { nextPromptAt } });
+    expect((await createTauriSettingsPort(call).read()).updates).toEqual({
+      ...DEFAULT_SETTINGS.updates,
+      nextPromptAt,
+    });
+    await port.patch({ updates: { promptDismissed: true, nextPromptAt: 0 } });
+    expect((await createTauriSettingsPort(call).read()).updates).toEqual({
+      ...DEFAULT_SETTINGS.updates,
+      promptDismissed: true,
+    });
   });
 
   it('una lectura fallida deja ajustes editables con depuración suspendida hasta activarla explícitamente', async () => {

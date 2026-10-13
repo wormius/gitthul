@@ -30,6 +30,14 @@ afterEach(() => {
 });
 
 describe('coalesceSettingsWrites', () => {
+  it('merges backup preferences while preserving a pending enable change', async () => {
+    const { port, patches } = spyPort();
+    const coalesced = coalesceSettingsWrites(port);
+    await coalesced.patch({ backup: { enabled: false } });
+    await coalesced.patch({ backup: { maxMiB: 512 } });
+    await coalesced.flush();
+    expect(patches).toEqual([{ backup: { enabled: false, maxMiB: 512 } }]);
+  });
   it('agrupa campos de recuperación sin perder los límites anteriores del mismo parche', async () => {
     const { port, patches } = spyPort();
     const coalesced = coalesceSettingsWrites(port);

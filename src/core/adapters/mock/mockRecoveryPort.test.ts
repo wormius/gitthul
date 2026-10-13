@@ -1,28 +1,35 @@
 import { expect, it } from 'vitest';
+import type { RecoveryPoint } from '@core/domain/recovery';
 import { createMockRecoveryPort } from './mockRecoveryPort';
 
-it('una vista previa protege la copia hasta cancelar, sin tocar archivos reales', async () => {
+it('limpia sólo datos terminados inactivos y preserva pendientes, activos y heredados', async () => {
+  const point: RecoveryPoint = {
+    id: 'unused',
+    repository: '/mock/repo',
+    createdAt: 1000,
+    label: '',
+    status: 'completed',
+    fileCount: 1,
+    bytes: 10,
+    active: false,
+  };
   const port = createMockRecoveryPort({
     directory: '/mock/recovery',
-    totalBytes: 10,
+    totalBytes: 40,
     checkpoints: [
-      {
-        id: 'point',
-        repository: '/mock/repo',
-        createdAt: 1000,
-        label: '',
-        status: 'pending',
-        fileCount: 1,
-        bytes: 10,
-        active: false,
-      },
+      point,
+      { ...point, id: 'active', active: true },
+      { ...point, id: 'pending', status: 'pending' },
+      { ...point, id: 'legacy', status: 'legacy' },
     ],
   });
-  const preview = await port.preview('point');
-  await expect(port.remove('point')).rejects.toMatchObject({ code: 'recovery.protected' });
-  await port.cancelPreview(preview.token);
-  await expect(port.restore(preview.token)).rejects.toMatchObject({ code: 'recovery.stale' });
-  await port.remove('point');
-  expect((await port.read()).checkpoints).toHaveLength(0);
-  expect((await port.read()).totalBytes).toBe(0);
+  expect(await port.cleanup()).toEqual({ removed: 1, freedBytes: 10 });
+  const next = await port.read();
+  expect(next.checkpoints.map((candidate) => candidate.id)).toEqual([
+    'active',
+    'pending',
+    'legacy',
+  ]);
+  expect(next.totalBytes).toBe(30);
+  expect(Object.keys(port).sort()).toEqual(['cleanup', 'read']);
 });

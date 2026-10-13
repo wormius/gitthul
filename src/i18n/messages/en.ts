@@ -71,6 +71,8 @@ export const en: Messages = {
   'bottomBar.launchers': 'Open views',
   'bottomBar.utilities': 'Utilities',
   'bottomBar.version': 'GitThul {version}',
+  'bottomBar.openUpdates': 'Open update settings',
+  'bottomBar.updateAvailable': 'Update available: {version}',
   'bottomBar.toLightMode': 'Switch to light mode',
   'bottomBar.toDarkMode': 'Switch to dark mode',
 
@@ -232,8 +234,22 @@ export const en: Messages = {
   'repositories.status.spaceDeleted': 'Deleted {space}.',
   'repositories.status.openedSpace': 'Opened {count} repositories from {space}.',
   'repositories.status.openedSpaceWithFailures':
-    'Opened the repositories from {space}, except for {failed} that failed.',
+    'Opened {count} repositories from {space}; {failed} failed and {cancelled} were cancelled.',
+  'repositories.status.addedManyToSpace': 'The {count} selected repositories are in {space}.',
+  'repositories.status.addManyToSpaceFailed': 'Could not add the {count} repositories to {space}.',
+  'repositories.status.addManyToSpaceCancelled':
+    'Adding the {count} repositories to {space} was cancelled.',
+  'repositories.drag.multiple': '{count} repositories',
   'repositories.status.addedToSpace': 'Added {repo} to {space}.',
+  'repositories.menu.removeFromSpace': 'Remove from {space}',
+  'repositories.menu.removeSelectedFromSpace': 'Remove {count} repositories from {space}',
+  'repositories.menu.removeFromSpaceChoose': 'Remove from a space',
+  'repositories.menu.removeOneFromSpace': 'Remove {repo} from {space}',
+  'repositories.status.removedManyFromSpace': 'Repositories removed from {space}: {count}.',
+  'repositories.status.removeManyFromSpaceFailed':
+    'Could not remove repositories from {space} ({count}).',
+  'repositories.status.removeManyFromSpaceCancelled':
+    'Removing repositories from {space} was cancelled ({count}).',
   'repositories.status.removedFromSpace': 'Removed {repo} from {space}.',
   'repositories.status.movedToSpace': 'Moved {repo} from {from} to {to}.',
   'repositories.sort.label': 'List order',
@@ -339,6 +355,29 @@ export const en: Messages = {
   'repositories.home.empty.title': 'GitThul does not know about any repository yet',
   'repositories.home.empty.description':
     'Open an existing repository, create a new one, or clone a remote repository using the buttons at the top left.',
+
+  'repositories.selection.count': '{count} selected',
+  'repositories.selection.description':
+    'Open the selected repositories in tabs or forget them in GitThul.',
+  'repositories.menu.openSelected': 'Open {count} repositories',
+  'repositories.menu.forgetSelected': 'Forget {count} repositories',
+  'repositories.forgetMany.title': 'Forget {count} repositories',
+  'repositories.forgetMany.description':
+    'These {count} repositories will be removed from the GitThul list. Their folders and Git history will be preserved.',
+  'repositories.forgetMany.confirm': 'Forget {count} repositories',
+  'repositories.forgetMany.cancel': 'Keep {count} repositories',
+  'repositories.forgetMany.close': 'Close without forgetting {count} repositories',
+  'repositories.forgetMany.list': 'Repositories to forget',
+  'repositories.status.openedMany': 'Opened {count} repositories.',
+  'repositories.status.openedManyWithFailures':
+    'Opened {count} repositories; {failed} failed and {cancelled} were cancelled.',
+  'repositories.status.forgottenMany':
+    'GitThul forgot {count} repositories; their folders and history were preserved.',
+  'repositories.status.forgottenManyWithFailures':
+    'GitThul forgot {count} repositories; {failed} failed and {cancelled} were cancelled.',
+  'repositories.failures.title': '{count} repositories could not be processed',
+  'repositories.failures.close': 'Close the repository results',
+  'repositories.failures.list': 'Repositories with errors',
 
   'repositories.forget.description':
     '{repo} leaves the GitThul list. Neither the folder {path} nor its history is touched.',
@@ -863,7 +902,9 @@ export const en: Messages = {
   'working.diff.source.worktree': 'Working tree',
   'working.diff.source.index': 'Staging area',
   'working.diff.source.commit': 'In commit {sha}',
+  'working.diff.source.stash': 'In stash {sha}',
   'working.diff.source.range': 'From {from} to {to}',
+  'working.diff.source.rangeFromRoot': 'From the beginning to {to}',
   'working.diff.source.workingRange': 'From {from} to WIP',
   'working.diff.content': 'Content',
   'working.diff.contentDiff': 'Diff',
@@ -1034,7 +1075,8 @@ export const en: Messages = {
   'working.compare.close': 'Close the comparison',
   'working.compare.loading': 'Comparing {range}',
   'working.compare.ahead': '{ref} has {count} commits that {other} does not',
-  'working.compare.truncated': 'The file list only counts the first {count} commits of the range',
+  'working.compare.truncated':
+    'Commit counts are limited to the first {count} on each side; the file list is complete',
   'working.compare.empty.title': 'No differences',
   'working.compare.empty.combined': 'The {count} commits change no files',
   'working.compare.empty.description': '{source} and {target} have no different files',
@@ -1182,12 +1224,12 @@ export const en: Messages = {
   'working.actionBar.pushForce': 'Push with --force-with-lease',
 
   'view.terminal.title': 'Terminal',
+  'view.terminal.starting': 'Preparing the terminal…',
   'view.terminal.railLabel': 'References',
   'view.terminal.railFilter': 'Filter references',
   'view.terminal.refCopied': 'Reference copied',
   'view.terminal.transcribe': 'Type {value}',
   'view.terminal.branchCount': 'Branches: {count}',
-  'view.terminal.graphScroll': 'Horizontal graph scrolling',
   'view.terminal.command.show': 'Show commit details',
   'view.terminal.command.log': 'Show commit author and date',
   'view.terminal.command.branch': 'Create a branch at this commit',
@@ -1378,6 +1420,13 @@ export const en: Messages = {
   'settings.shortcuts.shortcut': 'Shortcut',
 
   'settings.updates.checkOnStartup': 'Check for updates on startup',
+  'settings.updates.prompt.message':
+    'Would you like notifications about new GitThul releases? Enable update checks on startup.',
+  'settings.updates.prompt.enable': 'Enable',
+  'settings.updates.prompt.remindLater': 'Remind me in a week',
+  'settings.updates.prompt.never': 'Do not suggest again',
+  'settings.updates.prompt.saveFailed': 'Could not save your choice. Try again.',
+  'settings.updates.prompt.enabled': 'Update checks on startup are enabled.',
   'settings.updates.currentVersion': 'Current version',
   'settings.updates.description':
     'Checks for new stable versions of GitThul on GitHub. Downloading and installation take place outside the application.',
@@ -1764,67 +1813,83 @@ export const en: Messages = {
   'logs.debug': 'Debug',
   'logs.configure': 'Configure logs',
   'logs.technical': 'Technical data',
-  'settings.section.recovery': 'Recovery',
-  'settings.recovery.description':
-    'Recovery points protect changes that Git does not preserve. They are saved in GitThul’s private folder, outside your repositories, and can be reviewed after a restart.',
-  'settings.recovery.retentionHint':
-    'Limits apply to each repository separately. Cleanup keeps pending points, unfinished imported points, and points still needed by undo/redo, even when they exceed the limits. You can delete a pending copy after reviewing it.',
-  'settings.recovery.autoCleanup': 'Automatic cleanup',
-  'settings.recovery.maxCheckpoints': 'Maximum points per repository',
-  'settings.recovery.maxAgeDays': 'Maximum age (days)',
-  'settings.recovery.maxMiB': 'Maximum space per repository (MiB)',
-  'settings.recovery.invalidLimit': 'Enter a whole number between {min} and {max}.',
-  'settings.recovery.refresh': 'Refresh list',
-  'settings.recovery.import': 'Import existing points',
-  'settings.recovery.openDirectory': 'Open recovery folder',
-  'settings.recovery.cleanup': 'Clean up now',
-  'settings.recovery.directory': 'Recovery folder',
-  'settings.recovery.total': 'Points: {count} · {size} in total',
-  'settings.recovery.pendingNotice': 'Recovery points to review: {count}.',
-  'settings.recovery.loading': 'Reading recovery points…',
-  'settings.recovery.empty': 'No recovery points have been saved yet.',
-  'settings.recovery.points': 'Saved points',
-  'settings.recovery.savedState': 'Saved state',
-  'settings.recovery.sizeMiB': '{size} MiB',
-  'settings.recovery.pointSize': 'Files: {count} · {size}',
-  'settings.recovery.status.pending': 'Pending',
-  'settings.recovery.status.completed': 'Operation completed',
-  'settings.recovery.status.legacy': 'Imported',
-  'settings.recovery.active': 'In use by undo/redo',
-  'settings.recovery.restore': 'Restore…',
-  'settings.recovery.export': 'Export files…',
-  'settings.recovery.remove': 'Delete copy…',
-  'settings.recovery.restoreTitle': 'Restore a recovery point',
-  'settings.recovery.restoreGitDescription':
-    'In {repository}, the {count} files included in this point, the staging index, and the captured Git references will be replaced. Later changes within that scope will be replaced by the saved state.',
-  'settings.recovery.restoreFilesDescription':
-    'In {repository}, the {count} files included in this point will be replaced. Later changes to those files will be replaced by the saved copies.',
-  'settings.recovery.confirmRestore': 'Back up and restore',
-  'settings.recovery.backupFirst':
-    'Before restoring, GitThul will create a recovery point of the current state. If the repository changes after this preview, you will need to review it again.',
-  'settings.recovery.previewPaths': 'Included files: {count}',
-  'settings.recovery.morePaths': 'And {count} more files.',
-  'settings.recovery.cleanupDescription':
-    'Copies exceeding the configured limits will be deleted. Pending points, unfinished imported points, and points still needed by undo/redo will be kept. Repositories and their files will remain unchanged.',
-  'settings.recovery.removeTitle': 'Delete this recovery copy',
-  'settings.recovery.removeDescription':
-    'This saved copy of {repository} will be deleted. The repository’s files and Git state will remain unchanged. The deleted copy will no longer be recoverable through GitThul.',
-  'settings.recovery.review': 'Review recovery',
+  'settings.section.recovery': 'Backups and cache',
+  'settings.storage.title': 'Temporary files',
+  'settings.storage.description':
+    'GitThul manages temporary recovery data automatically. Clearing the cache keeps data needed by active operations and does not delete emergency backups.',
+  'settings.storage.total': 'Temporary files: {size}',
+  'settings.storage.protected': 'Data needed by active or unfinished operations is protected.',
+  'settings.storage.cleanup': 'Clear cache…',
+  'settings.storage.cleanupTitle': 'Clear temporary files',
+  'settings.storage.cleanupDescription':
+    'Delete unused temporary files. Active recovery data and emergency backups will be kept.',
+  'settings.storage.confirmCleanup': 'Clear cache',
+  'settings.storage.cleaned': 'Freed {size}.',
+  'settings.storage.configurationWarning':
+    'Automatic cleanup is paused because the settings file could not be read.',
+  'settings.storage.loading': 'Reading storage…',
+  'settings.backup.title': 'Emergency backups',
+  'settings.backup.description':
+    'GitThul saves complete local repository backups in the background, at most once every 24 hours when changes exist. They can be restored even if the original repository and remote are lost.',
+  'settings.backup.enabled': 'Automatic backups',
+  'settings.backup.maxMiB': 'Global space limit (MiB)',
+  'settings.backup.invalidLimit': 'Enter a whole number between {min} and {max}.',
+  'settings.backup.retention':
+    'Keeps up to 7 daily, 4 weekly and 3 monthly versions while space allows. The last valid backup of each repository is always kept.',
+  'settings.backup.total': 'Backups: {size} of {limit}',
+  'settings.backup.overBudget':
+    'The stored backups exceed the global space limit. The last valid backup of each repository is kept; new backups will wait for more space.',
+  'settings.backup.corruptNotice':
+    'Damaged backup data was detected. Healthy restore points remain available for restoration. Backup cleanup and new backups are paused to preserve the stored data.',
+  'settings.backup.points': 'Repository restore points',
+  'settings.backup.empty': 'There are no completed backups yet.',
+  'settings.backup.noPoints': 'This repository has no completed backup yet.',
+  'settings.backup.lastCompleted': 'Last completed backup: {date}',
+  'settings.backup.pointSize': '{count} files · {size}',
+  'settings.backup.sizeMiB': '{size} MiB',
+  'settings.backup.restore': 'Restore to a new folder…',
+  'settings.backup.restoreTitle': 'Restore repository',
+  'settings.backup.restoreDescription':
+    'Restore {repository} from {date} into a new folder. The original repository will be kept.',
+  'settings.backup.confirmRestore': 'Choose a folder and restore',
+  'settings.backup.restored': 'Repository restored to {path}.',
+  'settings.backup.refresh': 'Refresh',
+  'settings.backup.error.unknown': 'The backup action could not be completed.',
+  'settings.backup.error.invalid': 'The backup is incomplete or damaged and cannot be restored.',
+  'settings.backup.error.unavailable':
+    'The backup store could not be accessed. Check available space and permissions.',
+  'settings.backup.error.destination':
+    'Choose a new destination folder. Existing files cannot be overwritten.',
+  'settings.backup.error.stale':
+    'The backup changed or is no longer available. Refresh and try again.',
+  'settings.backup.error.details': 'Technical details',
+  'settings.backup.status.idle': 'Waiting for changes',
+  'settings.backup.status.queued': 'Backup queued',
+  'settings.backup.status.running': 'Backing up…',
+  'settings.backup.status.completed': 'Backup completed',
+  'settings.backup.status.unchanged': 'No changes since the last backup',
+  'settings.backup.status.tooSoon': 'The next backup will be made after 24 hours',
+  'settings.backup.status.busy': 'Backup postponed while the repository is in use',
+  'settings.backup.status.overBudget': 'No new backup: global space limit reached',
+  'settings.backup.status.failed': 'Backup failed; the previous restore point is kept',
+  'settings.backup.status.disabled': 'Automatic backups disabled',
+  'settings.backup.reason.changed':
+    'The repository changed while it was being backed up. GitThul will try again later.',
+  'settings.backup.reason.incomplete':
+    'This repository uses storage that cannot yet be backed up independently.',
+  'settings.backup.reason.io': 'Check available disk space and folder permissions.',
+  'settings.backup.reason.git': 'Git could not verify the repository backup.',
+  'settings.backup.reason.corrupt': 'The stored backup data could not be verified.',
+  'settings.storage.protectedCount': 'Protected temporary items: {count}.',
+  'settings.storage.uncertain': 'Some temporary data could not be verified and will be kept.',
   'settings.recovery.error.stale':
-    'The repository or recovery point changed. Refresh the list and review it again before restoring.',
+    'Temporary data changed. Refresh and try clearing the cache again.',
   'settings.recovery.error.invalid':
-    'The copy is invalid or incomplete. You can inspect the details; it has not been restored.',
+    'Some temporary data is incomplete or damaged. GitThul keeps it to protect recoverable work.',
   'settings.recovery.error.protected':
-    'The active history or a preview still needs this copy. Close the preview or release that history before deleting it.',
+    'An active or unfinished operation still needs this data. GitThul will keep it until it can be safely removed.',
   'settings.recovery.error.unavailable':
-    'The repository or backups could not be accessed. Check the path, permissions, and available space.',
+    'Temporary files could not be accessed. Check the path, permissions, and available space.',
   'settings.recovery.error.cancelled': 'The operation was cancelled.',
-  'settings.recovery.error.unknown': 'The recovery action could not be completed.',
-  'settings.recovery.error.details': 'View technical details',
-  'settings.recovery.overBudget':
-    'Limits are still exceeded because {count} points are protected. Cleanup will keep them until they are no longer pending or in use.',
-  'settings.recovery.uncertain':
-    'There are {count} incomplete or damaged backup groups. Cleanup keeps them to prevent data loss. Open the recovery folder to inspect their files.',
-  'settings.recovery.configurationWarning':
-    'The recovery configuration could not be read. Automatic cleanup is suspended; save valid settings to enable it again.',
+  'settings.recovery.error.unknown': 'The cache could not be cleared.',
 };

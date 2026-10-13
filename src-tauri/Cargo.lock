@@ -1624,10 +1624,11 @@ dependencies = [
 
 [[package]]
 name = "gitthul"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "chardetng",
  "encoding_rs",
+ "flate2",
  "getrandom 0.2.17",
  "gix",
  "gtk",

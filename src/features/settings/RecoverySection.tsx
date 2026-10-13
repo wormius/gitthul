@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { usePorts } from '@app/PortsContext';
 import {
-  recoveryFailure,
-  type RecoveryPoint,
-  type RecoveryPreview,
-  type RecoverySnapshot,
-} from '@core/domain/recovery';
-import { RECOVERY_LIMITS, type RecoverySettings } from '@core/domain/settings';
-import { MESSAGES, type MessageKey } from '@i18n/messages';
+  backupFailure,
+  type BackupPoint,
+  type BackupRepository,
+  type BackupSnapshot,
+} from '@core/domain/backup';
+import { recoveryFailure, type RecoverySnapshot } from '@core/domain/recovery';
+import { BACKUP_LIMITS, type BackupSettings } from '@core/domain/settings';
 import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
 import { Input } from '@ui/Input';
@@ -18,15 +18,11 @@ import { SettingsSection } from './SettingsSection';
 import { useSettingsData } from './useSettingsData';
 import styles from './RecoverySection.module.css';
 
-type Limit = Exclude<keyof RecoverySettings, 'autoCleanup'>;
-
-function LimitInput({
-  field,
+function SpaceLimit({
   value,
   disabled,
   onSave,
 }: {
-  field: Limit;
   value: number;
   disabled: boolean;
   onSave: (value: number) => Promise<void>;
@@ -35,14 +31,18 @@ function LimitInput({
   const [draft, setDraft] = useState(String(value));
   const [sourceValue, setSourceValue] = useState(value);
   const [invalid, setInvalid] = useState(false);
-  const range = RECOVERY_LIMITS[field];
   if (sourceValue !== value) {
     setSourceValue(value);
     setDraft(String(value));
   }
   async function save() {
     const next = Number(draft);
-    if (!draft.trim() || !Number.isInteger(next) || next < range.min || next > range.max) {
+    if (
+      !draft.trim() ||
+      !Number.isInteger(next) ||
+      next < BACKUP_LIMITS.min ||
+      next > BACKUP_LIMITS.max
+    ) {
       setInvalid(true);
       return;
     }
@@ -57,17 +57,15 @@ function LimitInput({
   }
   return (
     <Input
-      label={t(`settings.recovery.${field}`)}
+      label={t('settings.backup.maxMiB')}
       hideLabel
       type="number"
-      min={range.min}
-      max={range.max}
+      min={BACKUP_LIMITS.min}
+      max={BACKUP_LIMITS.max}
       step={1}
       disabled={disabled}
       value={draft}
-      {...(invalid
-        ? { error: t('settings.recovery.invalidLimit', { min: range.min, max: range.max }) }
-        : {})}
+      {...(invalid ? { error: t('settings.backup.invalidLimit', BACKUP_LIMITS) } : {})}
       onChange={(event) => {
         setDraft(event.target.value);
         setInvalid(false);
@@ -82,156 +80,173 @@ function LimitInput({
   );
 }
 
-/** Descubre los respaldos persistidos cada vez que se abre la sección. */
+type Failure =
+  | { scope: 'cache'; value: ReturnType<typeof recoveryFailure> }
+  | { scope: 'backup'; value: ReturnType<typeof backupFailure> };
+
+/** Caché interno y puntos completos de emergencia tienen ciclos de vida separados. */
 export function RecoverySection() {
-  const { recovery, settings: settingsPort } = usePorts();
+  const { recovery, backup } = usePorts();
   const { settings, patch } = useSettingsData();
   const { t, locale } = useI18n();
-  const [snapshot, setSnapshot] = useState<RecoverySnapshot | null>(null);
+  const [cache, setCache] = useState<RecoverySnapshot | null>(null);
+  const [catalog, setCatalog] = useState<BackupSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<ReturnType<typeof recoveryFailure> | null>(null);
-  const [preview, setPreview] = useState<RecoveryPreview | null>(null);
+  const [failure, setFailure] = useState<Failure | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
-  const [removeConfirm, setRemoveConfirm] = useState<RecoveryPoint | null>(null);
-  const previewToken = useRef<string | null>(null);
+  const [restoreConfirm, setRestoreConfirm] = useState<{
+    repository: BackupRepository;
+    point: BackupPoint;
+  } | null>(null);
   const generation = useRef(0);
+  const catalogRequest = useRef(0);
+  const cacheHeadingId = useId();
+  const backupHeadingId = useId();
   const busyGuard = useRef(false);
-
-  function report(error: unknown) {
-    const next = recoveryFailure(error);
-    if (next.code !== 'recovery.cancelled') setFailure(next);
-  }
 
   useEffect(() => {
     const request = ++generation.current;
+    const catalogRead = ++catalogRequest.current;
     let alive = true;
-    void recovery.read().then(
-      (value) => {
-        if (alive) {
-          setSnapshot(value);
-          setLoading(false);
-        }
-      },
-      (error: unknown) => {
-        if (alive) {
-          setFailure(recoveryFailure(error));
-          setLoading(false);
-        }
-      },
-    );
+    void Promise.allSettled([recovery.read(), backup.read()]).then(([temporary, backups]) => {
+      if (!alive) return;
+      if (temporary.status === 'fulfilled') setCache(temporary.value);
+      else setFailure({ scope: 'cache', value: recoveryFailure(temporary.reason) });
+      if (backups.status === 'fulfilled') {
+        if (catalogRead === catalogRequest.current) setCatalog(backups.value);
+      } else setFailure({ scope: 'backup', value: backupFailure(backups.reason) });
+      setLoading(false);
+    });
     return () => {
       alive = false;
       generation.current = request + 1;
-      const token = previewToken.current;
-      previewToken.current = null;
-      if (token) void recovery.cancelPreview(token).catch(() => undefined);
     };
-  }, [recovery]);
+  }, [recovery, backup]);
 
-  async function run(action: () => Promise<void>) {
+  // Read the lightweight native catalog slowly while idle and faster during a backup.
+  useEffect(() => {
+    const active = catalog?.repositories.some((repository) =>
+      /^(queued|running)$/.test(repository.status),
+    );
+    const delay = active ? 5000 : settings.backup.enabled ? 30000 : null;
+    if (delay === null) return;
+    const request = generation.current;
+    let alive = true;
+    const timer = window.setInterval(() => {
+      if (busyGuard.current) return;
+      const catalogRead = ++catalogRequest.current;
+      void backup.read().then(
+        (next) => {
+          if (alive && request === generation.current && catalogRead === catalogRequest.current)
+            setCatalog(next);
+        },
+        () => undefined,
+      );
+    }, delay);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [backup, catalog, settings.backup.enabled]);
+
+  async function run(
+    scope: Failure['scope'],
+    action: () => Promise<void>,
+    propagateFailure = false,
+  ) {
     if (busyGuard.current) return;
     busyGuard.current = true;
+    ++catalogRequest.current;
     setBusy(true);
     setFailure(null);
+    setNotice(null);
+    const request = generation.current;
     try {
       await action();
     } catch (error) {
-      report(error);
+      if (request === generation.current)
+        setFailure(
+          scope === 'cache'
+            ? { scope, value: recoveryFailure(error) }
+            : { scope, value: backupFailure(error) },
+        );
+      if (propagateFailure) throw error;
     } finally {
       busyGuard.current = false;
-      setBusy(false);
+      if (request === generation.current) setBusy(false);
     }
   }
 
   async function refresh() {
-    setSnapshot(await recovery.read());
+    const request = generation.current;
+    const catalogRead = ++catalogRequest.current;
+    const [temporary, backups] = await Promise.allSettled([recovery.read(), backup.read()]);
+    if (request !== generation.current) return;
+    if (temporary.status === 'fulfilled') setCache(temporary.value);
+    else setFailure({ scope: 'cache', value: recoveryFailure(temporary.reason) });
+    if (catalogRead !== catalogRequest.current) return;
+    if (backups.status === 'fulfilled') setCatalog(backups.value);
+    else setFailure({ scope: 'backup', value: backupFailure(backups.reason) });
   }
 
-  async function save(change: Partial<RecoverySettings>) {
-    setFailure(null);
+  async function save(change: Partial<BackupSettings>) {
+    const request = generation.current;
     try {
-      await patch({ recovery: change });
-      await settingsPort.flush();
+      await patch({ backup: change });
     } catch (error) {
-      report(error);
+      if (request === generation.current)
+        setFailure({ scope: 'backup', value: backupFailure(error) });
       throw error;
     }
-    // El ajuste ya está persistido. Un fallo al releer el estado no debe revertirlo.
+    // A read failure must not revert settings that were already persisted.
     try {
-      await refresh();
+      const catalogRead = ++catalogRequest.current;
+      const next = await backup.read();
+      if (request === generation.current && catalogRead === catalogRequest.current)
+        setCatalog(next);
     } catch (error) {
-      report(error);
+      if (request === generation.current)
+        setFailure({ scope: 'backup', value: backupFailure(error) });
     }
-  }
-
-  function startPreview(point: RecoveryPoint) {
-    void run(async () => {
-      const request = generation.current;
-      const result = await recovery.preview(point.id);
-      if (request !== generation.current) {
-        await recovery.cancelPreview(result.token);
-        return;
-      }
-      previewToken.current = result.token;
-      setPreview(result);
-    });
-  }
-
-  function cancelPreview() {
-    const token = previewToken.current;
-    if (!token || busyGuard.current) return;
-    void run(async () => {
-      await recovery.cancelPreview(token);
-      previewToken.current = null;
-      setPreview(null);
-    });
-  }
-
-  function restore() {
-    const token = previewToken.current;
-    if (!token) return;
-    void run(async () => {
-      try {
-        await recovery.restore(token);
-      } finally {
-        previewToken.current = null;
-        setPreview(null);
-        await recovery.cancelPreview(token).catch(() => undefined);
-      }
-      await refresh();
-    });
-  }
-
-  function operationLabel(label: string) {
-    return label in MESSAGES[locale]
-      ? t(label as MessageKey)
-      : label || t('settings.recovery.savedState');
   }
 
   function bytes(value: number) {
-    return t('settings.recovery.sizeMiB', {
+    return t('settings.backup.sizeMiB', {
       size: (value / 1048576).toLocaleString(locale, { maximumFractionDigits: 2 }),
     });
   }
 
-  const pending =
-    snapshot?.checkpoints.filter((point) => point.status === 'pending' || point.status === 'legacy')
-      .length ?? 0;
-  const errorKeys = {
+  const cacheErrorKeys = {
     'recovery.stale': 'settings.recovery.error.stale',
     'recovery.invalid': 'settings.recovery.error.invalid',
     'recovery.protected': 'settings.recovery.error.protected',
     'recovery.unavailable': 'settings.recovery.error.unavailable',
     'recovery.cancelled': 'settings.recovery.error.cancelled',
   } as const;
-  const failureNotice = failure && (
+  const backupErrorKeys = {
+    'backup.invalid': 'settings.backup.error.invalid',
+    'backup.unavailable': 'settings.backup.error.unavailable',
+    'backup.destination': 'settings.backup.error.destination',
+    'backup.stale': 'settings.backup.error.stale',
+  } as const;
+  const failureKey = failure
+    ? failure.scope === 'cache'
+      ? failure.value.code
+        ? cacheErrorKeys[failure.value.code]
+        : 'settings.recovery.error.unknown'
+      : failure.value.code
+        ? backupErrorKeys[failure.value.code]
+        : 'settings.backup.error.unknown'
+    : null;
+  const failureNotice = failure && failureKey && (
     <div className={styles.failure} role="alert">
-      <p>{t(failure.code ? errorKeys[failure.code] : 'settings.recovery.error.unknown')}</p>
-      {failure.output && (
+      <p>{t(failureKey)}</p>
+      {failure.value.output && (
         <details>
-          <summary>{t('settings.recovery.error.details')}</summary>
-          <pre>{failure.output}</pre>
+          <summary>{t('settings.backup.error.details')}</summary>
+          <pre>{failure.value.output}</pre>
         </details>
       )}
     </div>
@@ -241,220 +256,184 @@ export function RecoverySection() {
     <SettingsSection
       title={t('settings.section.recovery')}
       actions={
-        <>
-          <Button
-            disabled={busy || loading}
-            onClick={() => {
-              void run(refresh);
-            }}
-          >
-            {t('settings.recovery.refresh')}
-          </Button>
-          <Button
-            disabled={busy}
-            onClick={() => {
-              void run(async () => {
-                await recovery.importLegacy();
-                await refresh();
-              });
-            }}
-          >
-            {t('settings.recovery.import')}
-          </Button>
-          <Button
-            disabled={busy || loading}
-            onClick={() => {
-              void run(() => recovery.openDirectory());
-            }}
-          >
-            {t('settings.recovery.openDirectory')}
-          </Button>
-          <Button
-            disabled={busy || loading}
-            onClick={() => {
-              setFailure(null);
-              setCleanupConfirm(true);
-            }}
-          >
-            {t('settings.recovery.cleanup')}
-          </Button>
-        </>
+        <Button disabled={busy || loading} onClick={() => void run('backup', refresh)}>
+          {t('settings.backup.refresh')}
+        </Button>
       }
     >
-      <p>{t('settings.recovery.description')}</p>
-      <p className={styles.hint}>{t('settings.recovery.retentionHint')}</p>
-      <SettingRow label={t('settings.recovery.autoCleanup')}>
-        <Switch
-          label={t('settings.recovery.autoCleanup')}
-          checked={settings.recovery.autoCleanup && !snapshot?.configurationWarning}
-          disabled={busy || loading}
-          onChange={(event) => {
-            void run(() => save({ autoCleanup: event.target.checked }));
+      <section className={styles.group} aria-labelledby={cacheHeadingId}>
+        <h2 id={cacheHeadingId}>{t('settings.storage.title')}</h2>
+        <p>{t('settings.storage.description')}</p>
+        {cache && (
+          <div className={styles.storage}>
+            <span>{t('settings.storage.total', { size: bytes(cache.totalBytes) })}</span>
+            <code>{cache.directory}</code>
+          </div>
+        )}
+        <p className={styles.hint}>{t('settings.storage.protected')}</p>
+        {!!cache?.protectedCount && (
+          <p className={styles.hint}>
+            {t('settings.storage.protectedCount', { count: cache.protectedCount })}
+          </p>
+        )}
+        {!!cache?.uncertainBuckets && (
+          <p className={styles.pending} role="status">
+            {t('settings.storage.uncertain')}
+          </p>
+        )}
+        {cache?.configurationWarning && (
+          <p className={styles.pending} role="status">
+            {t('settings.storage.configurationWarning')}
+          </p>
+        )}
+        <Button
+          disabled={busy || loading || !cache}
+          onClick={() => {
+            setFailure(null);
+            setNotice(null);
+            setCleanupConfirm(true);
           }}
-        />
-      </SettingRow>
-      {(['maxCheckpoints', 'maxAgeDays', 'maxMiB'] as const).map((field) => (
-        <SettingRow key={field} label={t(`settings.recovery.${field}`)}>
-          <LimitInput
-            field={field}
-            value={settings.recovery[field]}
-            disabled={busy}
-            onSave={(value) => save({ [field]: value })}
-          />
-        </SettingRow>
-      ))}
-      {snapshot && (
-        <div className={styles.storage}>
-          <span>{t('settings.recovery.directory')}</span>
-          <code>{snapshot.directory}</code>
-          <span>
-            {t('settings.recovery.total', {
-              count: snapshot.checkpoints.length,
-              size: bytes(snapshot.totalBytes),
-            })}
-          </span>
-        </div>
-      )}
-      {pending > 0 && (
-        <p className={styles.pending} role="status">
-          {t('settings.recovery.pendingNotice', { count: pending })}
-        </p>
-      )}
-      {snapshot?.configurationWarning && (
-        <p className={styles.pending} role="status">
-          {t('settings.recovery.configurationWarning')}
-        </p>
-      )}
-      {!!snapshot?.uncertainBuckets && (
-        <p className={styles.pending} role="status">
-          {t('settings.recovery.uncertain', { count: snapshot.uncertainBuckets })}
-        </p>
-      )}
-      {snapshot?.overBudget && (
-        <p className={styles.pending} role="status">
-          {t('settings.recovery.overBudget', { count: snapshot.protectedCount ?? 0 })}
-        </p>
-      )}
-      {!preview && !cleanupConfirm && !removeConfirm && failureNotice}
-      {loading && <p role="status">{t('settings.recovery.loading')}</p>}
-      {!loading && snapshot?.checkpoints.length === 0 && <p>{t('settings.recovery.empty')}</p>}
-      <ul className={styles.points} aria-label={t('settings.recovery.points')}>
-        {snapshot?.checkpoints.map((point) => (
-          <li key={point.id} className={styles.point}>
-            <div className={styles.metadata}>
-              <strong>{operationLabel(point.label)}</strong>
-              <code>{point.repository}</code>
-              <div className={styles.summary}>
-                <time dateTime={new Date(point.createdAt).toISOString()}>
-                  {new Date(point.createdAt).toLocaleString(locale)}
-                </time>
-                <span>{t(`settings.recovery.status.${point.status}`)}</span>
-                {point.active && <span>{t('settings.recovery.active')}</span>}
-              </div>
-              <span>
-                {t('settings.recovery.pointSize', {
-                  count: point.fileCount,
-                  size: bytes(point.bytes),
-                })}
-              </span>
-            </div>
-            <div className={styles.pointActions}>
-              <Button size="sm" disabled={busy} onClick={() => startPreview(point)}>
-                {t('settings.recovery.restore')}
-              </Button>
-              <Button
-                size="sm"
-                disabled={busy}
-                onClick={() => {
-                  void run(async () => {
-                    await recovery.export(point.id);
-                  });
-                }}
-              >
-                {t('settings.recovery.export')}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={busy || point.active}
-                onClick={() => {
-                  setFailure(null);
-                  setRemoveConfirm(point);
-                }}
-              >
-                {t('settings.recovery.remove')}
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      {preview && (
-        <ConfirmDialog
-          busy={busy}
-          title={t('settings.recovery.restoreTitle')}
-          description={t(
-            preview.includesGitState
-              ? 'settings.recovery.restoreGitDescription'
-              : 'settings.recovery.restoreFilesDescription',
-            { repository: preview.repository, count: preview.fileCount },
-          )}
-          confirmLabel={t('settings.recovery.confirmRestore')}
-          onConfirm={restore}
-          onCancel={cancelPreview}
         >
-          <p>{t('settings.recovery.backupFirst')}</p>
-          <p>{t('settings.recovery.previewPaths', { count: preview.fileCount })}</p>
-          <ul className={styles.previewPaths}>
-            {preview.paths.map((path) => (
-              <li key={path}>
-                <code>{path}</code>
-              </li>
-            ))}
-          </ul>
-          {preview.fileCount > preview.paths.length && (
-            <p>
-              {t('settings.recovery.morePaths', {
-                count: preview.fileCount - preview.paths.length,
+          {t('settings.storage.cleanup')}
+        </Button>
+      </section>
+      <section className={styles.group} aria-labelledby={backupHeadingId}>
+        <h2 id={backupHeadingId}>{t('settings.backup.title')}</h2>
+        <p>{t('settings.backup.description')}</p>
+        <div className={styles.preferences}>
+          <SettingRow label={t('settings.backup.enabled')}>
+            <Switch
+              label={t('settings.backup.enabled')}
+              checked={settings.backup.enabled}
+              disabled={busy || loading}
+              onChange={(event) => {
+                const enabled = event.target.checked;
+                void run('backup', () => save({ enabled }));
+              }}
+            />
+          </SettingRow>
+          <SettingRow label={t('settings.backup.maxMiB')}>
+            <SpaceLimit
+              value={settings.backup.maxMiB}
+              disabled={busy || loading}
+              onSave={(maxMiB) => run('backup', () => save({ maxMiB }), true)}
+            />
+          </SettingRow>
+        </div>
+        <p className={styles.hint}>{t('settings.backup.retention')}</p>
+        {catalog && (
+          <div className={styles.storage}>
+            <span>
+              {t('settings.backup.total', {
+                size: bytes(catalog.totalBytes),
+                limit: bytes(settings.backup.maxMiB * 1048576),
               })}
-            </p>
-          )}
-          {failureNotice}
-        </ConfirmDialog>
-      )}
+            </span>
+            <code>{catalog.directory}</code>
+          </div>
+        )}
+        {catalog && catalog.totalBytes > catalog.maxBytes && (
+          <p className={styles.pending} role="status">
+            {t('settings.backup.overBudget')}
+          </p>
+        )}
+        {catalog && catalog.corruptPoints > 0 && (
+          <p className={styles.pending} role="alert">
+            {t('settings.backup.corruptNotice')}
+          </p>
+        )}
+        {!loading && catalog?.repositories.length === 0 && <p>{t('settings.backup.empty')}</p>}
+        <ul className={styles.points} aria-label={t('settings.backup.points')}>
+          {catalog?.repositories.map((repository) => (
+            <li key={repository.id} className={styles.repository}>
+              <div className={styles.metadata}>
+                <strong>{repository.name}</strong>
+                <code>{repository.repository}</code>
+                <p className={styles.summary} role="status">
+                  {t(`settings.backup.status.${repository.status}`)}
+                </p>
+                {repository.reason && (
+                  <p className={styles.hint}>{t(`settings.backup.reason.${repository.reason}`)}</p>
+                )}
+                {repository.lastCompletedAt !== null && (
+                  <span>
+                    {t('settings.backup.lastCompleted', {
+                      date: new Date(repository.lastCompletedAt).toLocaleString(locale),
+                    })}
+                  </span>
+                )}
+              </div>
+              {!repository.points.length && <p>{t('settings.backup.noPoints')}</p>}
+              <ul className={styles.points}>
+                {repository.points.map((point) => (
+                  <li key={point.id} className={styles.point}>
+                    <div className={styles.metadata}>
+                      <time dateTime={new Date(point.createdAt).toISOString()}>
+                        {new Date(point.createdAt).toLocaleString(locale)}
+                      </time>
+                      <span>
+                        {t('settings.backup.pointSize', {
+                          count: point.fileCount,
+                          size: bytes(point.bytes),
+                        })}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => {
+                        setFailure(null);
+                        setNotice(null);
+                        setRestoreConfirm({ repository, point });
+                      }}
+                    >
+                      {t('settings.backup.restore')}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      </section>
+      {loading && <p role="status">{t('settings.storage.loading')}</p>}
+      {notice && <p role="status">{notice}</p>}
+      {!cleanupConfirm && !restoreConfirm && failureNotice}
       {cleanupConfirm && (
         <ConfirmDialog
           busy={busy}
-          title={t('settings.recovery.cleanup')}
-          description={t('settings.recovery.cleanupDescription')}
-          confirmLabel={t('settings.recovery.cleanup')}
+          title={t('settings.storage.cleanupTitle')}
+          description={t('settings.storage.cleanupDescription')}
+          confirmLabel={t('settings.storage.confirmCleanup')}
           onCancel={() => setCleanupConfirm(false)}
           onConfirm={() => {
-            void run(async () => {
-              await settingsPort.flush();
-              await recovery.cleanup();
+            void run('cache', async () => {
+              const result = await recovery.cleanup();
               setCleanupConfirm(false);
               await refresh();
+              setNotice(t('settings.storage.cleaned', { size: bytes(result.freedBytes) }));
             });
           }}
         >
           {failureNotice}
         </ConfirmDialog>
       )}
-      {removeConfirm && (
+      {restoreConfirm && (
         <ConfirmDialog
           busy={busy}
-          title={t('settings.recovery.removeTitle')}
-          description={t('settings.recovery.removeDescription', {
-            repository: removeConfirm.repository,
+          title={t('settings.backup.restoreTitle')}
+          description={t('settings.backup.restoreDescription', {
+            repository: restoreConfirm.repository.name,
+            date: new Date(restoreConfirm.point.createdAt).toLocaleString(locale),
           })}
-          confirmLabel={t('settings.recovery.remove')}
-          onCancel={() => setRemoveConfirm(null)}
+          confirmLabel={t('settings.backup.confirmRestore')}
+          onCancel={() => setRestoreConfirm(null)}
           onConfirm={() => {
-            const id = removeConfirm.id;
-            void run(async () => {
-              await recovery.remove(id);
-              setRemoveConfirm(null);
-              await refresh();
+            const id = restoreConfirm.point.id;
+            void run('backup', async () => {
+              const result = await backup.restore(id);
+              setRestoreConfirm(null);
+              if (result) setNotice(t('settings.backup.restored', { path: result.path }));
             });
           }}
         >

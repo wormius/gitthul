@@ -75,7 +75,11 @@ export function RefLabelCluster({
   };
 
   const renderItem = (item: RefLabelItem) => {
-    const target: DragRef = { kind: item.kind, name: item.refName };
+    const target: DragRef = {
+      kind: item.kind,
+      name: item.refName,
+      ref: (item.local ?? item.remote ?? item.tag)?.id,
+    };
     const label =
       onReferenceDrop === undefined ? (
         <RefLabel item={item} onDoubleClick={() => onReferenceActivate?.(item)} />

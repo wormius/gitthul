@@ -1,9 +1,9 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { ComponentPropsWithRef, ReactNode } from 'react';
 
 import { useDataGridLayout } from './dataGridUtils';
 import styles from './DataGridRow.module.css';
 
-interface DataGridRowProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
+interface DataGridRowProps extends Omit<ComponentPropsWithRef<'div'>, 'children'> {
   /** Índice base 0 de la fila. La cabecera ocupa la 1 en `aria-rowindex`. */
   index: number;
   selected?: boolean;

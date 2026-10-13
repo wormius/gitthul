@@ -284,7 +284,8 @@ export function Tree({
                 onMouseDown={(event) => {
                   // Solo el clic izquierdo selecciona: el derecho abre el menú
                   // contextual sin cambiar la selección ni disparar el diff.
-                  if (event.button !== 0) return;
+                  // Una carpeta solo alterna su expansión, igual que su triángulo.
+                  if (event.button !== 0 || row.hasChildren) return;
 
                   activeIndexRef.current = virtual.index;
                   activeIdRef.current = row.id;

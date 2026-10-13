@@ -1,4 +1,5 @@
 import type { Commit } from '@core/domain/commit';
+import { runCooperatively } from '@app/runCooperatively';
 import type { CommitTableRow } from '@features/working/commits';
 import type { RefsSnapshot } from '@core/domain/refs';
 import type { GraphPalette } from '@features/working/graphPaint';
@@ -57,31 +58,81 @@ export function buildTerminalGraphEntries(
   refs: RefsSnapshot,
   filter: string,
 ): readonly TerminalGraphEntry[] {
+  const steps = terminalEntrySteps(commits, refs, filter);
+  let result = steps.next();
+  while (!result.done) result = steps.next();
+  return result.value;
+}
+
+export function buildTerminalGraphEntriesAsync(
+  commits: readonly Commit[],
+  refs: RefsSnapshot,
+  signal?: AbortSignal,
+): Promise<readonly TerminalGraphEntry[]> {
+  return runCooperatively(terminalEntrySteps(commits, refs, ''), signal);
+}
+
+function* terminalEntrySteps(
+  commits: readonly Commit[],
+  refs: RefsSnapshot,
+  filter: string,
+): Generator<void, readonly TerminalGraphEntry[]> {
   const normalizedFilter = filter.trim().toLocaleLowerCase();
+  // Indexar una vez evita recorrer todas las referencias por cada commit.
+  const bySha = new Map<string, RefsSnapshot>();
+  const groupAt = (sha: string) => {
+    let group = bySha.get(sha);
+    if (!group) {
+      group = { ...refs, branches: [], tags: [] };
+      bySha.set(sha, group);
+    }
+    return group;
+  };
+  const branchesBySha = new Map<string, RefsSnapshot['branches'][number][]>();
+  const tagsBySha = new Map<string, RefsSnapshot['tags'][number][]>();
+  for (const [index, branch] of refs.branches.entries()) {
+    if (index % 256 === 0) yield;
+    const branches = branchesBySha.get(branch.tip) ?? [];
+    branches.push(branch);
+    branchesBySha.set(branch.tip, branches);
+    groupAt(branch.tip).branches = branches;
+  }
+  for (const [index, tag] of refs.tags.entries()) {
+    if (index % 256 === 0) yield;
+    const tags = tagsBySha.get(tag.target) ?? [];
+    tags.push(tag);
+    tagsBySha.set(tag.target, tags);
+    groupAt(tag.target).tags = tags;
+  }
+  const emptyRefs: RefsSnapshot = { ...refs, branches: [], tags: [] };
+  const entries: TerminalGraphEntry[] = [];
+  for (const [index, commit] of commits.entries()) {
+    if (index % 256 === 0) yield;
+    const group = bySha.get(commit.sha) ?? emptyRefs;
+    const labels = refLabelsAt(group, commit.sha);
+    const insertOptions = terminalInsertOptionsAt(group, commit.sha);
+    if (normalizedFilter !== '') {
+      const searchable = [
+        commit.sha,
+        commit.summary,
+        ...labels.flatMap((label) => [label.name, label.refName]),
+      ]
+        .join('\n')
+        .toLocaleLowerCase();
 
-  return commits.flatMap((commit) => {
-    const labels = refLabelsAt(refs, commit.sha);
-    const insertOptions = terminalInsertOptionsAt(refs, commit.sha);
-    const searchable = [
-      commit.sha,
-      commit.summary,
-      ...labels.flatMap((label) => [label.name, label.refName]),
-    ]
-      .join('\n')
-      .toLocaleLowerCase();
-
-    if (normalizedFilter !== '' && !searchable.includes(normalizedFilter)) return [];
-
-    return [{ key: commit.sha, commit, labels, insertOptions }];
-  });
+      if (!searchable.includes(normalizedFilter)) continue;
+    }
+    entries.push({ key: commit.sha, commit, labels, insertOptions });
+  }
+  return entries;
 }
 
 /**
  * Paleta deliberadamente corta: éxito, información y tinta secundaria de la
- * interfaz. El grafo sigue el modo claro/oscuro del panel lateral. Las formas
- * y patrones se alternan para que una
- * calle no dependa únicamente del color y para evitar copiar el arcoíris de
- * GitWorking.
+ * interfaz. El grafo sigue el modo claro/oscuro del panel lateral. Las conexiones
+ * entre commits son continuas y sus nodos son anillos. El dibujante compartido
+ * reserva los enlaces finos y punteados para WIP y stashes, junto a sus formas
+ * sólidas.
  */
 export function terminalGraphPalette(tokens: Record<string, string>): GraphPalette {
   const success = tokens['--text-success'] || tokens['--text-primary'] || 'currentColor';
@@ -93,11 +144,11 @@ export function terminalGraphPalette(tokens: Record<string, string>): GraphPalet
       { color: success, dash: [], shape: 'ring' },
       { color: info, dash: [], shape: 'ring' },
       { color: secondary, dash: [], shape: 'ring' },
-      { color: success, dash: [5, 3], shape: 'ring-filled' },
-      { color: info, dash: [2, 3], shape: 'diamond' },
-      { color: secondary, dash: [7, 3], shape: 'square' },
-      { color: success, dash: [2, 3], shape: 'diamond' },
-      { color: info, dash: [7, 3], shape: 'square' },
+      { color: success, dash: [], shape: 'ring' },
+      { color: info, dash: [], shape: 'ring' },
+      { color: secondary, dash: [], shape: 'ring' },
+      { color: success, dash: [], shape: 'ring' },
+      { color: info, dash: [], shape: 'ring' },
     ],
     wip: secondary,
     stash: info,
@@ -112,16 +163,49 @@ export function terminalGraphRows(
   rows: readonly CommitTableRow[],
   entries: readonly TerminalGraphEntry[],
   filter: string,
-): readonly { row: CommitTableRow; graphIndex: number; entry?: TerminalGraphEntry }[] {
-  const bySha = new Map(entries.map((entry) => [entry.key, entry]));
-  const all = rows.map((row, graphIndex) => ({
-    row,
-    graphIndex,
-    entry: row.kind === 'commit' ? bySha.get(row.key) : undefined,
-  }));
+): readonly TerminalGraphRow[] {
+  const steps = terminalRowSteps(rows, entries, filter);
+  let result = steps.next();
+  while (!result.done) result = steps.next();
+  return result.value;
+}
+
+export interface TerminalGraphRow {
+  row: CommitTableRow;
+  graphIndex: number;
+  entry?: TerminalGraphEntry;
+}
+
+export function terminalGraphRowsAsync(
+  rows: readonly CommitTableRow[],
+  entries: readonly TerminalGraphEntry[],
+  filter: string,
+  signal?: AbortSignal,
+): Promise<readonly TerminalGraphRow[]> {
+  return runCooperatively(terminalRowSteps(rows, entries, filter), signal);
+}
+
+function* terminalRowSteps(
+  rows: readonly CommitTableRow[],
+  entries: readonly TerminalGraphEntry[],
+  filter: string,
+): Generator<void, readonly TerminalGraphRow[]> {
+  const bySha = new Map<string, TerminalGraphEntry>();
+  for (const [index, entry] of entries.entries()) {
+    if (index % 256 === 0) yield;
+    bySha.set(entry.key, entry);
+  }
+  const all: TerminalGraphRow[] = [];
+  for (const [graphIndex, row] of rows.entries()) {
+    if (graphIndex % 256 === 0) yield;
+    all.push({ row, graphIndex, entry: row.kind === 'commit' ? bySha.get(row.key) : undefined });
+  }
   const query = filter.trim().toLocaleLowerCase();
   if (!query) return all;
-  const matches = all.flatMap(({ row, entry }, index) => {
+  let first: number | undefined;
+  let last: number | undefined;
+  for (const [index, { row, entry }] of all.entries()) {
+    if (index % 256 === 0) yield;
     const text =
       row.kind === 'wip'
         ? (row.label ?? 'WIP')
@@ -132,10 +216,11 @@ export function terminalGraphRows(
               row.commit.summary,
               ...(entry?.insertOptions.map((option) => option.value) ?? []),
             ].join('\n');
-    return text.toLocaleLowerCase().includes(query) ? [index] : [];
-  });
-  const first = matches[0];
-  const last = matches[matches.length - 1];
+    if (text.toLocaleLowerCase().includes(query)) {
+      first ??= index;
+      last = index;
+    }
+  }
   return first === undefined || last === undefined ? [] : all.slice(first, last + 1);
 }
 

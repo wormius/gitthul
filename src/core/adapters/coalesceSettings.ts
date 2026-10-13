@@ -87,6 +87,7 @@ function mergePatch(current: SettingsPatch, next: SettingsPatch): SettingsPatch 
   if (next.logging) merged.logging = { ...current.logging, ...next.logging };
   if (next.updates) merged.updates = { ...current.updates, ...next.updates };
   if (next.recovery) merged.recovery = { ...current.recovery, ...next.recovery };
+  if (next.backup) merged.backup = { ...current.backup, ...next.backup };
 
   return merged;
 }

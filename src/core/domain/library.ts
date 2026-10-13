@@ -154,27 +154,68 @@ export function setSpaceCollapsed(library: Library, id: SpaceId, collapsed: bool
 }
 
 export function addToSpace(library: Library, id: SpaceId, repo: RepoId): Library {
+  return addManyToSpace(library, id, [repo]);
+}
+
+/** Adds a selection without moving its members out of any other space. */
+export function addManyToSpace(
+  library: Library,
+  id: SpaceId,
+  repos: readonly RepoId[],
+  reveal = false,
+): Library {
   const space = library.spaces.find((candidate) => candidate.id === id);
-  if (!space || space.repos.includes(repo)) return library;
-  return {
-    ...library,
-    spaces: library.spaces.map((candidate) =>
-      candidate.id === id ? { ...candidate, repos: [...candidate.repos, repo] } : candidate,
-    ),
-  };
+  if (!space) return library;
+  const existing = new Set(space.repos);
+  const additions = [...new Set(repos)].filter((repo) => !existing.has(repo));
+  const added =
+    additions.length === 0
+      ? library
+      : {
+          ...library,
+          spaces: library.spaces.map((candidate) =>
+            candidate.id === id
+              ? { ...candidate, repos: [...candidate.repos, ...additions] }
+              : candidate,
+          ),
+        };
+  return reveal
+    ? setView(setSpaceCollapsed(setLayout(added, 'spaces'), id, false), { kind: 'space', id })
+    : added;
+}
+
+/** Creation, membership and navigation are persisted as one library change. */
+export function createSpaceAndAddMany(
+  library: Library,
+  name: string,
+  repos: readonly RepoId[],
+): Library {
+  const created = createSpace(library, name);
+  if (created === library) return library;
+  const space = created.spaces[created.spaces.length - 1];
+  return space ? addManyToSpace(created, space.id, repos, true) : library;
 }
 
 export function removeFromSpace(library: Library, id: SpaceId, repo: RepoId): Library {
-  const space = library.spaces.find((candidate) => candidate.id === id);
-  if (!space || !space.repos.includes(repo)) return library;
-  return {
-    ...library,
-    spaces: library.spaces.map((candidate) =>
-      candidate.id === id
-        ? { ...candidate, repos: candidate.repos.filter((member) => member !== repo) }
-        : candidate,
-    ),
-  };
+  return removeManyFromSpaces(library, [repo], [id]);
+}
+
+/** Removes memberships only; an omitted scope includes every space. */
+export function removeManyFromSpaces(
+  library: Library,
+  repos: readonly RepoId[],
+  spaceIds?: readonly SpaceId[],
+): Library {
+  const targets = spaceIds === undefined ? null : new Set(spaceIds);
+  const removed = new Set(repos);
+  let changed = false;
+  const spaces = library.spaces.map((space) => {
+    if (targets !== null && !targets.has(space.id)) return space;
+    if (!space.repos.some((repo) => removed.has(repo))) return space;
+    changed = true;
+    return { ...space, repos: space.repos.filter((repo) => !removed.has(repo)) };
+  });
+  return changed ? { ...library, spaces } : library;
 }
 
 export function setAvatar(library: Library, repo: RepoId, avatar: RepoAvatar | null): Library {

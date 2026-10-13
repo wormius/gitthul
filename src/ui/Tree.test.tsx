@@ -96,6 +96,41 @@ describe('Tree', () => {
     expect(folder).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('el nombre de la carpeta pliega igual que la flecha, sin cambiar la selección', async () => {
+    const user = userEvent.setup();
+    const onSelectedChange = vi.fn();
+
+    render(
+      <Harness
+        initialExpanded={['src', 'src/core/ports']}
+        initialSelected={['CLAUDE.md']}
+        onSelectedChange={onSelectedChange}
+      />,
+    );
+
+    await user.click(screen.getByText('core/ports'));
+
+    expect(screen.getByRole('treeitem', { name: /^src/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('treeitem', { name: 'core/ports' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(screen.getByRole('treeitem', { name: 'CLAUDE.md' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(onSelectedChange).not.toHaveBeenCalled();
+
+    await user.click(screen.getByText('core/ports'));
+
+    expect(screen.getByRole('treeitem', { name: 'core/ports' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByRole('treeitem', { name: 'GitPort.ts' })).toBeInTheDocument();
+    expect(onSelectedChange).not.toHaveBeenCalled();
+  });
+
   it('funde la cadena de carpetas de hijo único en una fila', () => {
     render(<Harness initialExpanded={['src']} />);
 

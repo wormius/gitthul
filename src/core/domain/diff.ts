@@ -87,7 +87,10 @@ export type DiffSource =
   | { kind: 'worktree' }
   | { kind: 'index' }
   | { kind: 'commit'; sha: Sha }
-  | { kind: 'range'; from: Sha; to: Sha }
+  /** El árbol rastreado y, si existe, el tercer padre con archivos sin seguimiento. */
+  | { kind: 'stash'; sha: Sha }
+  /** null parte del árbol vacío para un rango que incluye el commit raíz. */
+  | { kind: 'range'; from: Sha | null; to: Sha }
   /** Efecto neto entre una revisión y el índice + árbol de trabajo actuales. */
   | { kind: 'workingRange'; from: Sha };
 

@@ -80,6 +80,7 @@ const EMPTY_SELECTION: ReadonlySet<string> = new Set();
 function commitSelection(rows: readonly CommitTableRow[], selected: ReadonlySet<string>) {
   const indices: number[] = [];
   const shas: Sha[] = [];
+  const commits: Commit[] = [];
   const points: CompareSide[] = [];
 
   rows.forEach((row, index) => {
@@ -101,6 +102,7 @@ function commitSelection(rows: readonly CommitTableRow[], selected: ReadonlySet<
 
     indices.push(index);
     shas.push(row.commit.sha);
+    commits.push(row.commit);
     points.push({ kind: 'revision', ref: row.commit.sha, label: shortSha(row.commit.sha) });
   });
 
@@ -108,8 +110,12 @@ function commitSelection(rows: readonly CommitTableRow[], selected: ReadonlySet<
   const last = indices[indices.length - 1];
   const contiguous =
     first === undefined || last === undefined || last - first + 1 === indices.length;
+  const firstParentChain = commits.every(
+    (commit, index) =>
+      index === commits.length - 1 || commit.parents[0] === commits[index + 1]?.sha,
+  );
 
-  return { shas: shas.reverse(), points: points.reverse(), contiguous };
+  return { shas: shas.reverse(), points: points.reverse(), contiguous, firstParentChain };
 }
 
 /**
@@ -361,7 +367,8 @@ export function CommitTable({
       if (
         automatic.points.length >= 3 &&
         automatic.shas.length === automatic.points.length &&
-        automatic.contiguous
+        automatic.contiguous &&
+        automatic.firstParentChain
       ) {
         store.openCompare({ kind: 'combined', shas: automatic.shas, trigger: 'selection' });
         return;

@@ -19,6 +19,7 @@ const LABELS: Record<string, string> = {
   readCommit: 'leer commit',
   readStatus: 'leer estado de archivos',
   readDiff: 'leer diff',
+  readDiffFiles: 'leer archivos de la comparación',
   readFile: 'leer archivo',
   readConflict: 'leer conflicto',
   readFileHistory: 'leer historial del archivo',

@@ -4,6 +4,7 @@ import { usePorts } from '@app/PortsContext';
 import { useAsyncData } from '@app/useAsyncData';
 import { isCancelled } from '@core/domain/errors';
 import type { WorkingStatus } from '@core/domain/status';
+import type { Commit } from '@core/domain/commit';
 import { useCommitPages } from '@features/working/useCommitPages';
 import type { RefsSnapshot } from '@core/domain/refs';
 import type { RepoSummary } from '@core/domain/repository';
@@ -46,6 +47,8 @@ interface TerminalRepositoryGraph {
   refs: RefsSnapshot;
   status: WorkingStatus;
 }
+
+const EMPTY_COMMITS: readonly Commit[] = [];
 
 /**
  * La vista completa de la terminal: emulador + rail de referencias a la derecha.
@@ -258,9 +261,29 @@ export function TerminalView({
         }
         second={
           <TerminalRefSidebar
+            key={activeRepoId ?? ''}
+            repoId={activeRepoId}
             refs={repositoryGraph?.refs ?? null}
-            commits={activeRepoId && pages.state.status === 'ready' ? pages.state.commits : []}
+            commits={
+              activeRepoId && pages.state.status === 'ready' ? pages.state.commits : EMPTY_COMMITS
+            }
             status={repositoryGraph?.status ?? null}
+            loading={
+              activeRepoId !== null &&
+              (graphData.status === 'loading' || pages.state.status === 'loading')
+            }
+            loadingMore={pages.state.status === 'ready' && pages.state.loadingMore}
+            error={
+              graphData.status === 'failed'
+                ? graphData.error
+                : pages.state.status === 'failed'
+                  ? pages.state.error
+                  : null
+            }
+            onRetry={() => {
+              reloadGraph();
+              reloadCommits();
+            }}
             onLoadMore={pages.loadMore}
             onInsert={handleInsert}
           />

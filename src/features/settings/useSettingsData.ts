@@ -28,7 +28,8 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-function getSnapshot(): Settings {
+/** Estado actual para volver a comprobar preferencias después de una espera. */
+export function getSettingsSnapshot(): Settings {
   return currentSettings;
 }
 
@@ -49,7 +50,8 @@ async function applyPatch(
   const next = currentSettings;
   try {
     await port.patch(patch);
-    if (patch.git || patch.logging || patch.recovery) await port.flush();
+    if (patch.git || patch.logging || patch.updates || patch.recovery || patch.backup)
+      await port.flush();
   } catch (error) {
     if (currentSettings === next) {
       currentSettings = previous;
@@ -64,7 +66,7 @@ export function useSettingsData(): {
   patch: (p: SettingsPatch) => Promise<void>;
 } {
   const ports = usePorts();
-  const settings = useSyncExternalStore(subscribe, getSnapshot);
+  const settings = useSyncExternalStore(subscribe, getSettingsSnapshot);
 
   const patch = useCallback(
     (p: SettingsPatch) => {

@@ -191,7 +191,7 @@ export function commitMenu(
 
         actions.compare(
           { ref: commit.sha, label: sha },
-          { ref: context.headBranch, label: context.headBranch },
+          { ref: `refs/heads/${context.headBranch}`, label: context.headBranch },
         );
       },
     },
@@ -305,7 +305,10 @@ export function localBranchMenu(context: MenuBuildContext, branch: Branch): read
       label: t('working.menu.compare', { source, target }),
       disabled: context.headBranch === null || branch.isHead,
       onSelect: () => {
-        actions.compare({ ref: source, label: source }, { ref: target, label: target });
+        actions.compare(
+          { ref: branch.id, label: source },
+          { ref: `refs/heads/${target}`, label: target },
+        );
       },
     },
     separator('s2'),
@@ -458,7 +461,10 @@ export function remoteBranchMenu(context: MenuBuildContext, branch: Branch): rea
       label: t('working.menu.compare', { source, target }),
       disabled: context.headBranch === null,
       onSelect: () => {
-        actions.compare({ ref: source, label: source }, { ref: target, label: target });
+        actions.compare(
+          { ref: branch.id, label: source },
+          { ref: `refs/heads/${target}`, label: target },
+        );
       },
     },
     separator('s2'),
@@ -535,7 +541,10 @@ export function tagMenu(context: MenuBuildContext, tag: Tag): readonly MenuEntry
       label: t('working.menu.compare', { source: name, target: branch }),
       disabled: context.headBranch === null,
       onSelect: () => {
-        actions.compare({ ref: name, label: name }, { ref: branch, label: branch });
+        actions.compare(
+          { ref: tag.id, label: name },
+          { ref: `refs/heads/${branch}`, label: branch },
+        );
       },
     },
     separator('s2'),
@@ -986,7 +995,10 @@ export function commitFileMenu(
       key: 'history',
       label: t('working.menu.file.viewHistory'),
       onSelect: () => {
-        actions.viewFileHistory(path, source.kind === 'commit' ? source.sha : undefined);
+        actions.viewFileHistory(
+          path,
+          source.kind === 'commit' || source.kind === 'stash' ? source.sha : undefined,
+        );
       },
     },
     separator('s1'),

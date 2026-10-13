@@ -20,6 +20,8 @@ interface RepoRowProps {
   avatar: RepoAvatar | null;
   /** Lo que la fila ya era **antes** de este clic; de ahí sale la doble selección. */
   selected: boolean;
+  canOpenOnClick?: boolean;
+  dragCount?: number;
   spaces?: readonly Space[];
   /**
    * Los espacios a los que pertenece, cuando toca enseñarlos.
@@ -40,6 +42,8 @@ interface RepoRowProps {
   onOpen: () => void;
   /** El clic derecho también selecciona: el menú y el panel hablan de lo mismo. */
   onSelect: () => void;
+  /** Un clic sin arrastre sobre una selección múltiple vuelve a elegir esta fila. */
+  onClickSelect?: () => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }
@@ -71,32 +75,51 @@ export function RepoRow({
   repo,
   avatar,
   selected,
+  canOpenOnClick = true,
+  dragCount = 1,
   spaces = [],
   when,
   menu,
   onOpen,
   onSelect,
+  onClickSelect,
   onDragStart,
   onDragEnd,
 }: RepoRowProps) {
   const { t } = useI18n();
   const wasSelected = useRef(false);
+  const pendingClickSelection = useRef(false);
+  const dragged = useRef(false);
   const dragPreview = useRef<HTMLDivElement>(null);
 
   const onMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    wasSelected.current = event.button === 0 && selected;
+    dragged.current = false;
+    const plainLeftClick =
+      event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+    pendingClickSelection.current = plainLeftClick && selected && !canOpenOnClick;
+    if (pendingClickSelection.current) event.stopPropagation();
+    wasSelected.current = plainLeftClick && selected && canOpenOnClick;
   };
 
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.detail !== 1 || !wasSelected.current) return;
-
+    const selectOnClick = pendingClickSelection.current;
+    const openOnClick = wasSelected.current;
+    pendingClickSelection.current = false;
     wasSelected.current = false;
-    onOpen();
+    if (dragged.current || event.detail !== 1 || event.ctrlKey || event.metaKey || event.shiftKey)
+      return;
+
+    if (selectOnClick) onClickSelect?.();
+    else if (openOnClick) onOpen();
   };
 
   const startDrag = (event: DragEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    pendingClickSelection.current = false;
+    wasSelected.current = false;
+    dragged.current = true;
     event.dataTransfer?.setData('text/plain', repo.id);
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = dragCount > 1 ? 'copy' : 'move';
     previewDrag(event, dragPreview.current);
     onDragStart?.();
   };
@@ -115,9 +138,15 @@ export function RepoRow({
         onDragEnd={onDragEnd}
         onMouseDown={onMouseDown}
         onClick={onClick}
+        onDoubleClick={(event) => {
+          if (event.ctrlKey || event.metaKey || event.shiftKey) event.stopPropagation();
+        }}
         onContextMenu={onSelect}
+        onKeyDown={(event) => {
+          if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) onSelect();
+        }}
       >
-        <RepoDragPreview ref={dragPreview} repo={repo} avatar={avatar} />
+        <RepoDragPreview ref={dragPreview} repo={repo} avatar={avatar} count={dragCount} />
         {avatar ? (
           <Avatar
             name={repo.name}

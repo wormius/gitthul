@@ -3,7 +3,12 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_SETTINGS, LOCALES, type Locale } from '@core/domain/settings';
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_UPDATE_SETTINGS,
+  LOCALES,
+  type Locale,
+} from '@core/domain/settings';
 import type { ReleaseCheck } from '@core/ports/LinkPort';
 import { selectPorts } from '@core/adapters/selectPorts';
 import { APP_VERSION } from '@app/metadata';
@@ -13,7 +18,7 @@ import { I18nProvider } from '@i18n/I18nProvider';
 import { MESSAGES } from '@i18n/messages';
 import { ToastProvider } from '@ui/ToastProvider';
 import { UpdatesSection } from './UpdatesSection';
-import { initSettingsData } from './useSettingsData';
+import { getSettingsSnapshot, initSettingsData } from './useSettingsData';
 import { useReleaseStore } from './releaseStore';
 
 const available: ReleaseCheck = {
@@ -29,6 +34,7 @@ function mount(
   const openExternal = vi.fn(() => Promise.resolve());
   const ports = selectPorts();
   const patch = vi.spyOn(ports.settings, 'patch');
+  const flush = vi.spyOn(ports.settings, 'flush');
   const link = { checkRelease, openExternal };
   render(
     <StrictMode>
@@ -42,12 +48,13 @@ function mount(
       </PortsContext>
     </StrictMode>,
   );
-  return { ...link, patch };
+  return { ...link, patch, flush, readSettings: ports.settings.read };
 }
 
 beforeEach(() => {
+  localStorage.clear();
   initSettingsData(DEFAULT_SETTINGS);
-  useReleaseStore.setState({ check: { status: 'idle' } });
+  useReleaseStore.setState({ check: { status: 'idle' }, availableRelease: null });
 });
 
 describe('stable release checks', () => {
@@ -76,7 +83,10 @@ describe('stable release checks', () => {
   );
 
   it('consulta una sola vez al arrancar con una preferencia explícita, incluso con StrictMode', async () => {
-    initSettingsData({ ...DEFAULT_SETTINGS, updates: { checkOnStartup: true } });
+    initSettingsData({
+      ...DEFAULT_SETTINGS,
+      updates: { ...DEFAULT_UPDATE_SETTINGS, checkOnStartup: true },
+    });
     const link = mount();
     await waitFor(() =>
       expect(screen.getAllByText('Hay una nueva versión de GitThul: 1.1.0.')).toHaveLength(2),
@@ -95,12 +105,147 @@ describe('stable release checks', () => {
     await user.click(screen.getByRole('switch'));
     expect(await screen.findByText('No hay una versión estable más reciente.')).toBeInTheDocument();
     expect(link.patch).toHaveBeenCalledWith({ updates: { checkOnStartup: true } });
+    expect(link.flush).toHaveBeenCalledOnce();
     expect(link.checkRelease).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('button', { name: MESSAGES['es-MX']['settings.reset'] }));
     expect(screen.getByRole('switch')).not.toBeChecked();
-    expect(link.patch).toHaveBeenLastCalledWith({ updates: { checkOnStartup: false } });
+    expect(link.patch).toHaveBeenLastCalledWith({
+      updates: { checkOnStartup: false, promptDismissed: true, nextPromptAt: 0 },
+    });
+    expect((await link.readSettings()).updates).toEqual({
+      checkOnStartup: false,
+      promptDismissed: true,
+      nextPromptAt: 0,
+    });
     await user.click(screen.getByRole('switch'));
     expect(link.checkRelease).toHaveBeenCalledTimes(1);
+  });
+
+  it('desactivar manualmente la consulta también suprime los avisos futuros y vacía su fecha', async () => {
+    const updates = {
+      ...DEFAULT_UPDATE_SETTINGS,
+      checkOnStartup: true,
+      nextPromptAt: 1_797_120_000_000,
+    };
+    const initial = { ...DEFAULT_SETTINGS, updates };
+    initSettingsData(initial);
+    localStorage.setItem('gitthul.settings', JSON.stringify(initial));
+    const link = mount(
+      'es-MX',
+      vi.fn(() => Promise.resolve<ReleaseCheck>({ status: 'current' })),
+    );
+    await userEvent.setup().click(screen.getByRole('switch'));
+    expect(screen.getByRole('switch')).not.toBeChecked();
+    expect(link.patch).toHaveBeenCalledExactlyOnceWith({
+      updates: { checkOnStartup: false, promptDismissed: true, nextPromptAt: 0 },
+    });
+    expect(link.flush).toHaveBeenCalledOnce();
+    expect((await link.readSettings()).updates).toEqual({
+      checkOnStartup: false,
+      promptDismissed: true,
+      nextPromptAt: 0,
+    });
+  });
+
+  it('activar la consulta conserva la elección y fecha del aviso que ya estaban guardadas', async () => {
+    const updates = {
+      ...DEFAULT_UPDATE_SETTINGS,
+      promptDismissed: true,
+      nextPromptAt: 1_797_120_000_000,
+    };
+    const initial = { ...DEFAULT_SETTINGS, updates };
+    initSettingsData(initial);
+    localStorage.setItem('gitthul.settings', JSON.stringify(initial));
+    const link = mount(
+      'es-MX',
+      vi.fn(() => Promise.resolve<ReleaseCheck>({ status: 'current' })),
+    );
+    await userEvent.setup().click(screen.getByRole('switch'));
+    expect(screen.getByRole('switch')).toBeChecked();
+    expect(link.patch).toHaveBeenCalledExactlyOnceWith({ updates: { checkOnStartup: true } });
+    expect(link.flush).toHaveBeenCalledOnce();
+    expect((await link.readSettings()).updates).toEqual({ ...updates, checkOnStartup: true });
+  });
+
+  it.each(['switch', 'reset'] as const)(
+    'un fallo al guardar %s restaura la consulta anterior',
+    async (action) => {
+      initSettingsData({
+        ...DEFAULT_SETTINGS,
+        updates: {
+          ...DEFAULT_UPDATE_SETTINGS,
+          checkOnStartup: true,
+          nextPromptAt: 1_797_120_000_000,
+        },
+      });
+      const ports = selectPorts();
+      const patch = vi.fn(() => Promise.resolve());
+      const flush = vi.fn(() => Promise.reject(new Error('disk full')));
+      ports.settings = { read: () => Promise.resolve(DEFAULT_SETTINGS), patch, flush };
+      render(
+        <PortsContext value={ports}>
+          <I18nProvider initialLocale="es-MX">
+            <UpdatesSection />
+          </I18nProvider>
+        </PortsContext>,
+      );
+      const user = userEvent.setup();
+      await user.click(
+        action === 'switch'
+          ? screen.getByRole('switch')
+          : screen.getByRole('button', { name: MESSAGES['es-MX']['settings.reset'] }),
+      );
+      await waitFor(() => {
+        expect(flush).toHaveBeenCalledOnce();
+        expect(screen.getByRole('switch')).toBeChecked();
+      });
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        MESSAGES['es-MX']['settings.updates.prompt.saveFailed'],
+      );
+      expect(screen.getByRole('switch')).toBeEnabled();
+      expect(getSettingsSnapshot().updates).toEqual({
+        ...DEFAULT_UPDATE_SETTINGS,
+        checkOnStartup: true,
+        nextPromptAt: 1_797_120_000_000,
+      });
+      expect(patch).toHaveBeenCalledExactlyOnceWith({
+        updates: { checkOnStartup: false, promptDismissed: true, nextPromptAt: 0 },
+      });
+    },
+  );
+
+  it('espera el guardado confirmado antes de permitir otra elección o restablecimiento', async () => {
+    let finish!: () => void;
+    const ports = selectPorts();
+    const patch = vi.fn(() => Promise.resolve());
+    const flush = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    ports.settings = { read: () => Promise.resolve(DEFAULT_SETTINGS), patch, flush };
+    render(
+      <PortsContext value={ports}>
+        <I18nProvider initialLocale="es-MX">
+          <UpdatesSection />
+        </I18nProvider>
+      </PortsContext>,
+    );
+    await userEvent.setup().click(screen.getByRole('switch'));
+    await waitFor(() => expect(flush).toHaveBeenCalledOnce());
+    expect(screen.getByRole('switch')).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: MESSAGES['es-MX']['settings.reset'] }),
+    ).toBeDisabled();
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('switch')).toBeEnabled();
+    expect(screen.getByRole('switch')).toBeChecked();
+    expect(screen.getByRole('button', { name: MESSAGES['es-MX']['settings.reset'] })).toBeEnabled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('comparte una consulta en curso y desactiva el botón hasta que termine', async () => {

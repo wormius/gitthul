@@ -113,6 +113,112 @@ describe('VirtualList', () => {
     expect([...(onSelectionChange.mock.lastCall?.[0] ?? [])]).toEqual(['sha-3', 'sha-4', 'sha-5']);
   });
 
+  it('un hijo arrastrable conserva el lote y actualiza la fila activa para Enter y flechas', () => {
+    const onSelectionChange = vi.fn<(next: ReadonlySet<string>) => void>();
+    const onActivate = vi.fn();
+    render(
+      <Harness
+        initialSelected={['sha-0', 'sha-1']}
+        onSelectionChange={onSelectionChange}
+        onActivate={onActivate}
+        renderRow={(commit) => (
+          <div draggable onMouseDown={(event) => event.stopPropagation()}>
+            <span>{commit.subject}</span>
+          </div>
+        )}
+      />,
+    );
+
+    fireEvent.mouseDown(screen.getByText('Commit número 3'), { button: 0 });
+
+    expect(onSelectionChange).not.toHaveBeenCalled();
+    expect(
+      screen
+        .getAllByRole('option')
+        .filter((option) => option.getAttribute('aria-selected') === 'true'),
+    ).toHaveLength(2);
+    const active = list().getAttribute('aria-activedescendant');
+    expect(document.getElementById(active ?? '')).toHaveTextContent('Commit número 3');
+
+    fireEvent.keyDown(list(), { key: 'Enter' });
+    expect(onActivate).toHaveBeenLastCalledWith(expect.objectContaining({ sha: 'sha-3' }), 3);
+
+    fireEvent.keyDown(list(), { key: 'ArrowDown' });
+    expect(onSelectionChange).toHaveBeenLastCalledWith(new Set(['sha-4']));
+
+    fireEvent.keyDown(list(), { key: 'Enter' });
+    expect(onActivate).toHaveBeenLastCalledWith(expect.objectContaining({ sha: 'sha-4' }), 4);
+  });
+
+  it.each([
+    { gesture: 'clic derecho', button: 2, childDraggable: true, outerDraggable: false },
+    { gesture: 'hijo no arrastrable', button: 0, childDraggable: false, outerDraggable: false },
+    {
+      gesture: 'ancestro arrastrable fuera de la fila',
+      button: 0,
+      childDraggable: false,
+      outerDraggable: true,
+    },
+  ])(
+    '$gesture no cambia la fila activa al detener la propagación',
+    ({ button, childDraggable, outerDraggable }) => {
+      const onSelectionChange = vi.fn<(next: ReadonlySet<string>) => void>();
+      const onActivate = vi.fn();
+      render(
+        <div draggable={outerDraggable}>
+          <Harness
+            initialSelected={['sha-0', 'sha-1']}
+            onSelectionChange={onSelectionChange}
+            onActivate={onActivate}
+            renderRow={(commit) => (
+              <div draggable={childDraggable} onMouseDown={(event) => event.stopPropagation()}>
+                <span>{commit.subject}</span>
+              </div>
+            )}
+          />
+        </div>,
+      );
+
+      fireEvent.mouseDown(screen.getByText('Commit número 3'), { button });
+
+      expect(onSelectionChange).not.toHaveBeenCalled();
+      const active = list().getAttribute('aria-activedescendant');
+      expect(document.getElementById(active ?? '')).toHaveTextContent('Commit número 0');
+
+      fireEvent.keyDown(list(), { key: 'Enter' });
+      expect(onActivate).toHaveBeenLastCalledWith(expect.objectContaining({ sha: 'sha-0' }), 0);
+    },
+  );
+
+  it('Space selects and Ctrl+Space toggles without activating a row', () => {
+    const activate = vi.fn();
+    const selection = vi.fn<(next: ReadonlySet<string>) => void>();
+    render(
+      <Harness
+        initialSelected={['sha-0', 'sha-1']}
+        onSelectionChange={selection}
+        onActivate={activate}
+      />,
+    );
+    fireEvent.keyDown(list(), { key: ' ', ctrlKey: true });
+    expect(selection).toHaveBeenLastCalledWith(new Set(['sha-1']));
+    fireEvent.keyDown(list(), { key: ' ' });
+    expect(selection).toHaveBeenLastCalledWith(new Set(['sha-0']));
+    expect(activate).not.toHaveBeenCalled();
+  });
+
+  it('leaves Space available to controls inside a row', () => {
+    const selection = vi.fn<(next: ReadonlySet<string>) => void>();
+    render(
+      <Harness
+        onSelectionChange={selection}
+        renderRow={(commit) => <button>{commit.subject}</button>}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Commit número 0' }), { key: ' ' });
+    expect(selection).not.toHaveBeenCalled();
+  });
+
   it('las flechas mueven la fila activa y la anuncian sin sacar el foco de la lista', () => {
     render(<Harness />);
 

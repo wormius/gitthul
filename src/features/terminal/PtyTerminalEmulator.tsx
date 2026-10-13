@@ -11,6 +11,7 @@ import { useTheme } from '@design/useTheme';
 import { readTerminalTheme } from '@design/terminalTheme';
 import { Button } from '@ui/Button';
 import { IconButton } from '@ui/IconButton';
+import { ProgressBar } from '@ui/ProgressBar';
 import { SearchInput } from '@ui/SearchInput';
 
 import styles from './TerminalEmulator.module.css';
@@ -27,6 +28,7 @@ interface PtyTerminalEmulatorProps extends TerminalClipboardProps {
   cwd: string;
   outputLabel: string;
   errorMessage: string;
+  startingLabel: string;
   searchLabel: string;
   searchClearLabel: string;
   searchPreviousLabel: string;
@@ -51,6 +53,7 @@ export function PtyTerminalEmulator({
   cwd,
   outputLabel,
   errorMessage,
+  startingLabel,
   searchLabel,
   searchClearLabel,
   searchPreviousLabel,
@@ -80,6 +83,7 @@ export function PtyTerminalEmulator({
   const fitRef = useRef<(() => void) | null>(null);
   const sessionReadyRef = useRef(false);
   const [sessionActive, setSessionActive] = useState(false);
+  const [sessionStarting, setSessionStarting] = useState(true);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const linkOpenRef = useRef<HTMLButtonElement>(null);
   const searchIndexRef = useRef(-1);
@@ -87,10 +91,6 @@ export function PtyTerminalEmulator({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchPosition, setSearchPosition] = useState({ current: 0, total: 0 });
   const [pendingLink, setPendingLink] = useState<{ href: string; domain: string } | null>(null);
-  const [runtimeSessionId] = useState(() => {
-    runtimeSequence += 1;
-    return `${sessionId}:pty-${String(runtimeSequence)}`;
-  });
 
   useEffect(() => {
     onCwdRef.current = onCwd;
@@ -162,7 +162,11 @@ export function PtyTerminalEmulator({
   });
 
   const handleShortcut = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.defaultPrevented || event.nativeEvent.isComposing) return;
+    if (event.defaultPrevented) return;
+    if (event.nativeEvent.isComposing) {
+      if (sessionStarting) event.preventDefault();
+      return;
+    }
     if (terminalClipboard.handleClipboardShortcut(event)) return;
     if (matchesShortcut(FIND_SHORTCUT, event, gestures?.platform ?? detectPlatform())) {
       event.preventDefault();
@@ -174,10 +178,16 @@ export function PtyTerminalEmulator({
     // xterm consume combinaciones como Ctrl+W antes de que alcancen window.
     // Solo los atajos declarados se atienden antes; Ctrl+C y el resto siguen al PTY.
     const gesture = gestures?.match(event.nativeEvent);
-    if (!gesture) return;
-    event.preventDefault();
-    event.stopPropagation();
-    gesture.run();
+    if (gesture) {
+      event.preventDefault();
+      event.stopPropagation();
+      gesture.run();
+      return;
+    }
+    if (sessionStarting) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
   };
 
   useEffect(() => {
@@ -202,6 +212,10 @@ export function PtyTerminalEmulator({
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    // Each startup owns its native ID, including effect retries/StrictMode.
+    // A late close from an earlier attempt cannot terminate the new shell.
+    runtimeSequence += 1;
+    const runtimeSessionId = `${sessionId}:pty-${String(runtimeSequence)}`;
 
     let active = true;
     let sessionReady = false;
@@ -216,6 +230,8 @@ export function PtyTerminalEmulator({
         import('@xterm/addon-fit'),
       ]);
       if (!active) return;
+      setSessionStarting(true);
+      setSessionActive(false);
 
       const computed = getComputedStyle(host);
       const xterm = new Terminal({
@@ -259,7 +275,9 @@ export function PtyTerminalEmulator({
       fitAndResize();
 
       const input = xterm.onData((data) => {
-        if (exited) return;
+        if (exited || !active) return;
+        // Protocol responses (including ConPTY's initial cursor query) must
+        // reach the PTY during startup; keyboard/paste remain unavailable.
         void port.write(runtimeSessionId, data).catch(() => xterm.writeln(`\r\n${errorMessage}`));
       });
       disposeInput = () => input.dispose();
@@ -274,21 +292,29 @@ export function PtyTerminalEmulator({
           cwd: initialCwdRef.current,
           cols: xterm.cols,
           rows: xterm.rows,
-          onData: (data) => xterm.write(data),
-          onCwd: (observedCwd) => onCwdRef.current?.(observedCwd),
+          onData: (data) => {
+            if (active) xterm.write(data);
+          },
+          onCwd: (observedCwd) => {
+            if (active) onCwdRef.current?.(observedCwd);
+          },
           onExit: (exit) => {
             exited = true;
             sessionReady = false;
-            sessionReadyRef.current = false;
-            if (active) setSessionActive(false);
-            xterm.options.disableStdin = true;
-            xterm.writeln(`\r\n${exitMessageRef.current(exit)}`);
+            if (active) {
+              sessionReadyRef.current = false;
+              setSessionActive(false);
+              setSessionStarting(false);
+              xterm.options.disableStdin = true;
+              xterm.writeln(`\r\n${exitMessageRef.current(exit)}`);
+            }
           },
         });
         if (!active) {
           await port.closeSession(runtimeSessionId).catch(() => undefined);
           return;
         }
+        setSessionStarting(false);
         if (!exited) {
           sessionReady = true;
           sessionReadyRef.current = true;
@@ -299,12 +325,26 @@ export function PtyTerminalEmulator({
           xterm.focus();
         }
       } catch {
-        xterm.writeln(errorMessage);
+        if (active) {
+          setSessionStarting(false);
+          xterm.options.disableStdin = true;
+          xterm.writeln(errorMessage);
+        }
       }
     };
 
-    void start();
-    if (onInsertRef) onInsertRef.current = (text) => xtermRef.current?.paste(text);
+    void start().catch(() => {
+      if (active) {
+        setSessionStarting(false);
+        if (xtermRef.current) xtermRef.current.options.disableStdin = true;
+        xtermRef.current?.writeln(errorMessage);
+      }
+    });
+    if (onInsertRef) {
+      onInsertRef.current = (text) => {
+        if (sessionReadyRef.current) xtermRef.current?.paste(text);
+      };
+    }
 
     return () => {
       active = false;
@@ -318,14 +358,23 @@ export function PtyTerminalEmulator({
       if (onInsertRef) onInsertRef.current = null;
       void port.closeSession(runtimeSessionId).catch(() => undefined);
     };
-  }, [errorMessage, onInsertRef, port, runtimeSessionId]);
+  }, [errorMessage, onInsertRef, port, sessionId]);
 
   return (
     <div
       className={styles.emulator}
       onKeyDownCapture={handleShortcut}
+      onBeforeInputCapture={(event) => {
+        if (sessionStarting) event.preventDefault();
+      }}
       onContextMenuCapture={terminalClipboard.onContextMenuCapture}
     >
+      {sessionStarting && (
+        <div className={styles.startup}>
+          <span role="status">{startingLabel}</span>
+          <ProgressBar label={startingLabel} />
+        </div>
+      )}
       {searchOpen && (
         <div className={styles.searchBar} role="search">
           <SearchInput
@@ -378,6 +427,7 @@ export function PtyTerminalEmulator({
         className={styles.pty}
         role="application"
         aria-label={outputLabel}
+        aria-busy={sessionStarting}
         onFocus={onFocus}
       />
       {terminalClipboard.menu}

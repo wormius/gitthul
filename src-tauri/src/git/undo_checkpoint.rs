@@ -618,6 +618,7 @@ fn same_map(a: &BTreeMap<String, Image>, b: &BTreeMap<String, Image>) -> bool {
 }
 
 impl Checkpoint {
+    #[cfg(test)]
     pub(super) fn recovery_repository(&self) -> &Path {
         &self.recovery.repository
     }
@@ -705,6 +706,7 @@ impl Checkpoint {
         labelled.recovery.label = Some(label.to_owned());
         labelled.recovery_persist()
     }
+    #[cfg(test)]
     pub(super) fn recovery_mark_pending(&self, label: &str) -> Result<(), UndoError> {
         let _guard = recovery_store::lock();
         let mut pending = self.clone();
@@ -712,6 +714,7 @@ impl Checkpoint {
         pending.recovery.label = Some(label.to_owned());
         pending.recovery_persist()
     }
+    #[cfg(test)]
     pub(super) fn recovery_complete_preview(&self) -> Result<(), UndoError> {
         let _guard = recovery_store::lock();
         let mut completed = self.clone();
@@ -916,6 +919,7 @@ impl Checkpoint {
         checkpoint.directory = directory.to_owned();
         Ok(checkpoint)
     }
+    #[cfg(test)]
     pub(super) fn recovery_copy_to(
         &self,
         directory: &Path,

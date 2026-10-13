@@ -1,35 +1,49 @@
-import { useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useMemo, useRef, useState, type MouseEvent } from 'react';
+
+import { GitErrorPanel } from '@app/GitErrorPanel';
+import { useAsyncData } from '@app/useAsyncData';
 
 import type { Commit } from '@core/domain/commit';
 import type { WorkingStatus } from '@core/domain/status';
+import type { GitOperationError } from '@core/domain/errors';
 import { buildCommitRows } from '@features/working/commits';
 import type { RefsSnapshot, Stash } from '@core/domain/refs';
 import { useCssTokens } from '@design/useCssTokens';
 import { CommitGraph, type GraphColumn } from '@features/working/CommitGraph';
 import { RefIcon } from '@features/working/RefIcon';
-import { buildGraph } from '@features/working/graph';
+import { buildGraphAsync } from '@features/working/graph';
 import { graphEdgePadding, resolveGraphMetrics } from '@features/working/graphPaint';
 import { useI18n } from '@i18n/useI18n';
+import { DataGrid } from '@ui/DataGrid';
+import { DataGridCell } from '@ui/DataGridCell';
+import { DataGridRow } from '@ui/DataGridRow';
+import type { DataGridColumn } from '@ui/dataGridUtils';
 import { Menu } from '@ui/Menu';
+import { ProgressBar } from '@ui/ProgressBar';
 import { SearchInput } from '@ui/SearchInput';
-import { VirtualList } from '@ui/VirtualList';
+import { VirtualList, type VirtualRowContext } from '@ui/VirtualList';
 import type { MenuEntry } from '@ui/menuUtils';
 
 import styles from './TerminalRefSidebar.module.css';
 import {
-  buildTerminalGraphEntries,
+  buildTerminalGraphEntriesAsync,
   terminalGraphPalette,
   terminalCommitCommands,
   terminalShellArgument,
-  terminalGraphRows,
+  terminalGraphRowsAsync,
   type TerminalGraphEntry,
   type TerminalInsertOption,
 } from './terminalGraph';
 
 interface TerminalRefSidebarProps {
+  repoId: string | null;
   refs: RefsSnapshot | null;
   commits: readonly Commit[];
   status: WorkingStatus | null;
+  loading: boolean;
+  loadingMore: boolean;
+  error: GitOperationError | null;
+  onRetry: () => void;
   onLoadMore: () => void;
   onInsert: (text: string) => void;
 }
@@ -116,32 +130,92 @@ type OpenInsertMenu =
  * ni la paleta multicolor de GitWorking.
  */
 export function TerminalRefSidebar({
+  repoId,
   refs,
   commits,
   status,
+  loading,
+  loadingMore,
+  error,
+  onRetry,
   onLoadMore,
   onInsert,
 }: TerminalRefSidebarProps) {
   const { t } = useI18n();
-  const [graphScroll, setGraphScroll] = useState(0);
   const [filter, setFilter] = useState('');
   const [openMenu, setOpenMenu] = useState<OpenInsertMenu | null>(null);
   const rowAnchors = useRef(new Map<string, HTMLElement>());
+  const requestedRange = useRef<{
+    commits: readonly Commit[];
+    rowCount: number;
+    endIndex: number;
+  } | null>(null);
   const tokens = useCssTokens(TERMINAL_GRAPH_TOKENS);
 
-  const entries = useMemo(
-    () => (refs ? buildTerminalGraphEntries(commits, refs, '') : []),
-    [commits, refs],
-  );
-  const rows = useMemo(
-    () => (refs && status ? buildCommitRows(commits, status, refs.stashes) : []),
+  const prepareGraph = useCallback(
+    async ({ signal }: { signal?: AbortSignal }) => {
+      if (!refs || !status) return null;
+      const entries = await buildTerminalGraphEntriesAsync(commits, refs, signal);
+      const rows = buildCommitRows(commits, status, refs.stashes);
+      const layout = await buildGraphAsync(rows, refs, signal);
+      const allRows = await terminalGraphRowsAsync(rows, entries, '', signal);
+      return { entries, rows, layout, commits, refs, status, allRows };
+    },
     [commits, refs, status],
   );
-  const visibleRows = useMemo(
-    () => terminalGraphRows(rows, entries, filter),
-    [rows, entries, filter],
+  const prepared = useAsyncData(prepareGraph, { resourceKey: repoId ?? '' });
+  const data = prepared.status === 'ready' ? prepared.data : null;
+  const preparing =
+    prepared.status !== 'failed' &&
+    refs !== null &&
+    status !== null &&
+    (data?.commits !== commits || data.refs !== refs || data.status !== status);
+  const rows = data?.rows ?? [];
+  const filterGraph = useCallback(
+    async ({ signal }: { signal?: AbortSignal }) => {
+      if (!data) return null;
+      const rows =
+        filter.trim() === ''
+          ? data.allRows
+          : await terminalGraphRowsAsync(data.rows, data.entries, filter, signal);
+      return { rows, filter, graph: data };
+    },
+    [data, filter],
   );
-  const layout = useMemo(() => (refs ? buildGraph(rows, refs) : null), [refs, rows]);
+  const filtered = useAsyncData(filterGraph, { resourceKey: repoId ?? '' });
+  const matches = filtered.status === 'ready' ? filtered.data : null;
+  const filtering =
+    filtered.status !== 'failed' &&
+    data !== null &&
+    (matches?.filter !== filter || matches.graph !== data);
+  const visibleRows = matches?.rows ?? data?.allRows ?? [];
+  const layout = matches?.graph.layout ?? data?.layout ?? null;
+  const graphError =
+    error ??
+    (prepared.status === 'failed'
+      ? prepared.error
+      : filtered.status === 'failed'
+        ? filtered.error
+        : null);
+  const handleRange = useCallback(
+    ({ endIndex }: { endIndex: number }) => {
+      if (!data || loading || preparing || filtering || filter.trim() !== '') return;
+      if (endIndex < rows.length - 20) {
+        requestedRange.current = null;
+        return;
+      }
+      // Un fallo no debe pedir la misma página otra vez por cada render.
+      if (
+        requestedRange.current?.commits === data.commits &&
+        requestedRange.current.rowCount === rows.length &&
+        requestedRange.current.endIndex === endIndex
+      )
+        return;
+      requestedRange.current = { commits: data.commits, rowCount: rows.length, endIndex };
+      onLoadMore();
+    },
+    [data, filter, filtering, loading, onLoadMore, preparing, rows.length],
+  );
   const palette = useMemo(() => terminalGraphPalette(tokens), [tokens]);
   const metrics = useMemo(() => resolveGraphMetrics(tokens, ROW_HEIGHT), [tokens]);
   const graph = useMemo<GraphColumn | null>(() => {
@@ -155,6 +229,21 @@ export function TerminalRefSidebar({
       form: 'ring',
     };
   }, [layout, metrics, palette]);
+  const columns = useMemo<readonly DataGridColumn[]>(() => {
+    const graphLabel = t('working.commitTable.column.graph');
+    const messageLabel = t('working.commitTable.column.subject');
+    return [
+      { key: 'graph', header: graphLabel, name: graphLabel, width: 96, minWidth: 72 },
+      {
+        key: 'message',
+        header: messageLabel,
+        name: messageLabel,
+        width: 240,
+        minWidth: 80,
+        grow: true,
+      },
+    ];
+  }, [t]);
 
   const chooseEntry = (entry: TerminalGraphEntry, anchor: HTMLElement | null) => {
     if (anchor) setOpenMenu({ kind: 'commit', entry, anchor });
@@ -253,19 +342,17 @@ export function TerminalRefSidebar({
     ];
   })();
 
-  const graphCell = (graphIndex: number, author: string) =>
-    graph && (
-      <span className={styles.graph} style={{ width: `min(${graph.width}px, 40%)` }}>
-        <span
-          className={styles.graphContent}
-          style={{ transform: `translateX(${-graphScroll}px)` }}
-        >
+  const graphCell = (graphIndex: number, author: string) => (
+    <DataGridCell columnKey="graph" className={styles.graph}>
+      {graph && (
+        <span className={styles.graphContent}>
           <CommitGraph column={graph} row={graphIndex} author={author} />
         </span>
-      </span>
-    );
+      )}
+    </DataGridCell>
+  );
 
-  const renderRow = (item: (typeof visibleRows)[number]) => {
+  const renderRow = (item: (typeof visibleRows)[number], context: VirtualRowContext) => {
     const { row, entry, graphIndex } = item;
     if (row.kind !== 'commit') {
       const activate = (anchor: HTMLElement | null) => {
@@ -273,13 +360,13 @@ export function TerminalRefSidebar({
         else if (anchor) setOpenMenu({ kind: 'stash', stash: row.stash, anchor });
       };
       return (
-        <div
+        <DataGridRow
+          index={context.index}
           className={styles.row}
           ref={(node) => {
             if (node) rowAnchors.current.set(row.key, node);
             else rowAnchors.current.delete(row.key);
           }}
-          role="button"
           tabIndex={0}
           onClick={(event) => activate(event.currentTarget)}
           onContextMenu={(event) => {
@@ -295,7 +382,7 @@ export function TerminalRefSidebar({
           }}
         >
           {graphCell(graphIndex, '')}
-          <span className={styles.details}>
+          <DataGridCell columnKey="message" className={styles.details}>
             <span
               className={styles.typeIcon}
               role="img"
@@ -312,8 +399,8 @@ export function TerminalRefSidebar({
             ) : (
               <span className={styles.summary}>{row.stash.message}</span>
             )}
-          </span>
-        </div>
+          </DataGridCell>
+        </DataGridRow>
       );
     }
     if (!entry) return null;
@@ -322,13 +409,13 @@ export function TerminalRefSidebar({
     );
     const tags = entry.insertOptions.filter((option) => option.kind === 'tag');
     return (
-      <div
+      <DataGridRow
+        index={context.index}
         ref={(node) => {
           if (node) rowAnchors.current.set(entry.key, node);
           else rowAnchors.current.delete(entry.key);
         }}
         className={styles.row}
-        role="button"
         tabIndex={0}
         onClick={(event: MouseEvent<HTMLDivElement>) => {
           chooseEntry(entry, event.currentTarget);
@@ -347,7 +434,7 @@ export function TerminalRefSidebar({
         title={`${entry.insertOptions.map((option) => option.value).join(', ')} — ${entry.commit.summary}`}
       >
         {graphCell(graphIndex, entry.commit.author.name)}
-        <span className={styles.details}>
+        <DataGridCell columnKey="message" className={styles.details}>
           <span className={styles.typeIcon} role="img" aria-label="Commit" title="Commit">
             <ShaIcon />
           </span>
@@ -376,39 +463,53 @@ export function TerminalRefSidebar({
             </span>
           )}
           <span className={styles.summary}>{entry.commit.summary}</span>
-        </span>
-      </div>
+        </DataGridCell>
+      </DataGridRow>
     );
   };
 
   return (
     <div className={styles.sidebar}>
-      <SearchInput
-        label={t('view.terminal.railFilter')}
-        value={filter}
-        onChange={setFilter}
-        clearLabel={t('view.terminal.railFilter')}
-        placeholder={t('view.terminal.railFilter')}
-      />
-      {graph && (
-        <div
-          className={styles.graphScroll}
-          style={{ width: `min(${graph.width}px, 40%)` }}
-          role="region"
-          aria-label={t('view.terminal.graphScroll')}
-          tabIndex={0}
-          onScroll={(event) => setGraphScroll(event.currentTarget.scrollLeft)}
-        >
-          <div style={{ width: graph.width, height: 1 }} />
-        </div>
+      <div className={styles.filter}>
+        <SearchInput
+          label={t('view.terminal.railFilter')}
+          value={filter}
+          onChange={setFilter}
+          clearLabel={t('view.terminal.railFilter')}
+          placeholder={t('view.terminal.railFilter')}
+        />
+        {(loading || loadingMore || preparing || filtering) && (
+          <ProgressBar
+            className={styles.progress}
+            label={t(
+              loadingMore ? 'working.commitTable.loadingMore' : 'working.commitTable.loading',
+            )}
+          />
+        )}
+      </div>
+      {graphError && (
+        <GitErrorPanel
+          error={graphError}
+          fixes={{
+            retry: () => {
+              requestedRange.current = null;
+              onRetry();
+              prepared.reload();
+              filtered.reload();
+            },
+          }}
+        />
       )}
-      <div className={styles.list}>
+      <DataGrid
+        columns={columns}
+        label={t('view.terminal.railLabel')}
+        rowCount={visibleRows.length}
+        storageId="terminal.references"
+      >
         <VirtualList
           items={visibleRows}
-          className={styles.listViewport}
-          onRangeChange={(range) => {
-            if (filter.trim() === '' && range.endIndex >= rows.length - 20) onLoadMore();
-          }}
+          semantics="rowgroup"
+          onRangeChange={handleRange}
           getKey={({ row }) => row.key}
           renderRow={renderRow}
           label={t('view.terminal.railLabel')}
@@ -421,9 +522,13 @@ export function TerminalRefSidebar({
               if (anchor) setOpenMenu({ kind: 'stash', stash: row.stash, anchor });
             }
           }}
-          empty={<div className={styles.empty}>{refs ? t('view.terminal.railFilter') : '—'}</div>}
+          empty={
+            loading || preparing || error ? undefined : (
+              <div className={styles.empty}>{refs ? t('view.terminal.railFilter') : '—'}</div>
+            )
+          }
         />
-      </div>
+      </DataGrid>
       {openMenu && (
         <Menu
           items={menuItems}

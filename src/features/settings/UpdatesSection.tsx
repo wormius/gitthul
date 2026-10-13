@@ -1,4 +1,4 @@
-import { DEFAULT_UPDATE_SETTINGS } from '@core/domain/settings';
+import { DEFAULT_UPDATE_SETTINGS, type UpdateSettings } from '@core/domain/settings';
 import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
 import { Switch } from '@ui/Switch';
@@ -21,9 +21,23 @@ export function UpdatesSection() {
   const check = useReleaseStore((state) => state.check);
   const checkNow = useReleaseStore((state) => state.checkNow);
   const [openFailed, setOpenFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+
+  async function save(updates: Partial<UpdateSettings>) {
+    setSaving(true);
+    setSaveFailed(false);
+    try {
+      await patch({ updates });
+    } catch {
+      setSaveFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function reset() {
-    void patch({ updates: DEFAULT_UPDATE_SETTINGS });
+    void save({ ...DEFAULT_UPDATE_SETTINGS, promptDismissed: true });
   }
 
   return (
@@ -44,19 +58,25 @@ export function UpdatesSection() {
                 : 'settings.updates.checkNow',
             )}
           </Button>
-          <Button variant="ghost" onClick={reset}>
+          <Button variant="ghost" disabled={saving} onClick={reset}>
             {t('settings.reset')}
           </Button>
         </>
       }
     >
       <p>{t('settings.updates.description')}</p>
+      {saveFailed && <p role="alert">{t('settings.updates.prompt.saveFailed')}</p>}
       <SettingRow label={t('settings.updates.checkOnStartup')}>
         <Switch
           label={t('settings.updates.checkOnStartup')}
           checked={updates.checkOnStartup}
+          disabled={saving}
           onChange={(e) => {
-            void patch({ updates: { checkOnStartup: e.target.checked } });
+            void save(
+              e.target.checked
+                ? { checkOnStartup: true }
+                : { checkOnStartup: false, promptDismissed: true, nextPromptAt: 0 },
+            );
           }}
         />
       </SettingRow>

@@ -559,6 +559,11 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
       };
     },
 
+    readDiffFiles: async (id, source, query) => {
+      await settle(query);
+      return diffFilesOf(find(id), source);
+    },
+
     readFile: async (id, path, at, query) => {
       await settle(query);
 
@@ -1815,11 +1820,16 @@ function pageOf(repo: MockRepo, request: CommitPageRequest = {}): CommitPage {
 }
 
 function resolveRef(repo: MockRepo, ref: string): Sha {
-  const branch = repo.refs.branches.find((candidate) => candidate.name === ref);
+  const qualified = ref.startsWith('refs/');
+  const branch = repo.refs.branches.find(
+    (candidate) => candidate.id === ref || (!qualified && candidate.name === ref),
+  );
 
   if (branch) return branch.tip;
 
-  const tag = repo.refs.tags.find((candidate) => candidate.name === ref);
+  const tag = repo.refs.tags.find(
+    (candidate) => candidate.id === ref || (!qualified && candidate.name === ref),
+  );
 
   if (tag) return tag.target;
 
@@ -1863,11 +1873,130 @@ function sourceKey(source: DiffSource): string {
     case 'index':
       return 'worktree';
     case 'commit':
+    case 'stash':
       return `commit:${source.sha}`;
     case 'range':
       return `range:${source.from}:${source.to}`;
     case 'workingRange':
       return `workingRange:${source.from}`;
+  }
+}
+
+interface MockFileSnapshot {
+  /** El falso conserva la identidad al reutilizar un cambio en otra revisión. */
+  identity: FileChange;
+  file: FileChange;
+}
+
+function applySnapshotChanges(
+  tree: Map<string, MockFileSnapshot>,
+  files: readonly FileChange[],
+): void {
+  for (const file of files) {
+    if (file.change === 'unmodified') continue;
+    if (file.change === 'deleted') {
+      tree.delete(file.path);
+      continue;
+    }
+    const previous = file.previousPath ? tree.get(file.previousPath) : undefined;
+    if (file.change === 'renamed' && file.previousPath) tree.delete(file.previousPath);
+    tree.set(file.path, {
+      identity:
+        previous && file.insertions === 0 && file.deletions === 0 ? previous.identity : file,
+      file,
+    });
+  }
+}
+
+/**
+ * El fixture no almacena blobs: reconstruye identidades opacas por el primer padre.
+ * Así, comparar extremos no equivale a unir todo lo que tocó su historia.
+ */
+function revisionSnapshot(repo: MockRepo, sha: Sha | null): Map<string, MockFileSnapshot> {
+  const tree = new Map<string, MockFileSnapshot>();
+  const commits: Commit[] = [];
+  let current = sha === null || sha === '' ? null : resolveRef(repo, sha);
+  while (current !== null && current !== '') {
+    const commit = repo.history.byShaLookup.get(current);
+    if (!commit) throw missingObject(repo.repository, current);
+    commits.push(commit);
+    current = commit.parents[0] ?? null;
+  }
+  for (const commit of commits.reverse()) {
+    applySnapshotChanges(tree, filesOf(repo.history, commit.sha));
+  }
+  return tree;
+}
+
+function snapshotDifference(
+  before: ReadonlyMap<string, MockFileSnapshot>,
+  after: ReadonlyMap<string, MockFileSnapshot>,
+): readonly FileChange[] {
+  const files: FileChange[] = [];
+  const renamed = new Set<string>();
+  for (const [path, next] of after) {
+    const previous = before.get(path);
+    if (previous?.identity === next.identity) continue;
+    const previousPath =
+      previous === undefined
+        ? next.file.previousPath &&
+          before.has(next.file.previousPath) &&
+          !after.has(next.file.previousPath)
+          ? next.file.previousPath
+          : [...before].find(
+              ([oldPath, old]) => old.file.previousPath === path && !after.has(oldPath),
+            )?.[0]
+        : undefined;
+    if (previousPath) renamed.add(previousPath);
+    const { previousPath: _previousPath, ...file } = next.file;
+    files.push({
+      ...file,
+      change: previousPath ? 'renamed' : previous ? 'modified' : 'added',
+      ...(previousPath ? { previousPath } : {}),
+    });
+  }
+  for (const [path, previous] of before) {
+    if (after.has(path) || renamed.has(path)) continue;
+    const { previousPath: _previousPath, ...file } = previous.file;
+    files.push({
+      ...file,
+      change: 'deleted',
+      insertions: 0,
+      deletions: file.insertions + file.deletions,
+    });
+  }
+  return files.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function diffFilesOf(repo: MockRepo, source: DiffSource): readonly FileChange[] {
+  switch (source.kind) {
+    case 'index':
+      return repo.status.staged;
+    case 'worktree':
+      return [
+        ...new Map(
+          [...repo.status.unstaged, ...repo.status.conflicted].map((file) => [file.path, file]),
+        ).values(),
+      ];
+    case 'commit': {
+      return filesOf(repo.history, resolveRef(repo, source.sha));
+    }
+    case 'stash':
+      return filesOf(repo.history, resolveRef(repo, source.sha)).map((file) =>
+        file.change === 'untracked' ? { ...file, change: 'added' } : file,
+      );
+    case 'range':
+      return snapshotDifference(
+        revisionSnapshot(repo, source.from),
+        revisionSnapshot(repo, source.to),
+      );
+    case 'workingRange': {
+      const after = revisionSnapshot(repo, repo.refs.head.sha);
+      applySnapshotChanges(after, repo.status.staged);
+      applySnapshotChanges(after, repo.status.unstaged);
+      applySnapshotChanges(after, repo.status.conflicted);
+      return snapshotDifference(revisionSnapshot(repo, source.from), after);
+    }
   }
 }
 
@@ -1881,26 +2010,39 @@ function sourceKey(source: DiffSource): string {
  */
 function diffOf(repo: MockRepo, request: DiffRequest): FileDiff {
   const { binary, mediaType } = describePath(request.path);
-  const change = changeOf(repo, request.path);
+  const comparison = request.source.kind === 'range' || request.source.kind === 'workingRange';
+  const saved = comparison || request.source.kind === 'stash';
+  const entry = saved
+    ? diffFilesOf(repo, request.source).find((file) => file.path === request.path)
+    : undefined;
+  const change = saved ? (entry?.change ?? 'unmodified') : changeOf(repo, request.path);
   const identity = createRandom(seedFrom(`diff:${request.path}:${sourceKey(request.source)}`));
   const regular = () => ({ oid: identity.hex(40), mode: '100644' as const });
   const precondition = {
     before: change === 'added' || change === 'untracked' ? null : regular(),
     after: change === 'deleted' ? null : regular(),
   };
+  if (change === 'unmodified') precondition.after = precondition.before;
 
   if (binary) {
     const random = createRandom(seedFrom(`binario:${request.path}:${sourceKey(request.source)}`));
+    const oldSize = change === 'added' ? null : random.int(2_000, 240_000);
 
     return {
       path: request.path,
+      ...(entry?.previousPath ? { previousPath: entry.previousPath } : {}),
       change,
       source: request.source,
       precondition,
       content: {
         kind: 'binary',
-        oldSize: change === 'added' ? null : random.int(2_000, 240_000),
-        newSize: change === 'deleted' ? null : random.int(2_000, 240_000),
+        oldSize,
+        newSize:
+          change === 'unmodified'
+            ? oldSize
+            : change === 'deleted'
+              ? null
+              : random.int(2_000, 240_000),
         mediaType,
       },
     };
@@ -1912,12 +2054,13 @@ function diffOf(repo: MockRepo, request: DiffRequest): FileDiff {
 
   return {
     path: request.path,
+    ...(entry?.previousPath ? { previousPath: entry.previousPath } : {}),
     change,
     source: request.source,
     precondition,
     content: {
       kind: 'text',
-      hunks: visibleHunks(repo, request, hunks),
+      hunks: change === 'unmodified' ? [] : visibleHunks(repo, request, hunks),
       truncated: false,
       encoding: 'utf-8',
     },

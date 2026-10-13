@@ -1,5 +1,6 @@
 import { buildCommitRows } from '@features/working/commits';
 import { buildGraph } from '@features/working/graph';
+import { buildLargeRepo } from '@core/adapters/mock/fixture/large';
 
 import { describe, expect, it } from 'vitest';
 
@@ -8,14 +9,38 @@ import { createMockGitPort } from '@core/adapters/mock/mockGitPort';
 
 import {
   buildTerminalGraphEntries,
+  buildTerminalGraphEntriesAsync,
   terminalGraphPalette,
   terminalGraphRows,
+  terminalGraphRowsAsync,
   terminalCommitCommands,
   terminalShellArgument,
   terminalInsertOptionsAt,
 } from './terminalGraph';
 
 describe('terminalGraph', () => {
+  it('prepara un historial grande con miles de referencias sin recorrerlas por cada commit', async () => {
+    const { history, refs } = buildLargeRepo({ commitCount: 20_000, branchCount: 8 });
+    const manyRefs = {
+      ...refs,
+      tags: history.commits.slice(0, 4_000).map((commit, index) => ({
+        id: `refs/tags/v${index}`,
+        name: `v${index}`,
+        target: commit.sha,
+        annotated: false,
+      })),
+    };
+    const started = performance.now();
+    const entries = await buildTerminalGraphEntriesAsync(history.commits, manyRefs);
+    expect(entries).toHaveLength(history.commits.length);
+    expect(entries[3_999]?.insertOptions).toContainEqual({
+      key: 'refs/tags/v3999',
+      kind: 'tag',
+      value: 'v3999',
+    });
+    expect(entries.at(-1)?.commit).toBe(history.commits.at(-1));
+    expect(performance.now() - started).toBeLessThan(2_000);
+  });
   it('conserva el orden del historial y ancla las referencias a su commit', async () => {
     const git = createMockGitPort({ latency: NO_LATENCY });
     const [refs, page] = await Promise.all([
@@ -95,10 +120,8 @@ describe('terminalGraph', () => {
     expect(new Set(palette.branches.map((branch) => branch.color))).toEqual(
       new Set(['green', 'blue', 'gray']),
     );
-    expect(new Set(palette.branches.map((branch) => branch.dash.join(','))).size).toBeGreaterThan(
-      1,
-    );
-    expect(new Set(palette.branches.map((branch) => branch.shape)).size).toBeGreaterThan(1);
+    expect(palette.branches.every((branch) => branch.dash.length === 0)).toBe(true);
+    expect(new Set(palette.branches.map((branch) => branch.shape))).toEqual(new Set(['ring']));
     expect(palette.wip).toBe('gray');
     expect(palette.stash).toBe('blue');
     expect(palette.wipNode).toBe('dark-ink');
@@ -108,6 +131,16 @@ describe('terminalGraph', () => {
 });
 
 describe('filas compartidas del grafo de Terminal', () => {
+  it('prepara y filtra por bloques con los mismos índices y contexto que la versión síncrona', async () => {
+    const { history, refs, status } = buildLargeRepo({ commitCount: 1_000, branchCount: 8 });
+    const entries = await buildTerminalGraphEntriesAsync(history.commits, refs);
+    const rows = buildCommitRows(history.commits, status, refs.stashes);
+    for (const filter of ['', 'main', 'WIP', history.commits[5]!.sha, 'ninguna-coincidencia']) {
+      expect(await terminalGraphRowsAsync(rows, entries, filter)).toEqual(
+        terminalGraphRows(rows, entries, filter),
+      );
+    }
+  });
   it('mantiene commits intermedios e índices originales entre coincidencias', async () => {
     const git = createMockGitPort({ latency: NO_LATENCY });
     const [refs, page, status] = await Promise.all([

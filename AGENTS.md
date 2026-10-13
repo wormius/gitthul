@@ -14,6 +14,19 @@ LinkPort.checkRelease no recibe argumentos; el backend compara SemVer y valida
 el enlace exacto al tag oficial. Los fallos de red, HTTP o datos se muestran como
 errores que permiten reintentar. No descargar, instalar ni reiniciar automáticamente.
 
+UpdateOptInBridge ofrece activar la consulta después de 10 segundos, como máximo
+una vez por sesión, sin consultar red. updates.promptDismissed suprime la oferta;
+updates.nextPromptAt guarda en milisegundos el siguiente recordatorio. Persistir
+un plazo de siete días antes de mostrar el aviso, incluso si se cierra la app sin
+responder. Activar guarda la preferencia y usa ReleaseNotificationBridge para la
+primera consulta; posponer o cerrar con × aplaza siete días hasta otra apertura.
+Desactivar manualmente o restablecer Actualizaciones también suprime propuestas.
+Los parches de updates deben completar flush; comprobar de nuevo las preferencias
+actuales después de esperas y no mostrar avisos tras desmontar el bridge.
+ToastProvider admite varias acciones asíncronas: espera el guardado, evita doble
+ejecución y conserva el aviso ante fallos. onDismiss distingue close, timeout,
+action y programmatic; una retirada programática nunca cambia la preferencia.
+
 El código propio se distribuye bajo MIT. GitThul™ y su logotipo tienen una política
 de marca separada, documentada en TRADEMARKS.md; los avisos de terceros se
 conservan. Usar ™ en presentación de marca y reservar ® para un registro
@@ -74,8 +87,38 @@ privadas permanecen en los archivos seleccionados por el usuario, fuera del repo
 No persistir credenciales efímeras ni incluir secretos o datos reales innecesarios
 en registros y fixtures.
 
+La comparación lista diferencias netas mediante GitPort.readDiffFiles con el mismo
+DiffSource que readDiff. No formar esa lista uniendo archivos tocados en commits:
+historias distintas pueden terminar en árboles idénticos. En range, from=null
+representa el árbol vacío para selecciones que incluyen el commit raíz. Los dos
+extremos históricos deben fijarse a SHAs antes de listar y abrir sus archivos;
+workingRange compara esa revisión con el estado actual completo del árbol de trabajo.
+
+WorkingView invalida las lecturas anteriores al comenzar una escritura. Los avisos
+del watcher recibidos durante la operación se acumulan y se consultan al terminar;
+una respuesta tardía no puede reemplazar el estado devuelto por stash, POP o Stage.
+
+El diff de un stash usa DiffSource.stash: la instantánea rastreada y el tercer padre
+para las rutas sin seguimiento. El visor de archivo lee el blob que resolvió el diff,
+también para archivos truncados; no buscar esos archivos en disco ni en el árbol
+rastreado del stash. DiffSource.commit conserva la comparación contra el primer padre.
+
 Las pruebas de escritura usan repositorios descartables. No experimentar con
 reset, limpieza o recuperación destructiva sobre repositorios del usuario.
+
+La selección de Repositorios usa selectedIds, únicos entre listas y espacios.
+selected solo contiene un repositorio si la selección es singular. Filtrar y
+recargar descartan los IDs ocultos o retirados. Abrir/olvidar por lotes procesa
+los IDs en orden, evita duplicados y conserva los errores por entrada; olvidar
+retira entradas del catálogo sin borrar carpetas ni historial de Git.
+El arrastre guarda una copia de los repositorios seleccionados al comenzar.
+Los lotes se agregan sin retirar membresías anteriores; el arrastre singular
+desde una tarjeta conserva su traslado. Agregar o crear un espacio con un lote
+persiste miembros y navegación en una sola escritura de LibraryPort.
+Quitar repositorios recibe un espacio concreto y elimina solamente sus membresías,
+en una escritura. Cada acción afecta a un espacio a la vez.
+Los menús de tarjetas reciben el ID de su espacio; no deducir ese destino de
+library.view, que puede apuntar a otra zona. El catálogo y las pestañas se conservan.
 
 ## Recuperación y persistencia
 
@@ -95,21 +138,56 @@ también las rutas canónicas existentes. Git puede devolver /private/var en mac
 o una forma distinta de la ruta Windows. Conservar las protecciones de principal,
 actual, bloqueo y trabajo pendiente al aceptar un alias del mismo directorio.
 
-La política recovery de settings.json controla depuración automática, cantidad,
-antigüedad y espacio. Los límites son blandos: nunca eliminar puntos activos,
-pendientes, parejas incompletas ni copias referidas por una restauración interrumpida.
-Ante corrupción o ambigüedad, conservar el almacén afectado. No depurar las referencias
-refs/gitthul/undo/objects/: pueden proteger puntos antiguos y otros worktrees.
-Exportar archivos no reemplaza la base de objetos Git que necesitan commits y stashes.
+Las capturas operativas son internas, con depuración automática predeterminada
+(100 puntos, 30 días y 1024 MiB por repositorio); los valores recovery heredados
+se validan para conservar configuraciones inválidas, pero no son controles de UI.
+Los límites son blandos: nunca eliminar puntos activos, pendientes, parejas
+incompletas ni copias referidas por una restauración interrumpida. Ante corrupción
+o ambigüedad, conservar el almacén afectado. No depurar refs/gitthul/undo/objects/:
+pueden proteger puntos antiguos y otros worktrees. recovery_read y recovery_cleanup
+solo sirven al resumen y limpieza manual de caché; no exponer restauración,
+importación o exportación de capturas individuales por IPC.
 
-La recuperación persistente exige vista previa, token y confirmación. Antes de escribir,
-guardar un baseline durable pendiente; aplicar los mismos bloqueos y comprobaciones
-de cambios posteriores que Deshacer/Rehacer. Completar la pareja solo con el estado
-posterior durable. La importación antigua es explícita y por copia, sin modificar
-el origen ni seguir rutas absolutas no verificadas en los manifiestos.
+Los respaldos de emergencia son independientes de la caché operativa.
+backup_store.rs guarda manifiestos y chunks comprimidos/deduplicados bajo
+app_local_data_dir()/backups. Un punto publicado debe ser autónomo: datos Git,
+índice, trabajo local y archivos sin seguimiento no ignorados, con worktrees
+normalizados a repositorios independientes, objetos alternativos locales,
+submódulos inicializados y objetos LFS necesarios. No presentar como completo
+un repositorio bare, clone superficial/parcial, submódulo ausente, LFS incompleto o configuración
+externa no cubierta. Preservar symlinks como enlaces, sin recorrer sus destinos.
+En Windows, codificar las claves relativas del inventario y manifiesto con /
+para que rutas recorridas y sintéticas representen una sola entrada. Conservar
+la representación nativa de rutas absolutas y destinos de symlinks. La validación
+sigue rechazando entradas equivalentes duplicadas. Desactivar hooks al verificar
+mediante una carpeta vacía real, nunca un dispositivo NUL. Los fixtures Git usan
+un archivo global inexistente de su carpeta en lugar de dispositivos del sistema.
+Validar Git y contenido antes de publicar; restaurar exclusivamente en una carpeta
+nueva, con rutas de manifiesto verificadas y sin reemplazar destinos existentes.
+Una captura no debe ejecutar hooks, contactar al remoto ni mantener un bloqueo de
+escritura Git durante toda la copia. Revalidar fuentes para rechazar cambios
+concurrentes; cancelar al cambiar política o terminar la aplicación.
+
+BackupSchedulingBridge programa las pestañas abiertas/restauradas sin bloquear
+navegación. backup.rs ejecuta una sola tarea con prioridad baja: primera
+comprobación tras 30 segundos, luego cada hora en sesiones largas, con mínimo
+24 horas entre puntos nuevos y solo cuando hay cambios. La retención 7 diarios,
+4 semanales y 3 mensuales comparte un límite GLOBAL de 1024 MiB iniciales;
+sujeta a espacio, sin duplicar puntos entre categorías. Proteger indefinidamente
+el último punto válido de cada repositorio aunque desaparezca, se olvide o quede
+inactivo. La depuración global corre al arrancar y diariamente. Si no cabe una
+copia completa, conservar la anterior e informar falta de espacio. La consulta
+IPC devuelve metadatos en memoria, sin esperar compresión ni validación de datos.
+Mantener un bloqueo de archivo del almacén durante su vida para impedir que otro
+proceso elimine temporales de una captura activa. Una configuración ilegible
+suspende también la depuración de respaldos hasta guardar una política válida.
+Un manifiesto dañado no oculta respaldos independientes sanos; mostrar advertencia
+y suspender eliminación/capturas ante contenido ambiguo. Limpiar caché nunca borra
+respaldos. Mantener dominio, BackupPort, mock, adaptador Tauri, IPC y cinco idiomas
+alineados y comprobar restauración con el repositorio fuente eliminado.
 
 Los ajustes y biblioteca usan los directorios de configuración del usuario;
-los logs y recovery usan sus directorios de datos. Resolverlos con Tauri, sin rutas
+los logs, recovery y backups usan sus directorios de datos. Resolverlos con Tauri, sin rutas
 personales fijas ni almacenamiento dentro del repositorio fuente. Una configuración
 ilegible suspende la depuración automática y permite arrancar; conservar sus bytes
 antes de repararla y mantener la suspensión al escribir otras preferencias.
@@ -136,6 +214,16 @@ archivo privado. Los auxiliares de autenticación usan credenciales ficticias al
 El PTY ejecuta el shell del usuario; transportar bytes y secuencias ANSI sin reconstruir
 comandos. Mantener TERM=xterm-256color, COLORTERM=truecolor y tamaño tomado del PTY.
 Leer el portapapeles solo al pegar; Ctrl+C sin selección debe poder interrumpir.
+La captura de recuperación y el arranque/cierre del PTY se ejecutan con
+spawn_blocking. La terminal muestra progreso mientras prepara la sesión;
+cerrarla durante ese periodo cancela su arranque. Conservar la captura completa
+antes de abrir el shell y permitir sus respuestas de protocolo durante el inicio.
+TerminalPaneTree mantiene los emuladores en una lista estable por pane.id y
+mueve sus contenedores mediante portales al árbol de distribución. Dividir,
+redimensionar o cerrar un vecino no debe desmontar las sesiones que sobreviven;
+solo retirar un panel o cerrar la superficie libera su PTY.
+Crear y detener observadores recursivos del repositorio también se ejecuta fuera
+del hilo de la ventana, incluido el cambio entre GitWorking y Terminal.
 En ConPTY, drenar la salida antes de redimensionar o escribir y mantener la
 lectura hasta EOF incluso si se desconecta la UI: el cierre puede emitir un
 último frame y bloquear Windows anteriores a 11 24H2 si nadie consume el pipe.
@@ -165,6 +253,18 @@ Comprobar teclado, foco, accesibilidad, paneles estrechos y edición de texto se
 Los atajos no deben interceptar entrada normal ni composición de texto. No comunicar
 un estado solo por color; mantener foco visible y contraste verificable.
 
+El grafo de Terminal usa anillos para todos los commits. WIP es un círculo sólido
+y stash un cuadrado sólido; las ramas se distinguen por tono. Las conexiones entre
+commits son continuas; los enlaces WIP/stash son finos y punteados. Conservar el
+dibujante compartido y la simbología especial al ajustar su paleta. El motor
+conserva el tipo de cada enlace hasta el nodo de llegada; HEAD continúa hacia
+sus padres con enlaces de rama normales.
+Terminal usa DataGrid para compartir los anchos entre cabeceras y filas;
+el separador Grafo/Mensaje reparte el espacio dentro del panel y recuerda
+el ajuste mediante PaneStorage. No añadir una barra horizontal al grafo.
+El progreso del grafo ocupa el espacio bajo el filtro mediante posición absoluta;
+su aparición y desaparición no debe alterar la geometría de cabeceras ni filas.
+
 Todo texto de la interfaz de usuario del producto usa i18n. Las muestras internas
 de la galería conservan su convención actual; no requieren una traducción global
 por esta reorganización. Mantener es-MX, es-ES, en, de y fr coherentes en claves,
@@ -180,7 +280,8 @@ los cinco catálogos; src/i18n/i18n.test.ts comprueba claves, vacíos y placehol
 
 Las herramientas seleccionadas son Node.js 20.20.2 (en .nvmrc), npm 10.8.2 y
 Rust/Cargo 1.97.0 (en rust-toolchain.toml), además de Git y las dependencias nativas
-de Tauri 2 para la plataforma. rust-version = 1.88 declara el límite del grafo,
+de Tauri 2 para la plataforma. rust-version = 1.89 declara el límite del grafo
+y de File::try_lock para la exclusión del almacén entre procesos,
 sin afirmar que se haya certificado como mínimo efectivo en todos los sistemas.
 Python y Bash sirven a herramientas externas opcionales, no a las comprobaciones
 ordinarias. OpenSSH proporciona ssh y ssh-keygen para los remotos y las funciones

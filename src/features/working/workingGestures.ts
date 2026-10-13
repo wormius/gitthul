@@ -123,7 +123,7 @@ export function useWorkingGestureDefinitions(): readonly GestureDefinition[] {
     const branchRef = ref !== null && ref.kind !== 'tag' ? ref : null;
     const tagRef = ref?.kind === 'tag' ? ref : null;
     const integrationSource = branchRef?.name === head ? null : branchRef;
-    const comparisonSource = ref?.name === head ? null : ref;
+    const comparisonSource = ref?.kind === 'localBranch' && ref.name === head ? null : ref;
     const oneCommit = shas.length === 1 ? shas[0] : undefined;
 
     return [
@@ -579,8 +579,11 @@ export function useWorkingGestureDefinitions(): readonly GestureDefinition[] {
           if (head === null || comparisonSource === null) return;
           openCompare({
             kind: 'refs',
-            source: { ref: comparisonSource.name, label: comparisonSource.name },
-            target: { ref: head, label: head },
+            source: {
+              ref: `refs/${comparisonSource.kind === 'tag' ? 'tags' : comparisonSource.kind === 'remoteBranch' ? 'remotes' : 'heads'}/${comparisonSource.name}`,
+              label: comparisonSource.name,
+            },
+            target: { ref: `refs/heads/${head}`, label: head },
           });
         },
       },

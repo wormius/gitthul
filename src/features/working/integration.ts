@@ -8,14 +8,23 @@
  */
 
 /** Lo que viaja cuando se arrastra una referencia. */
-export type DragRef = { kind: 'branch'; name: string } | { kind: 'tag'; name: string };
+export type DragRef = {
+  kind: 'branch' | 'tag';
+  name: string;
+  /** Identidad completa para comparar; la integración conserva el nombre. */
+  ref?: string;
+};
 
 export function isDragRef(payload: unknown): payload is DragRef {
   if (payload === null || typeof payload !== 'object') return false;
 
   const p = payload as Record<string, unknown>;
 
-  return (p.kind === 'branch' || p.kind === 'tag') && typeof p.name === 'string';
+  return (
+    (p.kind === 'branch' || p.kind === 'tag') &&
+    typeof p.name === 'string' &&
+    (p.ref === undefined || typeof p.ref === 'string')
+  );
 }
 
 export type IntegrationOffer = 'merge-rebase-compare' | 'compare-only';

@@ -355,6 +355,8 @@ export interface WorkingActions {
   closeDialog: () => void;
   openFileHistory: (path: string, at?: Sha, openLatest?: boolean) => void;
   closeFileHistory: () => void;
+  /** Alterna el historial del diff abierto sin cambiar su archivo ni su origen. */
+  toggleDiffFileHistory: () => void;
   /** Abre el visor sobre un archivo. El commit al que volver lo pone el store. */
   openDiff: (request: { path: string; source: DiffSource }) => void;
   closeDiff: () => void;
@@ -569,6 +571,26 @@ export const useWorkingStore = create<WorkingState & WorkingActions>((set) => ({
     set({ fileHistory: null });
   },
 
+  toggleDiffFileHistory: () => {
+    set((state) => {
+      if (state.diff === null) return state;
+      const { path, source } = state.diff;
+      if (state.fileHistory?.path === path) return { fileHistory: null };
+      const at =
+        source.kind === 'commit' || source.kind === 'stash'
+          ? source.sha
+          : source.kind === 'range'
+            ? source.to
+            : null;
+      return {
+        fileHistory: { path, ...(at === null ? {} : { at }) },
+        detailsCollapsed: false,
+        // Al cerrar el diff, el destino es el historial que sigue abierto.
+        diff: { ...state.diff, returnTo: null },
+      };
+    });
+  },
+
   /*
    * A qué commit volver lo decide el store y no quien abre.
    *
@@ -579,7 +601,7 @@ export const useWorkingStore = create<WorkingState & WorkingActions>((set) => ({
    */
   openDiff: ({ path, source }) => {
     set((state) => ({
-      ...(state.fileHistory?.path === path && source.kind === 'commit'
+      ...(state.fileHistory?.path === path && (source.kind === 'commit' || source.kind === 'stash')
         ? { fileHistory: { path, at: source.sha } }
         : {}),
       diff: {

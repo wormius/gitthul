@@ -377,7 +377,7 @@ describe('pestañas', () => {
 
     expect(screen.getByText('gitthul$')).toBeInTheDocument();
     expect(
-      await within(await screen.findByRole('list', { name: 'Referencias' })).findAllByTitle('main'),
+      await within(await screen.findByRole('grid', { name: 'Referencias' })).findAllByTitle('main'),
     ).not.toHaveLength(0);
     expect(tabNames()).toEqual(['gitthul', 'gitthul']);
 

@@ -1,10 +1,11 @@
-import type { KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent, type MouseEvent } from 'react';
 
 import type { RepoAvatar, Space, SpaceId } from '@core/domain/library';
 import type { RepoId, RepoSummary } from '@core/domain/repository';
 import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
 import type { MenuEntry } from '@ui/menuUtils';
+import { useSelection } from '@ui/selection';
 
 import { RepoCard } from './RepoCard';
 import { RepoSection } from './RepoSection';
@@ -16,10 +17,10 @@ interface SpacesSectionProps {
   spaces: readonly Space[];
   repositories: readonly RepoSummary[];
   avatarOf: (repo: RepoId) => RepoAvatar | null;
-  selected: RepoId | null;
-  selectedIn: string;
-  menuFor: (repo: RepoSummary) => readonly MenuEntry[];
-  onSelect: (repo: RepoSummary, space: SpaceId) => void;
+  selected: ReadonlySet<RepoId>;
+  menuFor: (repo: RepoSummary, space: SpaceId) => readonly MenuEntry[];
+  onSelectedChange: (next: ReadonlySet<RepoId>, space: SpaceId) => void;
+  onContextSelect: (repo: RepoSummary, space: SpaceId) => void;
   onOpen: (repo: RepoSummary) => void;
   onOpenAll: (space: Space, repos: readonly RepoSummary[]) => void;
   onToggleCollapsed: (space: Space) => void;
@@ -45,9 +46,9 @@ export function SpacesSection({
   repositories,
   avatarOf,
   selected,
-  selectedIn,
   menuFor,
-  onSelect,
+  onSelectedChange,
+  onContextSelect,
   onOpen,
   onOpenAll,
   onToggleCollapsed,
@@ -69,15 +70,49 @@ export function SpacesSection({
 }: SpacesSectionProps) {
   const { t } = useI18n();
   const byId = new Map(repositories.map((repo) => [repo.id, repo]));
+  const activeSpace = useRef<SpaceId | null>(null);
+  const selection = useSelection('multiple', selected, (next) => {
+    if (activeSpace.current !== null) onSelectedChange(next, activeSpace.current);
+  });
+  const visibleIds = () =>
+    [...new Set(spaces.flatMap((space) => (space.collapsed ? [] : space.repos)))].filter((id) =>
+      byId.has(id),
+    );
+  const select = (
+    repo: RepoSummary,
+    space: SpaceId,
+    event: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>,
+  ) => {
+    activeSpace.current = space;
+    selection.select(repo.id, visibleIds, event);
+  };
 
   const navigate = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    if (event.nativeEvent.isComposing) return;
+
+    const target = event.target as HTMLElement;
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
 
     const options = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="option"]')];
 
     if (options.length === 0) return;
 
-    const current = (event.target as HTMLElement).closest<HTMLElement>('[role="option"]');
+    const current = target.closest<HTMLElement>('[role="option"]');
+    if (current === null && target !== event.currentTarget) return;
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+      const first = current ?? options[0];
+      const space = first?.closest<HTMLElement>('[data-space-id]')?.dataset['spaceId'];
+      if (space === undefined) return;
+
+      event.preventDefault();
+      activeSpace.current = space;
+      selection.selectAll(visibleIds);
+      return;
+    }
+
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+
     const index = current === null ? -1 : options.indexOf(current);
     const next =
       event.key === 'Home'
@@ -91,7 +126,14 @@ export function SpacesSection({
             : Math.min(index + 1, options.length - 1);
 
     event.preventDefault();
-    options[next]?.focus({ preventScroll: false });
+    const option = options[next];
+    const id = option?.dataset['repoId'];
+    const space = option?.closest<HTMLElement>('[data-space-id]')?.dataset['spaceId'];
+    if (option === undefined || id === undefined || space === undefined) return;
+
+    option.focus({ preventScroll: false });
+    activeSpace.current = space;
+    selection.select(id, visibleIds, event);
   };
 
   return (
@@ -113,7 +155,6 @@ export function SpacesSection({
             const repo = byId.get(id);
             return repo ? [repo] : [];
           });
-          const origin = `space:${space.id}`;
           return (
             <SpaceZone
               key={space.id}
@@ -132,6 +173,7 @@ export function SpacesSection({
               draggable
               ghost={dragging?.kind === 'space' && dragging.space === space.id}
               dropTarget={dragOver === space.id}
+              dropEffect={dragging?.kind === 'repo' && dragging.repos.length > 1 ? 'copy' : 'move'}
               onDragStart={() => onSpaceDragStart(space)}
               onDragOver={() => onDragOver(space.id)}
               onDragEnd={onDragEnd}
@@ -143,9 +185,12 @@ export function SpacesSection({
                   key={repo.id}
                   repo={repo}
                   avatar={avatarOf(repo.id)}
-                  selected={selected === repo.id && selectedIn === origin}
-                  menu={menuFor(repo)}
-                  onSelect={() => onSelect(repo, space.id)}
+                  selected={selected.has(repo.id)}
+                  canOpenOnClick={selected.size === 1}
+                  dragCount={selected.has(repo.id) ? selected.size : 1}
+                  menu={menuFor(repo, space.id)}
+                  onSelect={(event) => select(repo, space.id, event)}
+                  onContextSelect={() => onContextSelect(repo, space.id)}
                   onOpen={() => onOpen(repo)}
                   onDragStart={() => onRepoDragStart(repo, space.id)}
                   onDragEnd={onDragEnd}

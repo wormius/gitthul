@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { Library } from '@core/domain/library';
 import { useTheme } from '@design/useTheme';
+import { useReleaseStore } from '@features/settings/releaseStore';
 import { useI18n } from '@i18n/useI18n';
 import { BottomBar } from '@ui/BottomBar';
+import { Button } from '@ui/Button';
 import { IconButton } from '@ui/IconButton';
 import { Kbd } from '@ui/Kbd';
 import type { MenuEntry } from '@ui/menuUtils';
@@ -21,6 +23,7 @@ import {
   HelpIcon,
   LightModeIcon,
   LogsIcon,
+  NewReleaseIcon,
   NotificationsIcon,
   RepositoriesIcon,
   SearchIcon,
@@ -105,6 +108,8 @@ export function ShellBottomBar() {
   const { library: libraryPort } = usePorts();
   const { resolved } = useTheme();
   const { unread } = useToast();
+  const gestures = useGestures();
+  const availableRelease = useReleaseStore((state) => state.availableRelease);
   const [library, setLibrary] = useState<Library | null>(null);
   const libraryRef = useRef<Library | null>(null);
   const tabs = useShellStore((state) => state.tabs);
@@ -115,6 +120,10 @@ export function ShellBottomBar() {
   const closeTabs = useShellStore((state) => state.closeTabs);
   const moveTab = useShellStore((state) => state.moveTab);
   const setStatus = useShellStore((state) => state.setStatus);
+  const versionLabel = t('bottomBar.version', { version: APP_VERSION });
+  const updatesLabel = availableRelease
+    ? `${t('bottomBar.openUpdates')}. ${t('bottomBar.updateAvailable', { version: availableRelease.version })}`
+    : t('bottomBar.openUpdates');
 
   useEffect(() => {
     let current = true;
@@ -249,7 +258,22 @@ export function ShellBottomBar() {
       utilities={
         <div className={styles.group} role="group" aria-label={t('bottomBar.utilities')}>
           <GestureButton id="shell.support" icon={<SupportIcon />} className={styles.support} />
-          <span className={styles.version}>{t('bottomBar.version', { version: APP_VERSION })}</span>
+          <Tooltip content={updatesLabel}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={styles.version}
+              aria-label={`${versionLabel}. ${updatesLabel}`}
+              iconEnd={
+                availableRelease ? <NewReleaseIcon className={styles.updateAvailable} /> : undefined
+              }
+              onClick={() => {
+                gestures.run('shell.openUpdates');
+              }}
+            >
+              {versionLabel}
+            </Button>
+          </Tooltip>
           <GestureButton id="shell.openSearch" icon={<SearchIcon />} />
           <GestureButton id="shell.openHelp" icon={<HelpIcon />} />
           <GestureButton

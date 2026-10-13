@@ -8,7 +8,13 @@ import type {
   Person,
   Sha,
 } from '@core/domain/commit';
-import type { DiffPrecondition, DiffRequest, FileContents, FileDiff } from '@core/domain/diff';
+import type {
+  DiffPrecondition,
+  DiffRequest,
+  DiffSource,
+  FileContents,
+  FileDiff,
+} from '@core/domain/diff';
 import type {
   IntegrationPrecondition,
   IntegrationPreview,
@@ -28,6 +34,7 @@ import type {
 import type {
   ConflictContents,
   ConflictSideId,
+  FileChange,
   Resolution,
   ResetPrecondition,
   TreeEntry,
@@ -53,6 +60,7 @@ export interface TextQuery extends GitQuery {
 
 /** Lee el blob exacto observado en el diff, incluso cuando pertenece al índice. */
 export interface FileQuery extends TextQuery {
+  /** Blob exacto resuelto por readDiff, incluido el tercer padre de un stash. */
   blob?: Sha;
 }
 
@@ -215,6 +223,13 @@ export interface GitPort {
   readStatus: (id: RepoId, query?: GitQuery) => Promise<WorkingStatus>;
 
   readDiff: (id: RepoId, request: DiffRequest, query?: GitQuery) => Promise<FileDiff>;
+
+  /** Diferencias netas del mismo origen que readDiff; no los archivos tocados en su historia. */
+  readDiffFiles: (
+    id: RepoId,
+    source: DiffSource,
+    query?: GitQuery,
+  ) => Promise<readonly FileChange[]>;
 
   /** El archivo completo, para la alternancia diff/archivo del visor. */
   readFile: (id: RepoId, path: string, at?: Sha, query?: FileQuery) => Promise<FileContents>;

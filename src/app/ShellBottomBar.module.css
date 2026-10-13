@@ -13,8 +13,12 @@
   white-space: nowrap;
 }
 
-/* Apoyar es lo único de la barra que se pinta en acento: es una invitación, no
-   una operación de git. Solo color, así que el hover no mueve nada. */
+.updateAvailable {
+  color: var(--text-accent);
+}
+
+/* Apoyar se pinta en acento: es una invitación, no una operación de git.
+   Solo color, así que el hover no mueve nada. */
 .support {
   color: var(--text-accent);
 }

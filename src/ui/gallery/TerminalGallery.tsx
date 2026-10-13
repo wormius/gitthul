@@ -36,6 +36,7 @@ export function TerminalGallery() {
         cwd="/repo"
         outputLabel="Terminal de revisión"
         errorMessage="No se pudo iniciar la terminal de revisión."
+        startingLabel="Preparando la terminal…"
         searchLabel="Buscar en el historial"
         searchClearLabel="Vaciar búsqueda"
         searchPreviousLabel="Coincidencia anterior"
