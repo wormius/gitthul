@@ -87,4 +87,30 @@ describe('createMockLibraryPort', () => {
       'dos',
     ]);
   });
+
+  it.each([
+    { scope: ['space-1'], remaining: ['uno', 'dos', 'tres'] },
+    { scope: undefined, remaining: ['tres'] },
+  ])('quita las pertenencias de $scope con una sola escritura', async ({ scope, remaining }) => {
+    const storage = memoryStorage(
+      JSON.stringify({
+        ...DEFAULT_LIBRARY,
+        spaces: [
+          { id: 'space-1', name: 'Uno', repos: ['uno', 'dos'] },
+          { id: 'space-2', name: 'Dos', repos: ['uno', 'dos', 'tres'] },
+        ],
+      }),
+    );
+    const write = vi.spyOn(storage, 'write');
+    const port = createMockLibraryPort({ storage });
+    await port.removeManyFromSpaces(['uno', 'dos', 'uno'], scope);
+
+    expect(write).toHaveBeenCalledOnce();
+    expect((await createMockLibraryPort({ storage }).read()).spaces).toEqual([
+      { id: 'space-1', name: 'Uno', repos: [] },
+      { id: 'space-2', name: 'Dos', repos: remaining },
+    ]);
+    await port.removeManyFromSpaces(['uno', 'dos'], scope);
+    expect(write).toHaveBeenCalledOnce();
+  });
 });

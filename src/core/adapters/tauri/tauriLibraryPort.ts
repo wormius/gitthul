@@ -59,6 +59,8 @@ export function createTauriLibraryPort(call: LibraryCall = invoke): LibraryPort 
     addManyToSpace: (id, repos, reveal) =>
       mutate((library) => domain.addManyToSpace(library, id, repos, reveal)),
     removeFromSpace: (id, repo) => mutate((library) => domain.removeFromSpace(library, id, repo)),
+    removeManyFromSpaces: (repos, spaces) =>
+      mutate((library) => domain.removeManyFromSpaces(library, repos, spaces)),
     setView: (view) => mutate((library) => domain.setView(library, view)),
     setSort: (sort) => mutate((library) => domain.setSort(library, sort)),
     setLayout: (layout) => mutate((library) => domain.setLayout(library, layout)),

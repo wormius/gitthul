@@ -249,6 +249,25 @@ export const esES: Messages = {
     'Se canceló añadir los {count} repositorios a {space}.',
   'repositories.drag.multiple': '{count} repositorios',
   'repositories.status.addedToSpace': 'Se ha añadido {repo} a {space}.',
+  'repositories.menu.removeFromSpace': 'Quitar de {space}',
+  'repositories.menu.removeSelectedFromSpace': 'Quitar {count} repositorios de {space}',
+  'repositories.menu.removeFromSpaceChoose': 'Quitar de un espacio',
+  'repositories.menu.removeFromAllSpaces': 'Quitar de todos los espacios',
+  'repositories.menu.removeSelectedFromAllSpaces':
+    'Quitar {count} repositorios de todos los espacios',
+  'repositories.menu.removeOneFromSpace': 'Quitar {repo} de {space}',
+  'repositories.menu.removeOneFromAllSpaces': 'Quitar {repo} de todos los espacios',
+  'repositories.status.removedManyFromSpace': 'Repositorios quitados de {space}: {count}.',
+  'repositories.status.removedManyFromAllSpaces':
+    'Repositorios quitados de todos los espacios: {count}.',
+  'repositories.status.removeManyFromSpaceFailed':
+    'No se pudieron quitar los repositorios de {space} ({count}).',
+  'repositories.status.removeManyFromAllSpacesFailed':
+    'No se pudieron quitar los repositorios de todos los espacios ({count}).',
+  'repositories.status.removeManyFromSpaceCancelled':
+    'Se canceló quitar repositorios de {space} ({count}).',
+  'repositories.status.removeManyFromAllSpacesCancelled':
+    'Se canceló quitar repositorios de todos los espacios ({count}).',
   'repositories.status.removedFromSpace': 'Se ha sacado {repo} de {space}.',
   'repositories.status.movedToSpace': 'Se ha movido {repo} de {from} a {to}.',
   'repositories.sort.label': 'Orden de la lista',

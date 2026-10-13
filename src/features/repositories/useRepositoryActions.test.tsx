@@ -397,3 +397,207 @@ describe('adding a repository selection to spaces', () => {
     expect((await ports.library.read()).spaces[0]?.repos).toEqual([]);
   });
 });
+
+describe('removing repository memberships', () => {
+  it('removes the affected selection from one space and preserves its other memberships, tabs and catalog', async () => {
+    const ports = makePorts();
+    const [first, second, unrelated] = await ports.git.listRepositories();
+    await ports.library.createSpaceAndAddMany('Uno', [first!.id, second!.id]);
+    await ports.library.createSpaceAndAddMany('Dos', [first!.id, second!.id, unrelated!.id]);
+    const actions = await loadedActions(ports);
+    useRepositoriesStore
+      .getState()
+      .selectMany(new Set([first!.id, second!.id, unrelated!.id]), 'space:space-1');
+    useShellStore.getState().openWorking(baseFor(first!));
+    const tabs = useShellStore.getState().tabs;
+    const repositories = useRepositoriesStore.getState().repositories;
+    const remove = vi.spyOn(ports.library, 'removeManyFromSpaces');
+    const forget = vi.spyOn(ports.git, 'forgetRepository');
+    const target = useRepositoriesStore.getState().library!.spaces[0]!;
+
+    act(() => actions.removeManyFromSpace(target, [first!, second!, first!]));
+    await batchFinished();
+    expect(remove).toHaveBeenCalledExactlyOnceWith([first!.id, second!.id], ['space-1']);
+    expect((await ports.library.read()).spaces).toEqual([
+      { id: 'space-1', name: 'Uno', repos: [] },
+      { id: 'space-2', name: 'Dos', repos: [first!.id, second!.id, unrelated!.id] },
+    ]);
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(
+      new Set([first!.id, second!.id, unrelated!.id]),
+    );
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('all');
+    expect(useRepositoriesStore.getState().repositories).toBe(repositories);
+    expect(useShellStore.getState().tabs).toBe(tabs);
+    expect(forget).not.toHaveBeenCalled();
+    expect(useShellStore.getState().status).toMatchObject({
+      tone: 'success',
+      key: 'repositories.status.removedManyFromSpace',
+      params: { count: 2, space: 'Uno' },
+    });
+  });
+
+  it('removes from every space once and counts repositories rather than repeated memberships', async () => {
+    const ports = makePorts();
+    const [first, second, unrelated] = await ports.git.listRepositories();
+    await ports.library.createSpaceAndAddMany('Uno', [first!.id, second!.id]);
+    await ports.library.createSpaceAndAddMany('Dos', [first!.id, second!.id, unrelated!.id]);
+    const actions = await loadedActions(ports);
+    useRepositoriesStore.getState().selectMany(new Set([first!.id, second!.id]), 'space:space-2');
+    const remove = vi.spyOn(ports.library, 'removeManyFromSpaces');
+
+    act(() => actions.removeManyFromSpace(null, [first!, second!, first!]));
+    await batchFinished();
+    expect(remove).toHaveBeenCalledExactlyOnceWith([first!.id, second!.id], undefined);
+    expect((await ports.library.read()).spaces).toEqual([
+      { id: 'space-1', name: 'Uno', repos: [] },
+      { id: 'space-2', name: 'Dos', repos: [unrelated!.id] },
+    ]);
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('all');
+    expect(useShellStore.getState().status).toMatchObject({
+      key: 'repositories.status.removedManyFromAllSpaces',
+      params: { count: 2 },
+    });
+  });
+
+  it('delegates singular removal and retains an unaffected selection origin', async () => {
+    const ports = makePorts();
+    const [first] = await ports.git.listRepositories();
+    await ports.library.createSpaceAndAddMany('Uno', [first!.id]);
+    await ports.library.createSpaceAndAddMany('Dos', [first!.id]);
+    const actions = await loadedActions(ports);
+    useRepositoriesStore.getState().select(first!, 'space:space-2');
+    const remove = vi.spyOn(ports.library, 'removeManyFromSpaces');
+    const target = useRepositoriesStore.getState().library!.spaces[0]!;
+
+    act(() => actions.removeFromSpace(target, first!));
+    await batchFinished();
+    expect(remove).toHaveBeenCalledExactlyOnceWith([first!.id], ['space-1']);
+    expect(useRepositoriesStore.getState().selected?.id).toBe(first!.id);
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('space:space-2');
+    expect(useShellStore.getState().status).toMatchObject({
+      key: 'repositories.status.removedFromSpace',
+      params: { repo: first!.name, space: 'Uno' },
+    });
+  });
+
+  it('a failed native removal preserves memberships and selection and the same request can be retried', async () => {
+    const ports = makePorts();
+    const [first, second] = await ports.git.listRepositories();
+    let disk: Library = {
+      ...DEFAULT_LIBRARY,
+      spaces: [{ id: 'space-1', name: 'Uno', repos: [first!.id, second!.id] }],
+    };
+    let writes = 0;
+    const library = createTauriLibraryPort((command, args) => {
+      if (command === 'library_read') return Promise.resolve(structuredClone(disk));
+      writes += 1;
+      if (writes === 1) return Promise.reject(new Error('Permission denied'));
+      disk = structuredClone(args?.['library']) as Library;
+      return Promise.resolve(undefined);
+    });
+    const actions = await loadedActions({ ...ports, library });
+    useRepositoriesStore.getState().selectMany(new Set([first!.id, second!.id]), 'space:space-1');
+    const target = disk.spaces[0]!;
+    const onRemoved = vi.fn();
+
+    act(() => actions.removeManyFromSpace(target, [first!, second!], onRemoved));
+    await batchFinished();
+    expect(useRepositoriesStore.getState().openError).toMatchObject({
+      output: 'Permission denied',
+    });
+    expect(useRepositoriesStore.getState().openErrorSource).toBe('space');
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('space:space-1');
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
+    expect(disk.spaces[0]?.repos).toEqual([first!.id, second!.id]);
+    expect(onRemoved).not.toHaveBeenCalled();
+    act(() => actions.removeManyFromSpace(target, [first!, second!], onRemoved));
+    await batchFinished();
+    expect(writes).toBe(2);
+    expect(disk.spaces[0]?.repos).toEqual([]);
+    expect(useRepositoriesStore.getState().openError).toBeNull();
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('all');
+    expect(onRemoved).toHaveBeenCalledOnce();
+  });
+
+  it('guards repeated removal while pending and preserves selection changes made during the await', async () => {
+    const ports = makePorts();
+    const [first, second, unrelated] = await ports.git.listRepositories();
+    await ports.library.createSpaceAndAddMany('Uno', [first!.id, second!.id]);
+    const actions = await loadedActions(ports);
+    useRepositoriesStore.getState().selectMany(new Set([first!.id, second!.id]), 'space:space-1');
+    const target = useRepositoriesStore.getState().library!.spaces[0]!;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const originalRemove = ports.library.removeManyFromSpaces;
+    const remove = vi
+      .spyOn(ports.library, 'removeManyFromSpaces')
+      .mockImplementation((ids, spaces) => pending.then(() => originalRemove(ids, spaces)));
+
+    act(() => {
+      actions.removeManyFromSpace(target, [first!, second!]);
+      actions.removeManyFromSpace(null, [first!]);
+      actions.forgetMany([second!]);
+      useRepositoriesStore.getState().select(unrelated!, 'recent');
+    });
+    await waitFor(() => expect(remove).toHaveBeenCalledOnce());
+    expect(useRepositoriesStore.getState().batchBusy).toBe(true);
+    act(() => release());
+    await batchFinished();
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([unrelated!.id]));
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('recent');
+    expect((await ports.git.listRepositories()).map((repo) => repo.id)).toContain(second!.id);
+  });
+
+  it('does not treat cancellation or a missing space as a successful removal', async () => {
+    const ports = makePorts();
+    const [first] = await ports.git.listRepositories();
+    await ports.library.createSpaceAndAddMany('Uno', [first!.id]);
+    const actions = await loadedActions(ports);
+    useRepositoriesStore.getState().select(first!, 'space:space-1');
+    const target = useRepositoriesStore.getState().library!.spaces[0]!;
+    const remove = vi
+      .spyOn(ports.library, 'removeManyFromSpaces')
+      .mockRejectedValueOnce(new OperationCancelledError());
+
+    act(() => actions.removeManyFromSpace(target, [first!]));
+    await batchFinished();
+    expect(useRepositoriesStore.getState().openError).toBeNull();
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('space:space-1');
+    expect((await ports.library.read()).spaces[0]?.repos).toEqual([first!.id]);
+    expect(useShellStore.getState().status?.key).toBe(
+      'repositories.status.removeManyFromSpaceCancelled',
+    );
+    act(() => actions.removeManyFromSpace({ id: 'missing', name: 'Ausente', repos: [] }, [first!]));
+    await batchFinished();
+    expect(remove).toHaveBeenCalledOnce();
+    expect(useRepositoriesStore.getState().openError).toMatchObject({
+      output: 'The space "Ausente" no longer exists',
+    });
+    expect(useShellStore.getState().status?.tone).toBe('warning');
+  });
+
+  it('reports only repository IDs that actually belonged to the requested scope', async () => {
+    const ports = makePorts();
+    const [first, unrelated] = await ports.git.listRepositories();
+    await ports.library.createSpaceAndAddMany('Uno', [first!.id]);
+    const actions = await loadedActions(ports);
+    const target = useRepositoriesStore.getState().library!.spaces[0]!;
+
+    act(() => actions.removeManyFromSpace(target, [first!, unrelated!, first!]));
+    await batchFinished();
+    expect(useShellStore.getState().status).toMatchObject({
+      key: 'repositories.status.removedManyFromSpace',
+      params: { count: 1, space: 'Uno' },
+    });
+    act(() => actions.removeManyFromSpace(target, [first!, unrelated!]));
+    await batchFinished();
+    expect(useShellStore.getState().status).toMatchObject({
+      tone: 'info',
+      params: { count: 0 },
+    });
+  });
+});

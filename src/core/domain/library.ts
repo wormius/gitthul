@@ -197,16 +197,25 @@ export function createSpaceAndAddMany(
 }
 
 export function removeFromSpace(library: Library, id: SpaceId, repo: RepoId): Library {
-  const space = library.spaces.find((candidate) => candidate.id === id);
-  if (!space || !space.repos.includes(repo)) return library;
-  return {
-    ...library,
-    spaces: library.spaces.map((candidate) =>
-      candidate.id === id
-        ? { ...candidate, repos: candidate.repos.filter((member) => member !== repo) }
-        : candidate,
-    ),
-  };
+  return removeManyFromSpaces(library, [repo], [id]);
+}
+
+/** Removes memberships only; an omitted scope includes every space. */
+export function removeManyFromSpaces(
+  library: Library,
+  repos: readonly RepoId[],
+  spaceIds?: readonly SpaceId[],
+): Library {
+  const targets = spaceIds === undefined ? null : new Set(spaceIds);
+  const removed = new Set(repos);
+  let changed = false;
+  const spaces = library.spaces.map((space) => {
+    if (targets !== null && !targets.has(space.id)) return space;
+    if (!space.repos.some((repo) => removed.has(repo))) return space;
+    changed = true;
+    return { ...space, repos: space.repos.filter((repo) => !removed.has(repo)) };
+  });
+  return changed ? { ...library, spaces } : library;
 }
 
 export function setAvatar(library: Library, repo: RepoId, avatar: RepoAvatar | null): Library {

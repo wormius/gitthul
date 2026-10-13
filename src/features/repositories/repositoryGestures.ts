@@ -23,6 +23,7 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
   const settingsOpen = useShellStore((state) => state.settingsOpen);
   const selected = useRepositoriesStore((state) => state.selected);
   const selectedIds = useRepositoriesStore((state) => state.selectedIds);
+  const selectedFrom = useRepositoriesStore((state) => state.selectedFrom);
   const batchBusy = useRepositoriesStore((state) => state.batchBusy);
   const library = useRepositoriesStore((state) => state.library);
   const repositories = useRepositoriesStore((state) => state.repositories);
@@ -48,6 +49,17 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
     const currentMembers = current
       ? (repositories ?? []).filter((candidate) => current.repos.includes(candidate.id))
       : [];
+    const selectedSpace = selectedFrom.startsWith('space:')
+      ? spaces.find((space) => space.id === selectedFrom.slice('space:'.length))
+      : undefined;
+    const removableFromSpace = selectedSpace
+      ? chosen.filter((candidate) => selectedSpace.repos.includes(candidate.id))
+      : [];
+    const removableFromAllSpaces = chosen.filter((candidate) =>
+      spaces.some((space) => space.repos.includes(candidate.id)),
+    );
+    const onlyRemovable = removableFromSpace[0];
+    const onlyRemovableFromAllSpaces = removableFromAllSpaces[0];
 
     return [
       {
@@ -265,15 +277,47 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
       },
       {
         id: 'repos.removeFromSpace',
-        label: t(
-          repo && current ? 'gesture.repos.removeFromSpace' : 'gesture.repos.removeFromSpaceNone',
-          bothNamed,
-        ),
-        triggers: ['drag', 'menu'],
-        disabled: away || !repo || !current || !inCurrent,
-        hiddenInSearch: true,
+        label:
+          removableFromSpace.length > 1
+            ? t('repositories.menu.removeSelectedFromSpace', {
+                count: removableFromSpace.length,
+                space: selectedSpace?.name ?? '',
+              })
+            : onlyRemovable && selectedSpace
+              ? t(
+                  multiple
+                    ? 'repositories.menu.removeOneFromSpace'
+                    : 'gesture.repos.removeFromSpace',
+                  {
+                    repo: onlyRemovable.name,
+                    space: selectedSpace.name,
+                  },
+                )
+              : t('gesture.repos.removeFromSpaceNone'),
+        triggers: ['menu', 'search'],
+        disabled: away || !selectedSpace || removableFromSpace.length === 0,
+        hiddenInSearch: away || !selectedSpace || removableFromSpace.length === 0,
         run: () => {
-          if (repo && current) actions.removeFromSpace(current, repo);
+          if (selectedSpace) actions.removeManyFromSpace(selectedSpace, removableFromSpace);
+        },
+      },
+      {
+        id: 'repos.removeFromAllSpaces',
+        label:
+          removableFromAllSpaces.length > 1
+            ? t('repositories.menu.removeSelectedFromAllSpaces', {
+                count: removableFromAllSpaces.length,
+              })
+            : onlyRemovableFromAllSpaces
+              ? t('repositories.menu.removeOneFromAllSpaces', {
+                  repo: onlyRemovableFromAllSpaces.name,
+                })
+              : t('repositories.menu.removeFromAllSpaces'),
+        triggers: ['menu', 'search'],
+        disabled: away || removableFromAllSpaces.length === 0,
+        hiddenInSearch: away || removableFromAllSpaces.length === 0,
+        run: () => {
+          actions.removeManyFromSpace(null, removableFromAllSpaces);
         },
       },
     ];
@@ -287,6 +331,7 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
     repositories,
     selected,
     selectedIds,
+    selectedFrom,
     setRenaming,
     t,
   ]);

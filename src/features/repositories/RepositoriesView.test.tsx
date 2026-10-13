@@ -493,6 +493,227 @@ describe('RepositoriesView con biblioteca real', () => {
     );
   });
 
+  it('quita la tarjeta de su espacio exacto aunque la biblioteca señale otro', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Uno');
+    await ports.library.createSpace('Dos');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'bitacora');
+    await ports.library.addToSpace('space-2', 'gitthul');
+    await ports.library.setLayout('spaces');
+    await ports.library.setView({ kind: 'space', id: 'space-2' });
+    const forget = vi.spyOn(ports.git, 'forgetRepository');
+    renderView(ports);
+    await knownRows();
+    const first = within(await screen.findByRole('listbox', { name: 'Repositorios de Uno' }));
+    const card = rowAt(first.getAllByRole('option'), '/home/example/projects/gitthul');
+
+    fireEvent.contextMenu(within(card).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Abrir' }));
+    await waitFor(() => expect(openedRepositoryIds()).toEqual(['gitthul']));
+    fireEvent.contextMenu(within(card).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Quitar de Uno' }));
+
+    await waitFor(async () => {
+      const library = await ports.library.read();
+      expect(library.spaces[0]?.repos).toEqual(['bitacora']);
+      expect(library.spaces[1]?.repos).toEqual(['gitthul']);
+      expect(library.view).toEqual({ kind: 'space', id: 'space-2' });
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('listbox', { name: 'Repositorios conocidos' })).toHaveFocus(),
+    );
+    expect(await knownRows()).toHaveLength(4);
+    expect(useRepositoriesStore.getState().selected?.id).toBe('gitthul');
+    expect(openedRepositoryIds()).toEqual(['gitthul']);
+    expect(forget).not.toHaveBeenCalled();
+  });
+
+  it('quita el lote de un espacio contando solo sus miembros y conserva las demás selecciones', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Uno');
+    await ports.library.createSpace('Dos');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'bitacora');
+    await ports.library.addToSpace('space-2', 'gitthul');
+    await ports.library.setLayout('spaces');
+    renderView(ports);
+    const rows = await knownRows();
+    const first = within(await screen.findByRole('listbox', { name: 'Repositorios de Uno' }));
+    const second = within(screen.getByRole('listbox', { name: 'Repositorios de Dos' }));
+    clickRow(rowAt(second.getAllByRole('option'), '/home/example/projects/gitthul'));
+    clickRow(rowAt(first.getAllByRole('option'), '/home/example/projects/bitacora'), {
+      ctrlKey: true,
+    });
+    clickRow(rowAt(rows, '/home/example/dotfiles'), { ctrlKey: true });
+    const card = rowAt(first.getAllByRole('option'), '/home/example/projects/gitthul');
+    fireEvent.contextMenu(within(card).getByText('/home/example/projects/gitthul'));
+
+    expect(
+      await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de Uno' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('menuitem', { name: 'Quitar 2 repositorios de todos los espacios' }),
+    ).toBeVisible();
+    expect(screen.queryByRole('menuitem', { name: /Quitar 3 repositorios/ })).toBeNull();
+    await user.click(screen.getByRole('menuitem', { name: 'Quitar 2 repositorios de Uno' }));
+
+    await waitFor(async () => {
+      const spaces = (await ports.library.read()).spaces;
+      expect(spaces[0]?.repos).toEqual([]);
+      expect(spaces[1]?.repos).toEqual(['gitthul']);
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('listbox', { name: 'Repositorios conocidos' })).toHaveFocus(),
+    );
+    expect(
+      within(screen.getByRole('listbox', { name: 'Repositorios conocidos' })).getAllByRole(
+        'option',
+        { selected: true },
+      ),
+    ).toHaveLength(3);
+    expect(await knownRows()).toHaveLength(4);
+    expect(openedRepositoryIds()).toEqual([]);
+  });
+
+  it('el menú de teclado de Lista ofrece el submenú para quitar de cada espacio', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Uno');
+    await ports.library.createSpace('Dos');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'bitacora');
+    await ports.library.addToSpace('space-2', 'gitthul');
+    renderView(ports);
+    const rows = await knownRows();
+    clickRow(rowAt(rows, '/home/example/projects/gitthul'));
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+    const list = screen.getByRole('listbox', { name: 'Repositorios conocidos' });
+    list.focus();
+    fireEvent.keyDown(list, { key: 'F10', shiftKey: true });
+
+    await user.hover(await screen.findByRole('menuitem', { name: 'Quitar de un espacio' }));
+    expect(
+      await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de Uno' }),
+    ).toBeVisible();
+    expect(screen.getByRole('menuitem', { name: 'Quitar gitthul de Dos' })).toBeVisible();
+    await user.click(screen.getByRole('menuitem', { name: 'Quitar 2 repositorios de Uno' }));
+
+    await waitFor(async () => {
+      const spaces = (await ports.library.read()).spaces;
+      expect(spaces[0]?.repos).toEqual([]);
+      expect(spaces[1]?.repos).toEqual(['gitthul']);
+    });
+    await waitFor(() => expect(list).toHaveFocus());
+    expect(within(list).getAllByRole('option', { selected: true })).toHaveLength(2);
+  });
+
+  it('quitar de todos los espacios conserva el catálogo y las pestañas y permite abrir y volver a agregar', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Uno');
+    await ports.library.createSpace('Dos');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'bitacora');
+    await ports.library.addToSpace('space-2', 'gitthul');
+    await ports.library.addToSpace('space-2', 'dotfiles');
+    const forget = vi.spyOn(ports.git, 'forgetRepository');
+    renderView(ports);
+    const rows = await knownRows();
+    const gitthul = rowAt(rows, '/home/example/projects/gitthul');
+    fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Abrir' }));
+    await waitFor(() => expect(openedRepositoryIds()).toEqual(['gitthul']));
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+    fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de todos los espacios' }),
+    );
+
+    await waitFor(async () => {
+      const spaces = (await ports.library.read()).spaces;
+      expect(spaces[0]?.repos).toEqual([]);
+      expect(spaces[1]?.repos).toEqual(['dotfiles']);
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('listbox', { name: 'Repositorios conocidos' })).toHaveFocus(),
+    );
+    expect(await knownRows()).toHaveLength(4);
+    expect(await ports.git.listRepositories()).toHaveLength(4);
+    expect(openedRepositoryIds()).toEqual(['gitthul']);
+    expect(forget).not.toHaveBeenCalled();
+    fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Abrir 2 repositorios' }));
+    await waitFor(() => expect(openedRepositoryIds().sort()).toEqual(['bitacora', 'gitthul']));
+    await waitFor(() => expect(useRepositoriesStore.getState().batchBusy).toBe(false));
+
+    startRowDrag(gitthul);
+    const destinations = await screen.findByRole('group', { name: 'Soltar sobre un espacio' });
+    const target = within(destinations).getByText('Uno').parentElement!;
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+    await waitFor(async () => {
+      const spaces = (await ports.library.read()).spaces;
+      expect(spaces[0]?.repos).toEqual(['gitthul', 'bitacora']);
+      expect(spaces[1]?.repos).toEqual(['dotfiles']);
+    });
+    expect(openedRepositoryIds().sort()).toEqual(['bitacora', 'gitthul']);
+    expect(forget).not.toHaveBeenCalled();
+  });
+
+  it('omite quitar de espacios para una selección sin membresías', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Uno');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    renderView(ports);
+    const rows = await knownRows();
+    const dotfiles = rowAt(rows, '/home/example/dotfiles');
+    fireEvent.contextMenu(within(dotfiles).getByText('/home/example/dotfiles'));
+    expect(await screen.findByRole('menuitem', { name: 'Abrir' })).toBeVisible();
+    expect(screen.queryByRole('menuitem', { name: /^Quitar/ })).toBeNull();
+    await user.keyboard('{Escape}');
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+    fireEvent.contextMenu(within(dotfiles).getByText('/home/example/dotfiles'));
+    expect(await screen.findByRole('menuitem', { name: 'Abrir 2 repositorios' })).toBeVisible();
+    expect(screen.queryByRole('menuitem', { name: /^Quitar/ })).toBeNull();
+  });
+
+  it('un fallo al quitar el lote conserva sus membresías y muestra el error sin anunciar éxito', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    await ports.library.createSpace('Uno');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'bitacora');
+    const error = new GitOperationError('unknown', {}, { output: 'Fixture library write failed' });
+    const remove = vi.spyOn(ports.library, 'removeManyFromSpaces').mockRejectedValueOnce(error);
+    renderView(ports);
+    const rows = await knownRows();
+    const gitthul = rowAt(rows, '/home/example/projects/gitthul');
+    clickRow(gitthul);
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+    fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de todos los espacios' }),
+    );
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByRole('heading', { name: 'La operación de Git falló' })).toBeVisible();
+    await waitFor(() => expect(useRepositoriesStore.getState().batchBusy).toBe(false));
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect((await ports.library.read()).spaces[0]?.repos).toEqual(['gitthul', 'bitacora']);
+    expect(useShellStore.getState().status?.tone).toBe('warning');
+    expect(
+      within(screen.getByRole('listbox', { name: 'Repositorios conocidos' })).getAllByRole(
+        'option',
+        { selected: true },
+      ),
+    ).toHaveLength(2);
+    expect(await knownRows()).toHaveLength(4);
+  });
+
   it('distingue arrastrar una tarjeta de reordenar su zona', async () => {
     const ports = makePorts();
     await ports.library.createSpace('Origen');

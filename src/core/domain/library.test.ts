@@ -11,6 +11,7 @@ import {
   normalizeLibrary,
   recordOpening,
   removeFromSpace,
+  removeManyFromSpaces,
   renameSpace,
   setAvatar,
   setLayout,
@@ -160,5 +161,35 @@ describe('biblioteca local', () => {
     expect(created.view).toEqual({ kind: 'space', id: 'space-2' });
     expect(createSpaceAndAddMany(created, 'Destino', ['tres'])).toBe(created);
     expect(createSpaceAndAddMany(created, ' ', ['tres'])).toBe(created);
+  });
+
+  it('quita pertenencias de espacios concretos o de todos sin alterar la biblioteca restante', () => {
+    const initial = {
+      ...DEFAULT_LIBRARY,
+      spaces: [
+        { id: 'space-1', name: 'Uno', repos: ['a', 'b'], collapsed: true },
+        { id: 'space-2', name: 'Dos', repos: ['a', 'b', 'c'] },
+      ],
+      avatars: { a: { glyph: 'ship', tone: 2 } },
+    };
+    const scoped = removeManyFromSpaces(initial, ['a', 'b', 'a'], ['space-1']);
+    expect(scoped.spaces).toEqual([
+      { id: 'space-1', name: 'Uno', repos: [], collapsed: true },
+      initial.spaces[1],
+    ]);
+    expect(scoped.spaces[1]).toBe(initial.spaces[1]);
+    expect(scoped.avatars).toBe(initial.avatars);
+    expect(scoped.view).toBe(initial.view);
+
+    const all = removeManyFromSpaces(initial, ['a', 'b', 'a']);
+    expect(all.spaces).toEqual([
+      { id: 'space-1', name: 'Uno', repos: [], collapsed: true },
+      { id: 'space-2', name: 'Dos', repos: ['c'] },
+    ]);
+    expect(all.avatars).toBe(initial.avatars);
+    expect(removeManyFromSpaces(initial, ['a'], [])).toBe(initial);
+    expect(removeManyFromSpaces(initial, ['ausente'])).toBe(initial);
+    expect(removeManyFromSpaces(initial, ['a'], ['ausente'])).toBe(initial);
+    expect(initial.spaces[0]?.repos).toEqual(['a', 'b']);
   });
 });

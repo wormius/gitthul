@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
@@ -88,6 +89,15 @@ export function RepositoriesView() {
   const setDragging = useRepositoriesStore((state) => state.setDragging);
   const setDragOver = useRepositoriesStore((state) => state.setDragOver);
   const panelScrollRef = useRef<HTMLDivElement>(null);
+  const [removalFocus, setRemovalFocus] = useState(0);
+  const afterRemoval = useCallback(() => setRemovalFocus((previous) => previous + 1), []);
+
+  useEffect(() => {
+    if (removalFocus === 0) return;
+    panelScrollRef.current
+      ?.querySelector<HTMLElement>(`#${ALL_SECTION_ID} [role="listbox"]`)
+      ?.focus();
+  }, [removalFocus]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -168,18 +178,30 @@ export function RepositoriesView() {
   };
 
   const rowMenuFor = useCallback(
-    (repo: RepoSummary) =>
+    (repo: RepoSummary, origin?: SpaceId) =>
       rowMenu({
         repo,
+        origin,
         targets: selectedIds.has(repo.id) ? selectedRepos : [repo],
         busy: batchBusy,
         spaces: library?.spaces ?? [],
         t,
         gestures,
         actions,
+        afterRemoval,
         openDialog,
       }),
-    [actions, batchBusy, gestures, library?.spaces, openDialog, selectedIds, selectedRepos, t],
+    [
+      actions,
+      afterRemoval,
+      batchBusy,
+      gestures,
+      library?.spaces,
+      openDialog,
+      selectedIds,
+      selectedRepos,
+      t,
+    ],
   );
 
   const currentSpace = library?.view.kind === 'space' ? library.view.id : null;
@@ -427,7 +449,17 @@ export function RepositoriesView() {
                 count={visible.length}
               >
                 <ContextMenu
-                  items={panelMenu(gestures)}
+                  items={panelMenu(
+                    gestures,
+                    removalMenu({
+                      targets: selectedRepos,
+                      busy: batchBusy,
+                      spaces: library?.spaces ?? [],
+                      t,
+                      actions,
+                      afterRemoval,
+                    }),
+                  )}
                   label={t('repositories.list.panelMenu')}
                   className={styles.listRegion}
                 >
@@ -567,23 +599,28 @@ function shortcutFrom(gestures: GestureRegistry, id: string) {
 
 function rowMenu({
   repo,
+  origin,
   targets,
   busy,
   spaces,
   t,
   gestures,
   actions,
+  afterRemoval,
   openDialog,
 }: {
   repo: RepoSummary;
+  origin?: SpaceId;
   targets: readonly RepoSummary[];
   busy: boolean;
   spaces: readonly Space[];
   t: I18nContextValue['t'];
   gestures: GestureRegistry;
   actions: RepositoryActions;
+  afterRemoval: () => void;
   openDialog: (dialog: RepositoriesDialog) => void;
 }): readonly MenuEntry[] {
+  const removal = removalMenu({ targets, busy, spaces, origin, t, actions, afterRemoval });
   if (targets.length > 1) {
     return [
       {
@@ -592,6 +629,7 @@ function rowMenu({
         disabled: busy,
         onSelect: () => actions.openMany(targets),
       },
+      ...removal,
       { kind: 'separator', key: 'before-forget-selected' },
       {
         key: 'forget-selected',
@@ -633,6 +671,7 @@ function rowMenu({
             })),
           },
         ]),
+    ...removal,
     { kind: 'separator', key: 'before-forget' },
     {
       key: 'forget',
@@ -644,13 +683,80 @@ function rowMenu({
   ];
 }
 
-function panelMenu(gestures: GestureRegistry): readonly MenuEntry[] {
+function removalMenu({
+  targets,
+  busy,
+  spaces,
+  origin,
+  t,
+  actions,
+  afterRemoval,
+}: {
+  targets: readonly RepoSummary[];
+  busy: boolean;
+  spaces: readonly Space[];
+  origin?: SpaceId;
+  t: I18nContextValue['t'];
+  actions: RepositoryActions;
+  afterRemoval: () => void;
+}): readonly MenuEntry[] {
+  const memberships = spaces.flatMap((space) => {
+    const repos = targets.filter((repo) => space.repos.includes(repo.id));
+    return repos.length === 0 ? [] : [{ space, repos }];
+  });
+  if (memberships.length === 0) return [];
+
+  const entry = ({ space, repos }: (typeof memberships)[number]): MenuEntry => ({
+    key: `remove-from-${space.id}`,
+    label:
+      targets.length === 1
+        ? origin === undefined
+          ? space.name
+          : t('repositories.menu.removeFromSpace', { space: space.name })
+        : repos.length === 1
+          ? t('repositories.menu.removeOneFromSpace', { repo: repos[0]!.name, space: space.name })
+          : t('repositories.menu.removeSelectedFromSpace', {
+              count: repos.length,
+              space: space.name,
+            }),
+    disabled: busy,
+    onSelect: () => actions.removeManyFromSpace(space, repos, afterRemoval),
+  });
+  const affected = targets.filter((repo) => spaces.some((space) => space.repos.includes(repo.id)));
+  return [
+    ...(origin === undefined
+      ? [
+          {
+            kind: 'submenu' as const,
+            key: 'remove-from-space',
+            label: t('repositories.menu.removeFromSpaceChoose'),
+            disabled: busy,
+            items: memberships.map(entry),
+          },
+        ]
+      : memberships.filter(({ space }) => space.id === origin).map(entry)),
+    {
+      key: 'remove-from-all-spaces',
+      label:
+        targets.length === 1
+          ? t('repositories.menu.removeFromAllSpaces')
+          : affected.length === 1
+            ? t('repositories.menu.removeOneFromAllSpaces', { repo: affected[0]!.name })
+            : t('repositories.menu.removeSelectedFromAllSpaces', { count: affected.length }),
+      disabled: busy,
+      onSelect: () => actions.removeManyFromSpace(null, affected, afterRemoval),
+    },
+  ];
+}
+
+function panelMenu(gestures: GestureRegistry, removal: readonly MenuEntry[]): readonly MenuEntry[] {
   const selectionActions = ['repos.open', 'repos.forget']
     .filter((id) => gestures.get(id)?.disabled === false)
     .map((id) => entryOf(gestures, id));
 
   return [
     ...selectionActions,
+    ...removal,
     ...(selectionActions.length > 0
       ? [{ kind: 'separator' as const, key: 'after-selection' }]
       : []),

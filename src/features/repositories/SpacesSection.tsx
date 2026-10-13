@@ -18,7 +18,7 @@ interface SpacesSectionProps {
   repositories: readonly RepoSummary[];
   avatarOf: (repo: RepoId) => RepoAvatar | null;
   selected: ReadonlySet<RepoId>;
-  menuFor: (repo: RepoSummary) => readonly MenuEntry[];
+  menuFor: (repo: RepoSummary, space: SpaceId) => readonly MenuEntry[];
   onSelectedChange: (next: ReadonlySet<RepoId>, space: SpaceId) => void;
   onContextSelect: (repo: RepoSummary, space: SpaceId) => void;
   onOpen: (repo: RepoSummary) => void;
@@ -188,7 +188,7 @@ export function SpacesSection({
                   selected={selected.has(repo.id)}
                   canOpenOnClick={selected.size === 1}
                   dragCount={selected.has(repo.id) ? selected.size : 1}
-                  menu={menuFor(repo)}
+                  menu={menuFor(repo, space.id)}
                   onSelect={(event) => select(repo, space.id, event)}
                   onContextSelect={() => onContextSelect(repo, space.id)}
                   onOpen={() => onOpen(repo)}

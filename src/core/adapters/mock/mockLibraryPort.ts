@@ -49,6 +49,8 @@ export function createMockLibraryPort(
     addToSpace: (id, repo) => save(library.addToSpace(load(), id, repo)),
     addManyToSpace: (id, repos, reveal) => save(library.addManyToSpace(load(), id, repos, reveal)),
     removeFromSpace: (id, repo) => save(library.removeFromSpace(load(), id, repo)),
+    removeManyFromSpaces: (repos, spaces) =>
+      save(library.removeManyFromSpaces(load(), repos, spaces)),
     setView: (view) => save(library.setView(load(), view)),
     setSort: (sort) => save(library.setSort(load(), sort)),
     setLayout: (layout) => save(library.setLayout(load(), layout)),

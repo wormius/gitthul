@@ -20,6 +20,8 @@ export interface LibraryPort {
   /** One persisted change, including optional navigation and expansion of the target. */
   addManyToSpace: (id: SpaceId, repos: readonly RepoId[], reveal?: boolean) => Promise<Library>;
   removeFromSpace: (id: SpaceId, repo: RepoId) => Promise<Library>;
+  /** Removes memberships in one persisted change; omitted spaces means all spaces. */
+  removeManyFromSpaces: (repos: readonly RepoId[], spaces?: readonly SpaceId[]) => Promise<Library>;
   setView: (view: LibraryView) => Promise<Library>;
   setSort: (sort: RepoSort) => Promise<Library>;
   setLayout: (layout: LibraryLayout) => Promise<Library>;

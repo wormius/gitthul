@@ -245,6 +245,25 @@ export const de: Messages = {
     'Das Hinzufügen der {count} Repositorys zu {space} wurde abgebrochen.',
   'repositories.drag.multiple': '{count} Repositorys',
   'repositories.status.addedToSpace': '{repo} wurde zu {space} hinzugefügt.',
+  'repositories.menu.removeFromSpace': 'Aus {space} entfernen',
+  'repositories.menu.removeSelectedFromSpace': '{count} Repositorys aus {space} entfernen',
+  'repositories.menu.removeFromSpaceChoose': 'Aus einem Bereich entfernen',
+  'repositories.menu.removeFromAllSpaces': 'Aus allen Bereichen entfernen',
+  'repositories.menu.removeSelectedFromAllSpaces':
+    '{count} Repositorys aus allen Bereichen entfernen',
+  'repositories.menu.removeOneFromSpace': '{repo} aus {space} entfernen',
+  'repositories.menu.removeOneFromAllSpaces': '{repo} aus allen Bereichen entfernen',
+  'repositories.status.removedManyFromSpace': 'Aus {space} entfernte Repositorys: {count}.',
+  'repositories.status.removedManyFromAllSpaces':
+    'Aus allen Bereichen entfernte Repositorys: {count}.',
+  'repositories.status.removeManyFromSpaceFailed':
+    'Repositorys konnten nicht aus {space} entfernt werden ({count}).',
+  'repositories.status.removeManyFromAllSpacesFailed':
+    'Repositorys konnten nicht aus allen Bereichen entfernt werden ({count}).',
+  'repositories.status.removeManyFromSpaceCancelled':
+    'Das Entfernen von Repositorys aus {space} wurde abgebrochen ({count}).',
+  'repositories.status.removeManyFromAllSpacesCancelled':
+    'Das Entfernen von Repositorys aus allen Bereichen wurde abgebrochen ({count}).',
   'repositories.status.removedFromSpace': '{repo} wurde aus {space} entfernt.',
   'repositories.status.movedToSpace': '{repo} wurde von {from} nach {to} verschoben.',
   'repositories.sort.label': 'Sortierung der Liste',

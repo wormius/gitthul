@@ -135,4 +135,48 @@ describe('createTauriLibraryPort', () => {
     await port.addManyToSpace('space-1', ['dos']);
     expect(disk.spaces[0]?.repos).toEqual(['uno', 'dos']);
   });
+
+  it.each([
+    { scope: ['space-1'], remaining: ['uno', 'dos', 'tres'] },
+    { scope: undefined, remaining: ['tres'] },
+  ])(
+    'quita de $scope en una escritura confirmada y permite reintentar un fallo',
+    async ({ scope, remaining }) => {
+      const initial: Library = {
+        ...DEFAULT_LIBRARY,
+        spaces: [
+          { id: 'space-1', name: 'Uno', repos: ['uno', 'dos'] },
+          { id: 'space-2', name: 'Dos', repos: ['uno', 'dos', 'tres'] },
+        ],
+        avatars: { uno: { glyph: 'ship', tone: 2 } },
+      };
+      let disk = structuredClone(initial);
+      let writes = 0;
+      const call = vi.fn((command: string, args?: Record<string, unknown>) => {
+        if (command === 'library_read') return Promise.resolve(structuredClone(disk));
+        writes += 1;
+        if (writes === 1) return Promise.reject(new Error('Permission denied'));
+        disk = structuredClone(args?.['library']) as Library;
+        return Promise.resolve(undefined);
+      });
+      const port = createTauriLibraryPort(call);
+      const previous = await port.read();
+
+      await expect(port.removeManyFromSpaces(['uno', 'dos', 'uno'], scope)).rejects.toThrow(
+        'Permission denied',
+      );
+      expect(disk).toEqual(initial);
+      expect(await port.read()).toBe(previous);
+      await port.removeManyFromSpaces(['uno', 'dos', 'uno'], scope);
+      expect(writes).toBe(2);
+      expect(disk.spaces).toEqual([
+        { id: 'space-1', name: 'Uno', repos: [] },
+        { id: 'space-2', name: 'Dos', repos: remaining },
+      ]);
+      expect(disk.avatars).toEqual(initial.avatars);
+      expect(await createTauriLibraryPort(call).read()).toEqual(disk);
+      await port.removeManyFromSpaces(['uno', 'dos'], scope);
+      expect(writes).toBe(2);
+    },
+  );
 });

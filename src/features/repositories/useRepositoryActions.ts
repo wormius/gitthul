@@ -17,7 +17,7 @@ import {
 import type { Repository, RepoId, RepoSummary } from '@core/domain/repository';
 import type { CloneRequest, GitQuery } from '@core/ports/GitPort';
 
-import { useRepositoriesStore, type RepositoryBatchFailure } from './repositoriesStore';
+import { ALL_ORIGIN, useRepositoriesStore, type RepositoryBatchFailure } from './repositoriesStore';
 
 export interface RepositoryActions {
   load: (signal?: AbortSignal) => Promise<void>;
@@ -42,6 +42,11 @@ export interface RepositoryActions {
   addToSpace: (space: Space, repo: RepoSummary) => void;
   addManyToSpace: (target: Space, repos: readonly RepoSummary[], reveal?: boolean) => void;
   removeFromSpace: (space: Space, repo: RepoSummary) => void;
+  removeManyFromSpace: (
+    space: Space | null,
+    repos: readonly RepoSummary[],
+    onRemoved?: () => void,
+  ) => void;
   moveRepoToSpace: (
     target: Space,
     repo: RepoSummary,
@@ -219,6 +224,91 @@ export function useRepositoryActions(): RepositoryActions {
               ? 'repositories.status.addManyToSpaceCancelled'
               : 'repositories.status.addManyToSpaceFailed',
             params: { count: ids.length, space: spaceName },
+          });
+        } finally {
+          store().setBatchBusy(false);
+        }
+      })();
+    };
+
+    const removeSelectionFromSpaces = (
+      target: Space | null,
+      repos: readonly RepoSummary[],
+      single?: RepoSummary,
+      onRemoved?: () => void,
+    ) => {
+      if (store().batchBusy) return;
+      const ids = [...new Set(repos.map((repo) => repo.id))];
+      if (ids.length === 0) return;
+      store().setBatchBusy(true);
+      store().setBatchFailures([]);
+      store().setOpenError(null);
+
+      void (async () => {
+        try {
+          const previous = await libraryPort.read();
+          const before = target
+            ? previous.spaces.filter((space) => space.id === target.id)
+            : previous.spaces;
+          if (target && before.length === 0) {
+            throw new Error(`The space "${target.name}" no longer exists`);
+          }
+          const membersBefore = new Set(before.flatMap((space) => space.repos));
+          const affected = ids.filter((id) => membersBefore.has(id));
+          const library = await libraryPort.removeManyFromSpaces(
+            ids,
+            target ? [target.id] : undefined,
+          );
+          const after = target
+            ? library.spaces.filter((space) => space.id === target.id)
+            : library.spaces;
+          if (target && after.length === 0) {
+            throw new Error(`The space "${target.name}" no longer exists`);
+          }
+          const membersAfter = new Set(after.flatMap((space) => space.repos));
+          if (ids.some((id) => membersAfter.has(id))) {
+            throw new Error('The repository selection could not be removed from the space');
+          }
+          store().setLibrary(library);
+          const origin = store().selectedFrom;
+          if (
+            affected.length > 0 &&
+            origin.startsWith('space:') &&
+            (target === null || origin === `space:${target.id}`)
+          ) {
+            store().selectMany(store().selectedIds, ALL_ORIGIN);
+          }
+          shell().setStatus({
+            tone: affected.length === 0 ? 'info' : 'success',
+            key:
+              target === null
+                ? 'repositories.status.removedManyFromAllSpaces'
+                : single && affected.length === 1
+                  ? 'repositories.status.removedFromSpace'
+                  : 'repositories.status.removedManyFromSpace',
+            params:
+              target === null
+                ? { count: affected.length }
+                : single && affected.length === 1
+                  ? { repo: single.name, space: before[0]!.name }
+                  : { count: affected.length, space: before[0]!.name },
+          });
+          if (affected.length > 0) onRemoved?.();
+        } catch (error) {
+          if (!isCancelled(error)) store().setOpenError(toGitOperationError(error), 'space');
+          shell().setStatus({
+            tone: isCancelled(error) ? 'info' : 'warning',
+            key: target
+              ? isCancelled(error)
+                ? 'repositories.status.removeManyFromSpaceCancelled'
+                : 'repositories.status.removeManyFromSpaceFailed'
+              : isCancelled(error)
+                ? 'repositories.status.removeManyFromAllSpacesCancelled'
+                : 'repositories.status.removeManyFromAllSpacesFailed',
+            params: {
+              count: ids.length,
+              ...(target ? { space: target.name } : {}),
+            },
           });
         } finally {
           store().setBatchBusy(false);
@@ -441,16 +531,9 @@ export function useRepositoryActions(): RepositoryActions {
           return { library, space };
         });
       },
-      removeFromSpace: (space, repo) => {
-        void libraryPort.removeFromSpace(space.id, repo.id).then((library) => {
-          store().setLibrary(library);
-          shell().setStatus({
-            tone: 'success',
-            key: 'repositories.status.removedFromSpace',
-            params: { repo: repo.name, space: space.name },
-          });
-        });
-      },
+      removeFromSpace: (space, repo) => removeSelectionFromSpaces(space, [repo], repo),
+      removeManyFromSpace: (space, repos, onRemoved) =>
+        removeSelectionFromSpaces(space, repos, undefined, onRemoved),
       moveRepoToSpace: (target, repo, from, reveal = false) => {
         if (target.id === from) return;
         void (async () => {

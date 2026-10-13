@@ -35,6 +35,7 @@ const LABELS: Record<string, Record<string, string>> = {
     addToSpace: 'agregar repositorio al espacio',
     addManyToSpace: 'agregar repositorios al espacio',
     removeFromSpace: 'retirar repositorio del espacio',
+    removeManyFromSpaces: 'retirar repositorios de los espacios',
     setSpaceCollapsed: 'plegar o desplegar espacio',
     setView: 'cambiar vista de biblioteca',
     setSort: 'ordenar repositorios',
