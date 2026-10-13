@@ -1437,6 +1437,14 @@ export const de: Messages = {
   'settings.shortcuts.shortcut': 'Kürzel',
 
   'settings.updates.checkOnStartup': 'Beim Start nach Aktualisierungen suchen',
+  'settings.updates.prompt.message':
+    'Möchtest du über neue GitThul-Versionen informiert werden? Aktiviere die Suche nach Aktualisierungen beim Start.',
+  'settings.updates.prompt.enable': 'Aktivieren',
+  'settings.updates.prompt.remindLater': 'In einer Woche erinnern',
+  'settings.updates.prompt.never': 'Nicht mehr vorschlagen',
+  'settings.updates.prompt.saveFailed':
+    'Deine Auswahl konnte nicht gespeichert werden. Versuche es erneut.',
+  'settings.updates.prompt.enabled': 'Die Suche nach Aktualisierungen beim Start ist aktiviert.',
   'settings.updates.currentVersion': 'Aktuelle Version',
   'settings.updates.description':
     'Sucht auf GitHub nach neuen stabilen Versionen von GitThul. Download und Installation erfolgen außerhalb der Anwendung.',

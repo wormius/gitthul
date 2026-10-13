@@ -22,6 +22,24 @@ Puedes activar **Buscar actualizaciones al arrancar** para realizar una consulta
 al iniciar la aplicación. Esta opción está desactivada por defecto.
 **Restablecer** vuelve a desactivarla.
 
+Si la búsqueda al arrancar está desactivada y todavía no has elegido qué hacer,
+GitThul muestra una sugerencia unos segundos después de abrir la aplicación.
+El aviso permite seguir trabajando y aparece como máximo una vez por sesión.
+
+- **Activar** guarda tu elección, busca una nueva versión en ese momento y
+  habilita las consultas al arrancar en las siguientes sesiones.
+- **Recordarme en una semana** guarda una fecha para volver a sugerirlo. El aviso
+  reaparece en una apertura posterior, cuando hayan pasado siete días. Cerrar
+  el aviso con **×** también lo pospone una semana.
+- **No volver a sugerirlo** conserva la búsqueda automática desactivada y evita
+  nuevas sugerencias.
+
+Si desactivas manualmente la búsqueda al arrancar en Configuración, GitThul
+tampoco vuelve a sugerir que la actives. **Restablecer** también respeta esa
+decisión. Puedes cambiar el ajuste o usar
+**Buscar ahora** cuando quieras. Aceptar la sugerencia solo autoriza buscar
+versiones; GitThul no descarga, instala ni reinicia automáticamente.
+
 Si la versión instalada es igual o posterior a la última versión estable
 publicada, la sección indica que no hay una versión estable más reciente.
 Reemplazar los paquetes de una publicación sin cambiar su número, por ejemplo

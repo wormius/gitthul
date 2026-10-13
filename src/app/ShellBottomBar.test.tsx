@@ -124,7 +124,10 @@ describe('actualizaciones en la barra inferior', () => {
   });
 
   it('muestra también la versión detectada por la consulta opcional al iniciar', async () => {
-    initSettingsData({ ...DEFAULT_SETTINGS, updates: { checkOnStartup: true } });
+    initSettingsData({
+      ...DEFAULT_SETTINGS,
+      updates: { ...DEFAULT_SETTINGS.updates, checkOnStartup: true },
+    });
     const link = mount();
 
     await waitFor(() =>

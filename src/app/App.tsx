@@ -12,6 +12,7 @@ import { usePorts } from './PortsContext';
 import { Shell } from './Shell';
 import { StatusToastBridge } from './StatusToastBridge';
 import { ReleaseNotificationBridge } from './ReleaseNotificationBridge';
+import { UpdateOptInBridge } from './UpdateOptInBridge';
 import { BackupSchedulingBridge } from './BackupSchedulingBridge';
 import { subscribeShellSession } from './shellStore';
 import { isTokensGalleryPath } from './devRoutes';
@@ -56,6 +57,7 @@ function ShellApp() {
     >
       <StatusToastBridge />
       <ReleaseNotificationBridge />
+      <UpdateOptInBridge />
       <BackupSchedulingBridge />
       <AuthenticationDialogs />
       <DragLayer>

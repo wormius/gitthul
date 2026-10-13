@@ -1435,6 +1435,13 @@ export const esES: Messages = {
   'settings.shortcuts.shortcut': 'Atajo',
 
   'settings.updates.checkOnStartup': 'Buscar actualizaciones al arrancar',
+  'settings.updates.prompt.message':
+    '¿Quieres recibir avisos de nuevas versiones de GitThul? Activa la búsqueda de actualizaciones al arrancar.',
+  'settings.updates.prompt.enable': 'Activar',
+  'settings.updates.prompt.remindLater': 'Recordarme en una semana',
+  'settings.updates.prompt.never': 'No volver a sugerirlo',
+  'settings.updates.prompt.saveFailed': 'No se ha podido guardar tu elección. Inténtalo de nuevo.',
+  'settings.updates.prompt.enabled': 'Se ha activado la búsqueda de actualizaciones al arrancar.',
   'settings.updates.currentVersion': 'Versión actual',
   'settings.updates.description':
     'Busca nuevas versiones estables de GitThul en GitHub. La descarga y la instalación se realizan fuera de la aplicación.',

@@ -1420,6 +1420,13 @@ export const en: Messages = {
   'settings.shortcuts.shortcut': 'Shortcut',
 
   'settings.updates.checkOnStartup': 'Check for updates on startup',
+  'settings.updates.prompt.message':
+    'Would you like notifications about new GitThul releases? Enable update checks on startup.',
+  'settings.updates.prompt.enable': 'Enable',
+  'settings.updates.prompt.remindLater': 'Remind me in a week',
+  'settings.updates.prompt.never': 'Do not suggest again',
+  'settings.updates.prompt.saveFailed': 'Could not save your choice. Try again.',
+  'settings.updates.prompt.enabled': 'Update checks on startup are enabled.',
   'settings.updates.currentVersion': 'Current version',
   'settings.updates.description':
     'Checks for new stable versions of GitThul on GitHub. Downloading and installation take place outside the application.',

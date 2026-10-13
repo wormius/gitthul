@@ -165,6 +165,10 @@ export interface GitSettings {
 
 export interface UpdateSettings {
   checkOnStartup: boolean;
+  /** Elección persistente de no volver a ofrecer la consulta automática. */
+  promptDismissed: boolean;
+  /** Próximo aviso permitido, en milisegundos Unix; 0 permite el primer aviso. */
+  nextPromptAt: number;
 }
 
 /** Límites de recuperación aplicados de forma independiente a cada repositorio. */
@@ -241,6 +245,8 @@ export const DEFAULT_GIT_SETTINGS: GitSettings = {
 
 export const DEFAULT_UPDATE_SETTINGS: UpdateSettings = {
   checkOnStartup: false,
+  promptDismissed: false,
+  nextPromptAt: 0,
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -445,12 +451,24 @@ function normalizeProfiles(value: unknown): readonly CommitProfile[] {
 
 function normalizeUpdateSettings(value: unknown): UpdateSettings {
   const raw = record(value);
+  const nextPromptAt = raw['nextPromptAt'];
 
   return {
     checkOnStartup:
       typeof raw['checkOnStartup'] === 'boolean'
         ? raw['checkOnStartup']
         : DEFAULT_UPDATE_SETTINGS.checkOnStartup,
+    promptDismissed:
+      typeof raw['promptDismissed'] === 'boolean'
+        ? raw['promptDismissed']
+        : DEFAULT_UPDATE_SETTINGS.promptDismissed,
+    nextPromptAt:
+      typeof nextPromptAt === 'number' &&
+      Number.isInteger(nextPromptAt) &&
+      nextPromptAt >= 0 &&
+      nextPromptAt <= 8_640_000_000_000_000
+        ? nextPromptAt
+        : DEFAULT_UPDATE_SETTINGS.nextPromptAt,
   };
 }
 

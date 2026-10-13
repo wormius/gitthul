@@ -4,6 +4,7 @@ import {
   DEFAULT_RECOVERY_SETTINGS,
   DEFAULT_BACKUP_SETTINGS,
   DEFAULT_SETTINGS,
+  DEFAULT_UPDATE_SETTINGS,
   mergeSettings,
   normalizeSettings,
   THEMES,
@@ -268,8 +269,9 @@ it('debug solo se activa con un booleano verdadero y no altera otros ajustes', (
 
 it('descarta el canal beta heredado y conserva la preferencia explícita de consulta al iniciar', () => {
   const settings = normalizeSettings({ updates: { channel: 'beta', checkOnStartup: true } });
-  expect(settings.updates).toEqual({ checkOnStartup: true });
+  expect(settings.updates).toEqual({ ...DEFAULT_UPDATE_SETTINGS, checkOnStartup: true });
   expect(normalizeSettings(JSON.parse(JSON.stringify(settings))).updates).toEqual({
+    ...DEFAULT_UPDATE_SETTINGS,
     checkOnStartup: true,
   });
 });
@@ -277,10 +279,100 @@ it('descarta el canal beta heredado y conserva la preferencia explícita de cons
 it('la consulta al iniciar está desactivada por defecto y exige un booleano', () => {
   for (const checkOnStartup of [undefined, 'true', 1, null, false]) {
     expect(normalizeSettings({ updates: { channel: 'stable', checkOnStartup } }).updates).toEqual({
-      checkOnStartup: false,
+      ...DEFAULT_UPDATE_SETTINGS,
     });
   }
   expect(mergeSettings(DEFAULT_SETTINGS, { updates: { checkOnStartup: true } }).updates).toEqual({
+    ...DEFAULT_UPDATE_SETTINGS,
     checkOnStartup: true,
+  });
+});
+
+describe('preferencia persistente del aviso de consulta automática', () => {
+  it('migra preferencias anteriores sin activar la búsqueda ni conservar canales beta', () => {
+    const migrated = normalizeSettings({
+      locale: 'fr',
+      updates: { channel: 'beta', checkOnStartup: false },
+    });
+    expect(migrated.updates).toEqual(DEFAULT_UPDATE_SETTINGS);
+    expect(migrated.locale).toBe('fr');
+    expect(migrated.updates).not.toHaveProperty('channel');
+  });
+
+  it.each([true, false])(
+    'conserva la elección explícita promptDismissed=%s en JSON',
+    (promptDismissed) => {
+      const updates = {
+        checkOnStartup: true,
+        promptDismissed,
+        nextPromptAt: 1_797_120_000_000,
+      };
+      const settings = normalizeSettings({ updates });
+      expect(settings.updates).toEqual(updates);
+      expect(normalizeSettings(JSON.parse(JSON.stringify(settings))).updates).toEqual(updates);
+    },
+  );
+
+  it.each([undefined, null, 'true', 'false', 0, 1, {}, []])(
+    'descarta una elección de supresión inválida: %s',
+    (promptDismissed) => {
+      expect(normalizeSettings({ updates: { promptDismissed } }).updates.promptDismissed).toBe(
+        false,
+      );
+    },
+  );
+
+  it.each([
+    undefined,
+    null,
+    '1797120000000',
+    -1,
+    0.5,
+    Number.NaN,
+    Infinity,
+    -Infinity,
+    8_640_000_000_000_001,
+    {},
+    [],
+  ])('descarta una fecha de aviso inválida: %s', (nextPromptAt) => {
+    const settings = normalizeSettings({
+      updates: { checkOnStartup: true, promptDismissed: true, nextPromptAt },
+    });
+    expect(settings.updates).toEqual({
+      ...DEFAULT_UPDATE_SETTINGS,
+      checkOnStartup: true,
+      promptDismissed: true,
+    });
+  });
+
+  it.each([0, 1, 1_797_120_000_000, 8_640_000_000_000_000])(
+    'conserva una fecha Unix válida: %s',
+    (nextPromptAt) => {
+      const settings = normalizeSettings({ updates: { nextPromptAt } });
+      expect(settings.updates.nextPromptAt).toBe(nextPromptAt);
+      expect(normalizeSettings(JSON.parse(JSON.stringify(settings))).updates.nextPromptAt).toBe(
+        nextPromptAt,
+      );
+    },
+  );
+
+  it('los parches conservan la supresión y fecha al cambiar la consulta o preferencias ajenas', () => {
+    const original = normalizeSettings({
+      updates: { promptDismissed: true, nextPromptAt: 1_797_120_000_000 },
+    });
+    const enabled = mergeSettings(original, { updates: { checkOnStartup: true } });
+    expect(enabled.updates).toEqual({ ...original.updates, checkOnStartup: true });
+    expect(mergeSettings(enabled, { locale: 'de' }).updates).toEqual(enabled.updates);
+    const postponed = mergeSettings(enabled, { updates: { nextPromptAt: 1_797_724_800_000 } });
+    expect(postponed.updates).toEqual({ ...enabled.updates, nextPromptAt: 1_797_724_800_000 });
+    expect(mergeSettings(postponed, { updates: { promptDismissed: false } }).updates).toEqual({
+      ...postponed.updates,
+      promptDismissed: false,
+    });
+    expect(DEFAULT_UPDATE_SETTINGS).toEqual({
+      checkOnStartup: false,
+      promptDismissed: false,
+      nextPromptAt: 0,
+    });
   });
 });

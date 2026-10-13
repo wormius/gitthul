@@ -14,6 +14,19 @@ LinkPort.checkRelease no recibe argumentos; el backend compara SemVer y valida
 el enlace exacto al tag oficial. Los fallos de red, HTTP o datos se muestran como
 errores que permiten reintentar. No descargar, instalar ni reiniciar automáticamente.
 
+UpdateOptInBridge ofrece activar la consulta después de 10 segundos, como máximo
+una vez por sesión, sin consultar red. updates.promptDismissed suprime la oferta;
+updates.nextPromptAt guarda en milisegundos el siguiente recordatorio. Persistir
+un plazo de siete días antes de mostrar el aviso, incluso si se cierra la app sin
+responder. Activar guarda la preferencia y usa ReleaseNotificationBridge para la
+primera consulta; posponer o cerrar con × aplaza siete días hasta otra apertura.
+Desactivar manualmente o restablecer Actualizaciones también suprime propuestas.
+Los parches de updates deben completar flush; comprobar de nuevo las preferencias
+actuales después de esperas y no mostrar avisos tras desmontar el bridge.
+ToastProvider admite varias acciones asíncronas: espera el guardado, evita doble
+ejecución y conserva el aviso ante fallos. onDismiss distingue close, timeout,
+action y programmatic; una retirada programática nunca cambia la preferencia.
+
 El código propio se distribuye bajo MIT. GitThul™ y su logotipo tienen una política
 de marca separada, documentada en TRADEMARKS.md; los avisos de terceros se
 conservan. Usar ™ en presentación de marca y reservar ® para un registro
