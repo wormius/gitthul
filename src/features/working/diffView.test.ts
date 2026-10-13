@@ -377,6 +377,7 @@ describe('el rótulo del origen', () => {
     expect(sourceLabel({ kind: 'worktree' }, t)).toBe('Árbol de trabajo');
     expect(sourceLabel({ kind: 'index' }, t)).toBe('Staging');
     expect(sourceLabel({ kind: 'commit', sha: 'a1b2c3d4e5' }, t)).toBe('En el commit a1b2c3d');
+    expect(sourceLabel({ kind: 'stash', sha: 'a1b2c3d4e5' }, t)).toBe('En el stash a1b2c3d');
     expect(sourceLabel({ kind: 'range', from: 'a1b2c3d4e5', to: 'f6g7h8i9j0' }, t)).toBe(
       'De a1b2c3d a f6g7h8i',
     );

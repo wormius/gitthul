@@ -85,6 +85,11 @@ WorkingView invalida las lecturas anteriores al comenzar una escritura. Los avis
 del watcher recibidos durante la operación se acumulan y se consultan al terminar;
 una respuesta tardía no puede reemplazar el estado devuelto por stash, POP o Stage.
 
+El diff de un stash usa DiffSource.stash: la instantánea rastreada y el tercer padre
+para las rutas sin seguimiento. El visor de archivo lee el blob que resolvió el diff,
+también para archivos truncados; no buscar esos archivos en disco ni en el árbol
+rastreado del stash. DiffSource.commit conserva la comparación contra el primer padre.
+
 Las pruebas de escritura usan repositorios descartables. No experimentar con
 reset, limpieza o recuperación destructiva sobre repositorios del usuario.
 

@@ -902,6 +902,7 @@ export const en: Messages = {
   'working.diff.source.worktree': 'Working tree',
   'working.diff.source.index': 'Staging area',
   'working.diff.source.commit': 'In commit {sha}',
+  'working.diff.source.stash': 'In stash {sha}',
   'working.diff.source.range': 'From {from} to {to}',
   'working.diff.source.rangeFromRoot': 'From the beginning to {to}',
   'working.diff.source.workingRange': 'From {from} to WIP',

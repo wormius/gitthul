@@ -995,7 +995,10 @@ export function commitFileMenu(
       key: 'history',
       label: t('working.menu.file.viewHistory'),
       onSelect: () => {
-        actions.viewFileHistory(path, source.kind === 'commit' ? source.sha : undefined);
+        actions.viewFileHistory(
+          path,
+          source.kind === 'commit' || source.kind === 'stash' ? source.sha : undefined,
+        );
       },
     },
     separator('s1'),

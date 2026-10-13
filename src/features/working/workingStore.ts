@@ -576,7 +576,12 @@ export const useWorkingStore = create<WorkingState & WorkingActions>((set) => ({
       if (state.diff === null) return state;
       const { path, source } = state.diff;
       if (state.fileHistory?.path === path) return { fileHistory: null };
-      const at = source.kind === 'commit' ? source.sha : source.kind === 'range' ? source.to : null;
+      const at =
+        source.kind === 'commit' || source.kind === 'stash'
+          ? source.sha
+          : source.kind === 'range'
+            ? source.to
+            : null;
       return {
         fileHistory: { path, ...(at === null ? {} : { at }) },
         detailsCollapsed: false,
@@ -596,7 +601,7 @@ export const useWorkingStore = create<WorkingState & WorkingActions>((set) => ({
    */
   openDiff: ({ path, source }) => {
     set((state) => ({
-      ...(state.fileHistory?.path === path && source.kind === 'commit'
+      ...(state.fileHistory?.path === path && (source.kind === 'commit' || source.kind === 'stash')
         ? { fileHistory: { path, at: source.sha } }
         : {}),
       diff: {

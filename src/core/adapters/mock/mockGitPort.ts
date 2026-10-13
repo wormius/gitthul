@@ -1873,6 +1873,7 @@ function sourceKey(source: DiffSource): string {
     case 'index':
       return 'worktree';
     case 'commit':
+    case 'stash':
       return `commit:${source.sha}`;
     case 'range':
       return `range:${source.from}:${source.to}`;
@@ -1980,6 +1981,10 @@ function diffFilesOf(repo: MockRepo, source: DiffSource): readonly FileChange[] 
     case 'commit': {
       return filesOf(repo.history, resolveRef(repo, source.sha));
     }
+    case 'stash':
+      return filesOf(repo.history, resolveRef(repo, source.sha)).map((file) =>
+        file.change === 'untracked' ? { ...file, change: 'added' } : file,
+      );
     case 'range':
       return snapshotDifference(
         revisionSnapshot(repo, source.from),
@@ -2006,10 +2011,11 @@ function diffFilesOf(repo: MockRepo, source: DiffSource): readonly FileChange[] 
 function diffOf(repo: MockRepo, request: DiffRequest): FileDiff {
   const { binary, mediaType } = describePath(request.path);
   const comparison = request.source.kind === 'range' || request.source.kind === 'workingRange';
-  const entry = comparison
+  const saved = comparison || request.source.kind === 'stash';
+  const entry = saved
     ? diffFilesOf(repo, request.source).find((file) => file.path === request.path)
     : undefined;
-  const change = comparison ? (entry?.change ?? 'unmodified') : changeOf(repo, request.path);
+  const change = saved ? (entry?.change ?? 'unmodified') : changeOf(repo, request.path);
   const identity = createRandom(seedFrom(`diff:${request.path}:${sourceKey(request.source)}`));
   const regular = () => ({ oid: identity.hex(40), mode: '100644' as const });
   const precondition = {

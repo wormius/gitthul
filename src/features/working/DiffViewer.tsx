@@ -81,7 +81,7 @@ interface DiffData {
 
 /** Un añadido o borrado contiene el archivo completo en sus líneas cambiadas. */
 function oneSidedContents(file: FileDiff): FileContents | null {
-  if (file.content.kind !== 'text') return null;
+  if (file.content.kind !== 'text' || file.content.truncated) return null;
   const kind = file.change === 'deleted' ? 'removed' : 'added';
   if (file.change !== 'deleted' && file.change !== 'added' && file.change !== 'untracked') {
     return null;
@@ -110,7 +110,7 @@ const SKELETON_ROWS = 12;
 
 /** A qué revisión pertenece el archivo completo de este origen. */
 function revisionOf(source: DiffSource): string | undefined {
-  if (source.kind === 'commit') return source.sha;
+  if (source.kind === 'commit' || source.kind === 'stash') return source.sha;
   if (source.kind === 'range') return source.to;
   if (source.kind === 'workingRange') return undefined;
 
@@ -213,13 +213,16 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
       const oneSided = oneSidedContents(file);
       if (oneSided !== null) return { file, contents: oneSided };
 
+      const savedSide =
+        file.change === 'deleted' ? file.precondition.before : file.precondition.after;
+
       return {
         file,
         contents: await git.readFile(repoId, path, revisionOf(source), {
           ...query,
           encoding,
-          ...(source.kind === 'index' && file.precondition.after !== null
-            ? { blob: file.precondition.after.oid }
+          ...(source.kind !== 'worktree' && source.kind !== 'workingRange' && savedSide !== null
+            ? { blob: savedSide.oid }
             : {}),
         }),
       };

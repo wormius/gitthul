@@ -990,6 +990,34 @@ describe('WorkingView', () => {
     }
   });
 
+  it('abre el archivo sin seguimiento guardado usando el origen del stash', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const untracked = (await ports.git.readStatus('gitthul')).unstaged.find(
+      (file) => file.change === 'untracked',
+    );
+    if (!untracked) throw new Error('El fixture necesita un archivo sin seguimiento');
+    const readDiff = vi.spyOn(ports.git, 'readDiff');
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    await screen.findByRole('region', { name: 'Cambios' });
+    await user.click(screen.getByRole('button', { name: 'Crear stash' }));
+    await waitFor(() => expect(useWorkingStore.getState().pendingWrites).toBe(0));
+    const stash = (await ports.git.readRefs('gitthul')).stashes[0]!;
+    const panel = await screen.findByRole('region', {
+      name: `Detalles del commit ${stash.sha.slice(0, 7)}`,
+    });
+    await user.dblClick(within(panel).getByText(untracked.path.split('/').at(-1)!));
+    expect(await screen.findByRole('region', { name: /^Diff de / })).toBeVisible();
+    expect(useWorkingStore.getState().diff?.source).toEqual({ kind: 'stash', sha: stash.sha });
+    expect(readDiff).toHaveBeenCalledWith(
+      'gitthul',
+      expect.objectContaining({ path: untracked.path, source: { kind: 'stash', sha: stash.sha } }),
+      expect.anything(),
+    );
+    await screen.findByText(`En el stash ${stash.sha.slice(0, 7)}`);
+  });
+
   it('descartar un guardado exige confirmar el mismo OID que mostró la fila', async () => {
     const user = userEvent.setup();
     const ports = makePorts();

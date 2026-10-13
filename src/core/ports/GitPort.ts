@@ -60,6 +60,7 @@ export interface TextQuery extends GitQuery {
 
 /** Lee el blob exacto observado en el diff, incluso cuando pertenece al índice. */
 export interface FileQuery extends TextQuery {
+  /** Blob exacto resuelto por readDiff, incluido el tercer padre de un stash. */
   blob?: Sha;
 }
 

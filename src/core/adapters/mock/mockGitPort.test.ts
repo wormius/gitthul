@@ -1253,6 +1253,21 @@ describe('guardados', () => {
     expect((await git.readStatus('gitthul')).clean).toBe(true);
   });
 
+  it('el stash lista y abre sus archivos sin seguimiento como añadidos guardados', async () => {
+    const initial = await git.readStatus('gitthul');
+    const untracked = initial.unstaged.find((file) => file.change === 'untracked')!;
+    const refs = await git.createStash('gitthul', 'Todo dentro', { includeUntracked: true });
+    const source = { kind: 'stash' as const, sha: refs.stashes[0]!.sha };
+    const files = await git.readDiffFiles('gitthul', source);
+    expect(files.find((file) => file.path === untracked.path)?.change).toBe('added');
+    const saved = await git.readDiff('gitthul', { path: untracked.path, source });
+    expect(saved.change).toBe('added');
+    expect(saved.precondition.before).toBeNull();
+    expect(saved.precondition.after).not.toBeNull();
+    expect((await git.readStatus('gitthul')).clean).toBe(true);
+    expect(saved.source).toEqual(source);
+  });
+
   it('con keepStaged lo preparado se queda donde está', async () => {
     await git.createStash('gitthul', 'Solo lo suelto', { keepStaged: true });
 

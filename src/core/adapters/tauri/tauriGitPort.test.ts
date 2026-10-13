@@ -716,6 +716,10 @@ describe('tauriGitPort', () => {
       path: 'archivo.txt',
       source: { kind: 'workingRange', from: 'abc1234' },
     });
+    await port.readDiff('/repos/uno', {
+      path: 'nuevo.txt',
+      source: { kind: 'stash', sha: 'stash-oid' },
+    });
     const operationIds = call.mock.calls.map(([, args]) => args?.operationId);
     for (const operationId of operationIds) {
       expect(operationId).toEqual(expect.stringMatching(/^diff-/));
@@ -757,6 +761,11 @@ describe('tauriGitPort', () => {
         source: { kind: 'workingRange', from: 'abc1234' },
       },
     });
+    expect(call).toHaveBeenNthCalledWith(6, 'git_read_diff', {
+      id: '/repos/uno',
+      operationId: operationIds[5],
+      request: { path: 'nuevo.txt', source: { kind: 'stash', sha: 'stash-oid' } },
+    });
   });
 
   it('lists the native net changes for exact endpoints, WIP and a root range', async () => {
@@ -769,6 +778,7 @@ describe('tauriGitPort', () => {
       { kind: 'range', from: 'abc1234', to: 'def5678' },
       { kind: 'workingRange', from: 'abc1234' },
       { kind: 'range', from: null, to: 'def5678' },
+      { kind: 'stash', sha: 'stash-oid' },
     ] as const) {
       await expect(port.readDiffFiles('/repos/uno', source)).resolves.toEqual(files);
       expect(call).toHaveBeenLastCalledWith('git_read_diff_files', {

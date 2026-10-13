@@ -39,6 +39,7 @@ pub enum DiffSource {
     Worktree,
     Index,
     Commit { sha: String },
+    Stash { sha: String },
     Range { from: Option<String>, to: String },
     WorkingRange { from: String },
 }
@@ -49,6 +50,9 @@ enum ResolvedSource {
     Index,
     Commit {
         before: Option<String>,
+        after: String,
+    },
+    Stash {
         after: String,
     },
     Range {
@@ -379,9 +383,10 @@ pub fn read_cancellable(
     let raw = raw_diff_for_path(repository, &resolved, &request.path, cancelled)?;
     ensure_not_cancelled(cancelled)?;
     let mut entry = parse_raw_entry(&raw.stdout, path)?;
-    if entry
-        .as_ref()
-        .is_some_and(|entry| entry.change == ChangeType::Added)
+    if !matches!(resolved, ResolvedSource::Stash { .. })
+        && entry
+            .as_ref()
+            .is_some_and(|entry| entry.change == ChangeType::Added)
     {
         let identity = raw_diff_with_identity(repository, &resolved, cancelled)?;
         ensure_not_cancelled(cancelled)?;
@@ -545,7 +550,7 @@ pub fn read_cancellable(
                     .all(|side| {
                         matches!(side.mode, GitFileMode::Regular | GitFileMode::Executable)
                     });
-            let patch = if supports_partial {
+            let patch = if supports_partial && !matches!(resolved, ResolvedSource::Stash { .. }) {
                 patch_with_source(
                     repository,
                     &request,
@@ -676,8 +681,11 @@ fn resolve_source(repository: &Path, source: &DiffSource) -> Result<ResolvedSour
     match source {
         DiffSource::Worktree => Ok(ResolvedSource::Worktree),
         DiffSource::Index => Ok(ResolvedSource::Index),
-        DiffSource::Commit { sha } => {
+        DiffSource::Commit { sha } | DiffSource::Stash { sha } => {
             let after = resolve_commit(repository, sha)?;
+            if matches!(source, DiffSource::Stash { .. }) {
+                return Ok(ResolvedSource::Stash { after });
+            }
             let repo = gix::open(repository).map_err(|_| ReadDiffError::GitFailed)?;
             let id = gix::ObjectId::from_hex(after.as_bytes())
                 .map_err(|_| ReadDiffError::RevisionNotFound(sha.clone()))?;
@@ -739,6 +747,12 @@ fn raw_diff_for_path(
     path: &str,
     cancelled: &AtomicBool,
 ) -> Result<Output, ReadDiffError> {
+    if matches!(source, ResolvedSource::Stash { .. }) {
+        // Git combines the tracked tree and untracked parent before deciding
+        // identity. Comparing only the third parent invents tracked deletions
+        // and false renames. Stash show has no pathspec; select by raw -z below.
+        return raw_diff_with_identity(repository, source, cancelled);
+    }
     let mut args = diff_args(source, "--raw");
     args.extend([
         "-z".to_owned(),
@@ -844,9 +858,21 @@ fn numstat(
     if no_index {
         owned.push("/dev/null".to_owned());
     }
-    owned.extend(paths.iter().map(|path| (*path).to_owned()));
+    if !matches!(source, ResolvedSource::Stash { .. }) {
+        owned.extend(paths.iter().map(|path| (*path).to_owned()));
+    }
     let args = owned.iter().map(String::as_str).collect::<Vec<_>>();
     let output = git_output_cancellable(repository, &args, no_index, cancelled)?;
+    if matches!(source, ResolvedSource::Stash { .. }) {
+        let stats = parse_file_stats(&output.stdout)?
+            .get(request.path.as_bytes())
+            .copied()
+            .unwrap_or_default();
+        return Ok(NumStat {
+            binary: stats.binary,
+            changed_lines: stats.insertions + stats.deletions,
+        });
+    }
     parse_numstat(&output.stdout)
 }
 
@@ -854,6 +880,13 @@ fn diff_args(source: &ResolvedSource, format: &str) -> Vec<String> {
     match source {
         ResolvedSource::Worktree => vec!["diff".to_owned(), format.to_owned()],
         ResolvedSource::Index => vec!["diff".to_owned(), "--cached".to_owned(), format.to_owned()],
+        ResolvedSource::Stash { after, .. } => vec![
+            "stash".to_owned(),
+            "show".to_owned(),
+            "--include-untracked".to_owned(),
+            format.to_owned(),
+            after.clone(),
+        ],
         ResolvedSource::Commit {
             before: Some(before),
             after,
@@ -1507,6 +1540,167 @@ mod tests {
             ignore_whitespace: false,
             encoding: None,
         }
+    }
+
+    #[test]
+    fn stash_untracked_files_read_their_saved_blobs_and_pop_restores_every_side() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("tracked.txt"), "base\n").unwrap();
+        fs::write(path.join("deleted.txt"), "deleted base\n").unwrap();
+        fs::write(path.join("keep.txt"), "same\n").unwrap();
+        fs::write(path.join("old-name.txt"), "rename base\n").unwrap();
+        fs::write(path.join(".gitignore"), "ignored.txt\n").unwrap();
+        git(path, &["add", "."]);
+        git(path, &["commit", "-qm", "base"]);
+        fs::write(path.join("tracked.txt"), "staged\n").unwrap();
+        git(path, &["add", "tracked.txt"]);
+        fs::write(path.join("tracked.txt"), "working\n").unwrap();
+        fs::remove_file(path.join("deleted.txt")).unwrap();
+        git(path, &["mv", "old-name.txt", "renamed.txt"]);
+        fs::write(path.join("ignored.txt"), "must stay\n").unwrap();
+        fs::create_dir(path.join("folder")).unwrap();
+        let new_files: &[(&str, &[u8])] = &[
+            ("folder/nuevo [1].txt", b"new text\nsecond line"),
+            ("empty.txt", b""),
+            ("copy.txt", b"same\n"),
+            ("image.png", b"\x89PNG\0\x01\x02\x03"),
+            ("utf16.txt", b"\xff\xfeh\0o\0l\0a\0\n\0"),
+        ];
+        for (name, bytes) in new_files {
+            fs::write(path.join(name), bytes).unwrap();
+        }
+        let options = serde_json::from_value(serde_json::json!({
+            "includeUntracked": true,
+            "precondition": super::super::status::reset_precondition(path),
+        }))
+        .unwrap();
+        let undo = super::super::undo::UndoStacks::default();
+        crate::git::create_stash_with_recovery("fixture", path, &undo, "saved", &options).unwrap();
+        let sha = git_text(path, &["rev-parse", "refs/stash"]);
+        let source = DiffSource::Stash { sha: sha.clone() };
+        assert_eq!(git_text(path, &["status", "--porcelain"]), "");
+        assert!(path.join("ignored.txt").exists());
+        assert_eq!(git_text(path, &["stash", "list"]).lines().count(), 1);
+        let files = read_files_cancellable(path, &source, &AtomicBool::new(false)).unwrap();
+        assert_eq!(files.len(), new_files.len() + 3);
+
+        for (name, bytes) in new_files {
+            assert!(!path.join(name).exists());
+            assert!(files
+                .iter()
+                .any(|file| file.path == *name && file.change == ChangeType::Added));
+            let saved = read(path, request(name, source.clone())).unwrap();
+            assert_eq!(saved.change, ChangeType::Added, "{name}");
+            assert_eq!(saved.precondition.before, None);
+            let blob = saved.precondition.after.as_ref().unwrap();
+            assert_eq!(
+                super::git_output(path, &["cat-file", "blob", &blob.oid], false)
+                    .unwrap()
+                    .stdout,
+                *bytes
+            );
+            let contents =
+                super::super::files::read_blob_encoded(path, (*name).into(), &blob.oid, None)
+                    .unwrap();
+            let contents = serde_json::to_value(contents).unwrap();
+            assert_eq!(contents["size"], bytes.len());
+            match (&saved.content, *name) {
+                (
+                    DiffContent::Binary {
+                        old_size, new_size, ..
+                    },
+                    "image.png",
+                ) => {
+                    assert_eq!(*old_size, None);
+                    assert_eq!(*new_size, Some(bytes.len() as u64));
+                    assert_eq!(contents["binary"], true);
+                }
+                (DiffContent::Text { hunks, .. }, "empty.txt") => assert!(hunks.is_empty()),
+                (
+                    DiffContent::Text {
+                        encoding, hunks, ..
+                    },
+                    "utf16.txt",
+                ) => {
+                    assert_eq!(*encoding, "utf-16le");
+                    assert_eq!(contents["text"], "hola\n");
+                    assert!(!hunks.is_empty());
+                }
+                (DiffContent::Text { hunks, .. }, _) => assert!(!hunks.is_empty()),
+                other => panic!("unexpected stash content: {other:?}"),
+            }
+            // Today's disk contents cannot replace the immutable saved version.
+            fs::create_dir_all(path.join(name).parent().unwrap()).unwrap();
+            fs::write(path.join(name), b"later content\n").unwrap();
+            let again = read(path, request(name, source.clone())).unwrap();
+            assert_eq!(again.precondition, saved.precondition);
+            assert_eq!(
+                serde_json::to_value(again.content).unwrap(),
+                serde_json::to_value(saved.content).unwrap()
+            );
+            fs::remove_file(path.join(name)).unwrap();
+        }
+        let tracked = read(path, request("tracked.txt", source.clone())).unwrap();
+        assert_eq!(tracked.change, ChangeType::Modified);
+        let renamed = read(path, request("renamed.txt", source.clone())).unwrap();
+        assert_eq!(renamed.change, ChangeType::Renamed);
+        assert_eq!(renamed.previous_path.as_deref(), Some("old-name.txt"));
+        assert_eq!(
+            read(path, request("deleted.txt", source)).unwrap().change,
+            ChangeType::Deleted
+        );
+        let pop = serde_json::from_value(serde_json::json!({
+            "drop": true,
+            "expectedStash": sha,
+            "precondition": super::super::status::reset_precondition(path),
+        }))
+        .unwrap();
+        crate::git::apply_stash_with_recovery("fixture", path, &undo, 0, &pop).unwrap();
+        for (name, bytes) in new_files {
+            assert_eq!(fs::read(path.join(name)).unwrap(), *bytes);
+        }
+        assert_eq!(
+            fs::read_to_string(path.join("tracked.txt")).unwrap(),
+            "working\n"
+        );
+        assert_eq!(git_text(path, &["show", ":tracked.txt"]), "staged");
+        assert!(!path.join("deleted.txt").exists());
+        assert!(!path.join("old-name.txt").exists());
+        assert_eq!(
+            fs::read_to_string(path.join("renamed.txt")).unwrap(),
+            "rename base\n"
+        );
+        assert_eq!(git_text(path, &["stash", "list"]), "");
+        assert_eq!(
+            read(path, request("copy.txt", DiffSource::Stash { sha }))
+                .unwrap()
+                .change,
+            ChangeType::Added
+        );
+    }
+
+    #[test]
+    fn tracked_only_stash_keeps_normal_commit_diff_semantics() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("tracked.txt"), "base\n").unwrap();
+        git(path, &["add", "."]);
+        git(path, &["commit", "-qm", "base"]);
+        fs::write(path.join("tracked.txt"), "saved\n").unwrap();
+        git(path, &["stash", "push", "-qm", "tracked only"]);
+        let sha = git_text(path, &["rev-parse", "refs/stash"]);
+        let stash = read(
+            path,
+            request("tracked.txt", DiffSource::Stash { sha: sha.clone() }),
+        )
+        .unwrap();
+        let commit = read(path, request("tracked.txt", DiffSource::Commit { sha })).unwrap();
+        assert_eq!(stash.precondition, commit.precondition);
+        assert_eq!(
+            serde_json::to_value(stash.content).unwrap(),
+            serde_json::to_value(commit.content).unwrap()
+        );
     }
 
     fn commit_all(path: &Path, message: &str) -> String {

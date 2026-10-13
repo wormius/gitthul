@@ -26,6 +26,7 @@ import { useWorkingStore } from './workingStore';
 interface CommitDetailsProps {
   repoId: RepoId;
   sha: Sha;
+  sourceKind?: 'commit' | 'stash';
   menuContext: MenuBuildContext;
   /** Los guardados son instantáneas auxiliares, no commits del historial. */
   showChangeDetails?: boolean;
@@ -48,6 +49,7 @@ const NOTHING: ReadonlySet<string> = new Set();
 export function CommitDetails({
   repoId,
   sha,
+  sourceKind = 'commit',
   menuContext,
   showChangeDetails = true,
   canAmend = false,
@@ -89,7 +91,7 @@ export function CommitDetails({
 
   // El origen es este commit: lo que enseña el visor es qué le hizo al archivo,
   // no cómo está el archivo ahora — CU-5.
-  const source = useMemo<DiffSource>(() => ({ kind: 'commit', sha }), [sha]);
+  const source = useMemo<DiffSource>(() => ({ kind: sourceKind, sha }), [sha, sourceKind]);
 
   const menuFor = useCallback(
     (target: FileMenuTarget): RowMenu =>

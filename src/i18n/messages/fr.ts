@@ -910,6 +910,7 @@ export const fr: Messages = {
   'working.diff.source.worktree': 'Arbre de travail',
   'working.diff.source.index': 'Index',
   'working.diff.source.commit': 'Dans le commit {sha}',
+  'working.diff.source.stash': 'Dans le stash {sha}',
   'working.diff.source.range': 'De {from} à {to}',
   'working.diff.source.rangeFromRoot': 'Depuis le début jusqu’à {to}',
   'working.diff.source.workingRange': 'De {from} au WIP',

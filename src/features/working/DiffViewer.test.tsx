@@ -657,3 +657,58 @@ it('el modo Archivo del stage muestra el blob preparado y conserva las líneas s
     expect.objectContaining({ blob: fixture.precondition.after!.oid }),
   );
 });
+
+it.each(['added', 'deleted'] as const)(
+  'el modo Archivo de un stash truncado lee el blob guardado del archivo %s',
+  async (change) => {
+    const git = createMockGitPort({ latency: NO_LATENCY });
+    const path = 'nuevo.txt';
+    const source = { kind: 'stash' as const, sha: 'saved-stash' };
+    const snapshot = { oid: 'saved-blob', mode: '100644' as const };
+    vi.spyOn(git, 'readDiff').mockResolvedValue({
+      path,
+      source,
+      change,
+      precondition: {
+        before: change === 'deleted' ? snapshot : null,
+        after: change === 'added' ? snapshot : null,
+      },
+      content: { kind: 'text', hunks: [], truncated: true, encoding: 'utf-8' },
+    });
+    const readFile = vi.spyOn(git, 'readFile').mockImplementation((_repo, filePath, _at, query) => {
+      if (query?.blob !== snapshot.oid) {
+        return Promise.reject(new Error('The tracked stash tree does not contain this file'));
+      }
+      return Promise.resolve({
+        path: filePath,
+        text: 'saved untracked contents\n',
+        binary: false,
+        size: 25,
+        mediaType: 'text/plain',
+        encoding: 'utf-8',
+      });
+    });
+    useWorkingStore.getState().setDiffOptions({ content: 'file' });
+    render(
+      <PortsContext value={{ ...selectPorts(), git }}>
+        <I18nProvider initialLocale="es-MX">
+          <DiffViewer
+            repoId="gitthul"
+            diff={{ path, source, returnTo: null }}
+            actions={{} as WorkingActions}
+            status={null}
+            onClose={() => {}}
+          />
+        </I18nProvider>
+      </PortsContext>,
+    );
+    expect(await screen.findByRole('textbox')).toHaveTextContent('saved untracked contents');
+    expect(readFile).toHaveBeenCalledWith(
+      'gitthul',
+      path,
+      source.sha,
+      expect.objectContaining({ blob: snapshot.oid }),
+    );
+    expect(screen.getByText('En el stash saved-s')).toBeInTheDocument();
+  },
+);

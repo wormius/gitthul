@@ -1299,6 +1299,7 @@ export function WorkingView({ base }: WorkingViewProps) {
         <CommitDetails
           repoId={base.repoId}
           sha={selectedStash.sha}
+          sourceKind="stash"
           menuContext={menuContext}
           showChangeDetails={false}
           allowAllFiles={false}
