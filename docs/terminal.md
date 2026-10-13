@@ -12,8 +12,9 @@ muestra el error y ofrece **Reintentar** sin cerrar la terminal.
 
 En el grafo lateral, los commits se representan con anillos huecos, el WIP con
 un círculo sólido y los stashes con cuadrados sólidos. Las ramas se distinguen
-por sus colores y patrones de línea; cambiar de rama no cambia la forma de los
-commits.
+por sus colores; cambiar de rama no cambia la forma de los commits. Las conexiones
+entre commits son continuas. Los enlaces del WIP y los stashes con el historial
+son finos y punteados.
 
 En Unix, GitThul abre el shell configurado para tu cuenta. Cuando utilizas zsh,
 este carga su configuración habitual, incluidos los plugins de Oh My Zsh. La

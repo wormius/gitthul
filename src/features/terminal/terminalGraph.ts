@@ -129,10 +129,10 @@ function* terminalEntrySteps(
 
 /**
  * Paleta deliberadamente corta: éxito, información y tinta secundaria de la
- * interfaz. El grafo sigue el modo claro/oscuro del panel lateral. Los patrones
- * de línea distinguen las ramas sin depender únicamente del color. Todos los
- * commits son anillos; las formas sólidas identifican WIP y stashes en el
- * dibujante compartido.
+ * interfaz. El grafo sigue el modo claro/oscuro del panel lateral. Las conexiones
+ * entre commits son continuas y sus nodos son anillos. El dibujante compartido
+ * reserva los enlaces finos y punteados para WIP y stashes, junto a sus formas
+ * sólidas.
  */
 export function terminalGraphPalette(tokens: Record<string, string>): GraphPalette {
   const success = tokens['--text-success'] || tokens['--text-primary'] || 'currentColor';
@@ -144,11 +144,11 @@ export function terminalGraphPalette(tokens: Record<string, string>): GraphPalet
       { color: success, dash: [], shape: 'ring' },
       { color: info, dash: [], shape: 'ring' },
       { color: secondary, dash: [], shape: 'ring' },
-      { color: success, dash: [5, 3], shape: 'ring' },
-      { color: info, dash: [2, 3], shape: 'ring' },
-      { color: secondary, dash: [7, 3], shape: 'ring' },
-      { color: success, dash: [2, 3], shape: 'ring' },
-      { color: info, dash: [7, 3], shape: 'ring' },
+      { color: success, dash: [], shape: 'ring' },
+      { color: info, dash: [], shape: 'ring' },
+      { color: secondary, dash: [], shape: 'ring' },
+      { color: success, dash: [], shape: 'ring' },
+      { color: info, dash: [], shape: 'ring' },
     ],
     wip: secondary,
     stash: info,

@@ -243,6 +243,33 @@ describe('buildGraph · WIP', () => {
     expect(layout.nodeAt(1).color).toBe(1);
   });
 
+  it('la llegada WIP conserva su tipo hasta HEAD y convive con llegadas y salidas de rama normales', async () => {
+    const rows = buildCommitRows(branchedHistory(), DIRTY, []);
+    const refs = refsAt('m1');
+    const layouts = [buildGraph(rows, refs), await buildGraphAsync(rows, refs)];
+    const headIndex = rows.findIndex((row) => row.kind === 'commit' && row.commit.sha === 'm1');
+
+    for (const layout of layouts) {
+      expect(layout.nodeAt(headIndex)).toEqual({ lane: 0, color: 1, kind: 'commit' });
+      expect(layout.linksAt(headIndex)).toEqual([
+        { lane: 0, color: 1, direction: 'up', kind: 'wip' },
+        { lane: 1, color: 6, direction: 'up' },
+        { lane: 0, color: 1, direction: 'down' },
+      ]);
+      expect(layout.passesAt(headIndex)).toEqual([{ lane: 2, color: 3 }]);
+      expect(
+        [...layout.linksAt(headIndex + 1), ...layout.passesAt(headIndex + 1)].every(
+          ({ kind }) => kind !== 'wip',
+        ),
+      ).toBe(true);
+    }
+    for (let index = 0; index < rows.length; index++) {
+      expect(layouts[1]!.nodeAt(index)).toEqual(layouts[0]!.nodeAt(index));
+      expect(layouts[1]!.passesAt(index)).toEqual(layouts[0]!.passesAt(index));
+      expect(layouts[1]!.linksAt(index)).toEqual(layouts[0]!.linksAt(index));
+    }
+  });
+
   it('con el árbol limpio no hay nodo WIP', () => {
     const commits = [commit('b', ['a']), commit('a')];
     const layout = buildGraph(buildCommitRows(commits, CLEAN, []), refsAt('b'));

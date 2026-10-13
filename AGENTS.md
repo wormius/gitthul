@@ -186,8 +186,11 @@ Los atajos no deben interceptar entrada normal ni composición de texto. No comu
 un estado solo por color; mantener foco visible y contraste verificable.
 
 El grafo de Terminal usa anillos para todos los commits. WIP es un círculo sólido
-y stash un cuadrado sólido; las ramas se distinguen por tono y patrón de línea.
-Conservar el dibujante compartido y la simbología especial al ajustar su paleta.
+y stash un cuadrado sólido; las ramas se distinguen por tono. Las conexiones entre
+commits son continuas; los enlaces WIP/stash son finos y punteados. Conservar el
+dibujante compartido y la simbología especial al ajustar su paleta. El motor
+conserva el tipo de cada enlace hasta el nodo de llegada; HEAD continúa hacia
+sus padres con enlaces de rama normales.
 
 Todo texto de la interfaz de usuario del producto usa i18n. Las muestras internas
 de la galería conservan su convención actual; no requieren una traducción global

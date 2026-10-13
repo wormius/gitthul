@@ -237,8 +237,8 @@ function* graphSteps(
    *
    * Se reparten por turno, saltando los que ya lleva puestos una rama viva: dos
    * ramas que conviven en pantalla nunca comparten color mientras queden tonos
-   * libres. Con más de ocho vivas a la vez se repite, que es justo el caso en
-   * el que el trazo y la forma del nodo cargan con la distinción.
+   * libres. Con más de ocho vivas a la vez se repite el tono, conservando el
+   * carril y las conexiones que identifican cada derivación del historial.
    */
   function nextColor(): number {
     for (let step = 0; step < GRAPH_BRANCH_COUNT; step += 1) {
@@ -326,7 +326,7 @@ function* graphSteps(
       /*
        * Cada stash vive en su posición cronológica y conserva su origen. La
        * calle 0 se reserva para la rama principal cuando no hay WIP; así los
-       * rombos no empujan la historia principal a la derecha al aparecer.
+       * nodos de stash no empujan la historia principal a la derecha al aparecer.
        */
       const existing = stashLanesBySha.get(current.stash.base)?.[0];
       const lane = existing ?? takeLane(0);
@@ -361,19 +361,22 @@ function* graphSteps(
     }
 
     // 1 · Las calles de rama que esperaban este commit se cierran aquí. Se
-    //     colores antes de soltarlas: una de ellas puede acabar reasignada a
-    //     una rama nueva en el mismo paso, y la línea que muere en este nodo
-    //     tiene que conservar el color con el que venía bajando.
+    //     guardan su color y tipo antes de soltarlas: una de ellas puede acabar
+    //     reasignada en el mismo paso. La llegada conserva su estilo hasta el
+    //     nodo, incluido el WIP antes de que HEAD continúe como rama normal.
     const incoming = lanesBySha.get(commit.sha);
     let incomingColors: number[] | null = null;
+    let incomingKinds: number[] | null = null;
 
     if (incoming) {
       lanesBySha.delete(commit.sha);
       incoming.sort((a, b) => a - b);
       incomingColors = [];
+      incomingKinds = [];
 
       for (const lane of incoming) {
         incomingColors.push(laneColor[lane] ?? 0);
+        incomingKinds.push(laneKind[lane] ?? KIND_COMMIT);
         waiting[lane] = undefined;
       }
     }
@@ -413,9 +416,14 @@ function* graphSteps(
 
     // 4 · Lo que sube: la propia calle del nodo, cada rama que muere en él y
     //     cada stash agrupado arriba que nació en este commit.
-    if (incoming && incomingColors) {
+    if (incoming && incomingColors && incomingKinds) {
       for (let index = 0; index < incoming.length; index += 1) {
-        pushLink(incoming[index] ?? 0, incomingColors[index] ?? 0, true);
+        pushLink(
+          incoming[index] ?? 0,
+          incomingColors[index] ?? 0,
+          true,
+          incomingKinds[index] ?? KIND_COMMIT,
+        );
       }
     }
 

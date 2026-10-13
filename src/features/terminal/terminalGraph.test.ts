@@ -120,9 +120,7 @@ describe('terminalGraph', () => {
     expect(new Set(palette.branches.map((branch) => branch.color))).toEqual(
       new Set(['green', 'blue', 'gray']),
     );
-    expect(new Set(palette.branches.map((branch) => branch.dash.join(','))).size).toBeGreaterThan(
-      1,
-    );
+    expect(palette.branches.every((branch) => branch.dash.length === 0)).toBe(true);
     expect(new Set(palette.branches.map((branch) => branch.shape))).toEqual(new Set(['ring']));
     expect(palette.wip).toBe('gray');
     expect(palette.stash).toBe('blue');
