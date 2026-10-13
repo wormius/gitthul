@@ -470,19 +470,23 @@ export function TerminalRefSidebar({
 
   return (
     <div className={styles.sidebar}>
-      <SearchInput
-        label={t('view.terminal.railFilter')}
-        value={filter}
-        onChange={setFilter}
-        clearLabel={t('view.terminal.railFilter')}
-        placeholder={t('view.terminal.railFilter')}
-      />
-      {(loading || loadingMore || preparing || filtering) && (
-        <ProgressBar
-          className={styles.progress}
-          label={t(loadingMore ? 'working.commitTable.loadingMore' : 'working.commitTable.loading')}
+      <div className={styles.filter}>
+        <SearchInput
+          label={t('view.terminal.railFilter')}
+          value={filter}
+          onChange={setFilter}
+          clearLabel={t('view.terminal.railFilter')}
+          placeholder={t('view.terminal.railFilter')}
         />
-      )}
+        {(loading || loadingMore || preparing || filtering) && (
+          <ProgressBar
+            className={styles.progress}
+            label={t(
+              loadingMore ? 'working.commitTable.loadingMore' : 'working.commitTable.loading',
+            )}
+          />
+        )}
+      </div>
       {graphError && (
         <GitErrorPanel
           error={graphError}

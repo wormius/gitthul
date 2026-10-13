@@ -10,8 +10,18 @@
   font-family: var(--font-family-code);
 }
 
-.progress {
+.filter {
+  position: relative;
+  display: flex;
   flex: none;
+}
+
+.progress {
+  position: absolute;
+  inset-inline: 0;
+  bottom: calc(var(--space-2) * -1);
+  height: var(--space-1);
+  pointer-events: none;
 }
 
 .row {
