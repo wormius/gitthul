@@ -49,7 +49,7 @@ async function applyPatch(
   const next = currentSettings;
   try {
     await port.patch(patch);
-    if (patch.git || patch.logging || patch.recovery) await port.flush();
+    if (patch.git || patch.logging || patch.recovery || patch.backup) await port.flush();
   } catch (error) {
     if (currentSettings === next) {
       currentSettings = previous;

@@ -9,6 +9,7 @@ import type { LogPort } from '@core/ports/LogPort';
 import type { SettingsPort } from '@core/ports/SettingsPort';
 import type { SessionPort } from '@core/ports/SessionPort';
 import type { RecoveryPort } from '@core/ports/RecoveryPort';
+import type { BackupPort } from '@core/ports/BackupPort';
 import type { SystemPort } from '@core/ports/SystemPort';
 import type { TerminalPort } from '@core/ports/TerminalPort';
 
@@ -23,6 +24,7 @@ import { createMockLogPort } from './mock/mockLogPort';
 import { createMockSettingsPort, localSettingsStorage } from './mock/mockSettingsPort';
 import { createMockSessionPort, localSessionStorage } from './mock/mockSessionPort';
 import { createMockRecoveryPort } from './mock/mockRecoveryPort';
+import { createMockBackupPort } from './mock/mockBackupPort';
 import { createMockSystemPort } from './mock/mockSystemPort';
 import { createMockTerminalPort } from './mock/mockTerminalPort';
 import { isTauri } from './tauri/isTauri';
@@ -34,6 +36,7 @@ import { createTauriLogPort } from './tauri/tauriLogPort';
 import { createTauriSettingsPort } from './tauri/tauriSettingsPort';
 import { createTauriSessionPort } from './tauri/tauriSessionPort';
 import { createTauriRecoveryPort } from './tauri/tauriRecoveryPort';
+import { createTauriBackupPort } from './tauri/tauriBackupPort';
 import { createTauriSystemPort } from './tauri/tauriSystemPort';
 import { createTauriTerminalPort } from './tauri/tauriTerminalPort';
 
@@ -51,6 +54,7 @@ export interface AppPorts {
   settings: SettingsPort;
   session: SessionPort;
   recovery: RecoveryPort;
+  backup: BackupPort;
   keyring: KeyringPort;
   log: LogPort;
   git: GitPort;
@@ -106,6 +110,7 @@ export function selectPorts(): AppPorts {
       ? createTauriSessionPort()
       : createMockSessionPort({ storage: localSessionStorage() }),
     recovery: tauri ? createTauriRecoveryPort() : createMockRecoveryPort(),
+    backup: tauri ? createTauriBackupPort() : createMockBackupPort(),
     keyring: tauri ? createTauriKeyringPort() : createMockKeyringPort(),
     git,
     system: tauri ? createTauriSystemPort() : createMockSystemPort(),
@@ -123,6 +128,7 @@ export function selectPorts(): AppPorts {
     keyring: instrumentAppPort(ports.keyring, 'keyring', log),
     session: instrumentAppPort(ports.session, 'session', log),
     recovery: instrumentAppPort(ports.recovery, 'recovery', log),
+    backup: instrumentAppPort(ports.backup, 'backup', log),
     settings: instrumentAppPort(ports.settings, 'settings', log),
     library: instrumentAppPort(ports.library, 'library', log),
     system: instrumentAppPort(ports.system, 'system', log),

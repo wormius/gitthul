@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_RECOVERY_SETTINGS,
+  DEFAULT_BACKUP_SETTINGS,
   DEFAULT_SETTINGS,
   mergeSettings,
   normalizeSettings,
@@ -49,6 +50,34 @@ describe('ajustes de recuperación', () => {
   it('un parche de retención conserva el resto de la política', () => {
     const next = mergeSettings(DEFAULT_SETTINGS, { recovery: { maxAgeDays: 14 } });
     expect(next.recovery).toEqual({ ...DEFAULT_RECOVERY_SETTINGS, maxAgeDays: 14 });
+    expect(next.appearance).toEqual(DEFAULT_SETTINGS.appearance);
+  });
+});
+
+describe('emergency backup settings', () => {
+  it('defaults older settings to automatic backups with one shared GiB', () => {
+    expect(normalizeSettings({ locale: 'fr', recovery: { maxMiB: 256 } }).backup).toEqual(
+      DEFAULT_BACKUP_SETTINGS,
+    );
+    expect(DEFAULT_BACKUP_SETTINGS).toEqual({ enabled: true, maxMiB: 1024 });
+  });
+
+  it('keeps explicit disabled preference and normalizes malformed or out-of-range budgets', () => {
+    expect(normalizeSettings({ backup: { enabled: false, maxMiB: 512 } }).backup).toEqual({
+      enabled: false,
+      maxMiB: 512,
+    });
+    expect(normalizeSettings({ backup: { enabled: 'false', maxMiB: Infinity } }).backup).toEqual(
+      DEFAULT_BACKUP_SETTINGS,
+    );
+    expect(normalizeSettings({ backup: { maxMiB: 0 } }).backup.maxMiB).toBe(1);
+    expect(normalizeSettings({ backup: { maxMiB: 999999999 } }).backup.maxMiB).toBe(1048576);
+  });
+
+  it('changing the backup budget preserves internal recovery and all other preferences', () => {
+    const next = mergeSettings(DEFAULT_SETTINGS, { backup: { maxMiB: 512 } });
+    expect(next.backup).toEqual({ enabled: true, maxMiB: 512 });
+    expect(next.recovery).toEqual(DEFAULT_SETTINGS.recovery);
     expect(next.appearance).toEqual(DEFAULT_SETTINGS.appearance);
   });
 });
@@ -200,6 +229,7 @@ describe('mergeSettings', () => {
     git: DEFAULT_SETTINGS.git,
     updates: DEFAULT_SETTINGS.updates,
     recovery: DEFAULT_SETTINGS.recovery,
+    backup: DEFAULT_SETTINGS.backup,
     logging: DEFAULT_SETTINGS.logging,
   };
 

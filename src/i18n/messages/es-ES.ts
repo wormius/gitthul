@@ -1827,67 +1827,90 @@ export const esES: Messages = {
   'logs.debug': 'Debug',
   'logs.configure': 'Configurar registros',
   'logs.technical': 'Datos técnicos',
-  'settings.section.recovery': 'Recuperación',
-  'settings.recovery.description':
-    'Los puntos de recuperación protegen cambios que Git no conserva. Se guardan en la carpeta privada de GitThul, fuera de tus repositorios, y pueden revisarse después de reiniciar.',
-  'settings.recovery.retentionHint':
-    'Los límites se aplican por repositorio. La depuración conserva los puntos pendientes, los importados sin finalizar y los que aún necesita undo/redo, aunque superen los límites. Puedes eliminar una copia pendiente después de revisarla.',
-  'settings.recovery.autoCleanup': 'Depuración automática',
-  'settings.recovery.maxCheckpoints': 'Máximo de puntos por repositorio',
-  'settings.recovery.maxAgeDays': 'Antigüedad máxima (días)',
-  'settings.recovery.maxMiB': 'Espacio máximo por repositorio (MiB)',
-  'settings.recovery.invalidLimit': 'Introduce un número entero entre {min} y {max}.',
-  'settings.recovery.refresh': 'Actualizar lista',
-  'settings.recovery.import': 'Importar puntos existentes',
-  'settings.recovery.openDirectory': 'Abrir carpeta de recuperación',
-  'settings.recovery.cleanup': 'Depurar ahora',
-  'settings.recovery.directory': 'Carpeta de recuperación',
-  'settings.recovery.total': 'Puntos: {count} · {size} en total',
-  'settings.recovery.pendingNotice': 'Puntos por revisar: {count}.',
-  'settings.recovery.loading': 'Leyendo puntos de recuperación…',
-  'settings.recovery.empty': 'Todavía no hay puntos de recuperación guardados.',
-  'settings.recovery.points': 'Puntos guardados',
-  'settings.recovery.savedState': 'Estado guardado',
-  'settings.recovery.sizeMiB': '{size} MiB',
-  'settings.recovery.pointSize': 'Archivos: {count} · {size}',
-  'settings.recovery.status.pending': 'Pendiente',
-  'settings.recovery.status.completed': 'Operación terminada',
-  'settings.recovery.status.legacy': 'Importado',
-  'settings.recovery.active': 'En uso por undo/redo',
-  'settings.recovery.restore': 'Restaurar…',
-  'settings.recovery.export': 'Exportar archivos…',
-  'settings.recovery.remove': 'Eliminar copia…',
-  'settings.recovery.restoreTitle': 'Restaurar un punto de recuperación',
-  'settings.recovery.restoreGitDescription':
-    'En {repository} se reemplazarán los {count} archivos incluidos en este punto, el índice de staging y las referencias Git capturadas. Los cambios posteriores dentro de ese alcance se sustituirán por el estado guardado.',
-  'settings.recovery.restoreFilesDescription':
-    'En {repository} se reemplazarán los {count} archivos incluidos en este punto. Los cambios posteriores en esos archivos se sustituirán por las copias guardadas.',
-  'settings.recovery.confirmRestore': 'Crear respaldo y restaurar',
-  'settings.recovery.backupFirst':
-    'Antes de restaurar, GitThul creará un punto de recuperación del estado actual. Si el repositorio cambia después de esta vista previa, tendrás que revisarla de nuevo.',
-  'settings.recovery.previewPaths': 'Archivos incluidos: {count}',
-  'settings.recovery.morePaths': 'Y {count} archivos más.',
-  'settings.recovery.cleanupDescription':
-    'Se eliminarán las copias que excedan los límites configurados. Se conservarán los puntos pendientes, los importados sin finalizar y los que todavía necesita undo/redo. Los repositorios y sus archivos no cambiarán.',
-  'settings.recovery.removeTitle': 'Eliminar esta copia de recuperación',
-  'settings.recovery.removeDescription':
-    'Se eliminará esta copia guardada de {repository}. No se modificarán los archivos ni el estado Git del repositorio. La copia eliminada ya no podrá recuperarse desde GitThul.',
-  'settings.recovery.review': 'Revisar recuperación',
+  'settings.section.recovery': 'Copias de seguridad y caché',
+  'settings.storage.title': 'Archivos temporales',
+  'settings.storage.description':
+    'GitThul gestiona automáticamente los datos temporales de recuperación. Limpiar la caché conserva los datos que necesitan las operaciones activas y las copias de seguridad de emergencia.',
+  'settings.storage.total': 'Archivos temporales: {size}',
+  'settings.storage.protected':
+    'Los datos de operaciones activas o sin finalizar están protegidos.',
+  'settings.storage.cleanup': 'Limpiar caché…',
+  'settings.storage.cleanupTitle': 'Limpiar archivos temporales',
+  'settings.storage.cleanupDescription':
+    'Se eliminarán los archivos temporales que ya no se utilizan. Se conservarán los datos de recuperación activos y las copias de seguridad de emergencia.',
+  'settings.storage.confirmCleanup': 'Limpiar caché',
+  'settings.storage.cleaned': 'Se han liberado {size}.',
+  'settings.storage.configurationWarning':
+    'La limpieza automática está suspendida porque no se ha podido leer el archivo de configuración.',
+  'settings.storage.loading': 'Leyendo almacenamiento…',
+  'settings.backup.title': 'Copias de seguridad de emergencia',
+  'settings.backup.description':
+    'GitThul guarda copias completas de tus repositorios locales en segundo plano, como máximo una cada 24 horas cuando hay cambios. Puedes restaurarlas aunque se pierdan el repositorio original y su remoto.',
+  'settings.backup.enabled': 'Copias de seguridad automáticas',
+  'settings.backup.maxMiB': 'Límite global de espacio (MiB)',
+  'settings.backup.invalidLimit': 'Introduce un número entero entre {min} y {max}.',
+  'settings.backup.retention':
+    'Conserva hasta 7 versiones diarias, 4 semanales y 3 mensuales mientras haya espacio. La última copia válida de cada repositorio siempre se conserva.',
+  'settings.backup.total': 'Copias de seguridad: {size} de {limit}',
+  'settings.backup.overBudget':
+    'Las copias de seguridad guardadas superan el límite global de espacio. Se conserva la última copia válida de cada repositorio; las nuevas copias esperarán hasta que haya más espacio.',
+  'settings.backup.corruptNotice':
+    'Se detectaron datos de copias de seguridad dañados. Los puntos intactos siguen disponibles para restaurar. La depuración y la creación de nuevas copias están suspendidas para conservar los datos guardados.',
+  'settings.backup.points': 'Puntos de restauración de repositorios',
+  'settings.backup.empty': 'Todavía no hay copias de seguridad terminadas.',
+  'settings.backup.noPoints': 'Este repositorio todavía no tiene una copia de seguridad terminada.',
+  'settings.backup.lastCompleted': 'Última copia de seguridad terminada: {date}',
+  'settings.backup.pointSize': '{count} archivos · {size}',
+  'settings.backup.sizeMiB': '{size} MiB',
+  'settings.backup.restore': 'Restaurar en una carpeta nueva…',
+  'settings.backup.restoreTitle': 'Restaurar repositorio',
+  'settings.backup.restoreDescription':
+    'Se restaurará {repository} del {date} en una carpeta nueva. El repositorio original se conservará.',
+  'settings.backup.confirmRestore': 'Elegir carpeta y restaurar',
+  'settings.backup.restored': 'Repositorio restaurado en {path}.',
+  'settings.backup.refresh': 'Actualizar',
+  'settings.backup.error.unknown': 'No se ha podido completar la acción de copia de seguridad.',
+  'settings.backup.error.invalid':
+    'La copia de seguridad está incompleta o dañada y no se puede restaurar.',
+  'settings.backup.error.unavailable':
+    'No se ha podido acceder al almacenamiento de copias de seguridad. Comprueba el espacio disponible y los permisos.',
+  'settings.backup.error.destination':
+    'Elige una carpeta de destino nueva. No se pueden sobrescribir archivos existentes.',
+  'settings.backup.error.stale':
+    'La copia de seguridad ha cambiado o ya no está disponible. Actualiza e inténtalo de nuevo.',
+  'settings.backup.error.details': 'Detalles técnicos',
+  'settings.backup.status.idle': 'En espera de cambios',
+  'settings.backup.status.queued': 'Copia de seguridad en cola',
+  'settings.backup.status.running': 'Guardando copia de seguridad…',
+  'settings.backup.status.completed': 'Copia de seguridad terminada',
+  'settings.backup.status.unchanged': 'Sin cambios desde la última copia de seguridad',
+  'settings.backup.status.tooSoon': 'La próxima copia se guardará después de 24 horas',
+  'settings.backup.status.busy': 'Copia de seguridad pospuesta mientras el repositorio está en uso',
+  'settings.backup.status.overBudget':
+    'Sin nueva copia de seguridad: se ha alcanzado el límite global de espacio',
+  'settings.backup.status.failed':
+    'Ha fallado la copia de seguridad; el punto anterior se conserva',
+  'settings.backup.status.disabled': 'Copias de seguridad automáticas desactivadas',
+  'settings.backup.reason.changed':
+    'El repositorio ha cambiado durante la captura. GitThul volverá a intentarlo más tarde.',
+  'settings.backup.reason.incomplete':
+    'Este repositorio utiliza un almacenamiento que todavía no se puede copiar de forma independiente.',
+  'settings.backup.reason.io':
+    'Comprueba el espacio disponible en disco y los permisos de las carpetas.',
+  'settings.backup.reason.git': 'Git no ha podido verificar la copia de seguridad del repositorio.',
+  'settings.backup.reason.corrupt':
+    'No se han podido verificar los datos guardados de la copia de seguridad.',
+  'settings.storage.protectedCount': 'Elementos temporales protegidos: {count}.',
+  'settings.storage.uncertain':
+    'No se han podido verificar algunos datos temporales y se conservarán.',
   'settings.recovery.error.stale':
-    'El repositorio o el punto de recuperación ha cambiado. Actualiza la lista y vuelve a revisar antes de restaurar.',
+    'Los datos temporales han cambiado. Actualiza e intenta limpiar la caché de nuevo.',
   'settings.recovery.error.invalid':
-    'La copia no es válida o está incompleta. Puedes revisar los detalles; no se ha restaurado.',
+    'Algunos datos temporales están incompletos o dañados. GitThul los conserva para proteger el trabajo recuperable.',
   'settings.recovery.error.protected':
-    'El historial activo o una vista previa todavía necesita esta copia. Cierra la vista previa o libera ese historial antes de eliminarla.',
+    'Una operación activa o sin finalizar todavía necesita estos datos. GitThul los conservará hasta que se puedan eliminar de forma segura.',
   'settings.recovery.error.unavailable':
-    'No se pudo acceder al repositorio o a los respaldos. Comprueba la ruta, los permisos y el espacio disponible.',
+    'No se ha podido acceder a los archivos temporales. Comprueba la ruta, los permisos y el espacio disponible.',
   'settings.recovery.error.cancelled': 'La operación se canceló.',
-  'settings.recovery.error.unknown': 'No se pudo completar la acción de recuperación.',
-  'settings.recovery.error.details': 'Ver detalles técnicos',
-  'settings.recovery.overBudget':
-    'Los límites siguen excedidos porque {count} puntos están protegidos. La depuración los conservará hasta que dejen de estar pendientes o en uso.',
-  'settings.recovery.uncertain':
-    'Hay {count} grupos de respaldos incompletos o dañados. La depuración los conserva para evitar pérdidas. Abre la carpeta de recuperación y revisa sus archivos.',
-  'settings.recovery.configurationWarning':
-    'No se pudo leer la configuración de recuperación. La depuración automática está suspendida; guarda ajustes válidos para reactivarla.',
+  'settings.recovery.error.unknown': 'No se ha podido limpiar la caché.',
 };

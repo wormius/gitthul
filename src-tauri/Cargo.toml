@@ -5,7 +5,7 @@ description = "Cliente gráfico de Git multiplataforma, de código abierto y cla
 authors = ["GitThul"]
 license = "MIT"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.89"
 
 # El binario y la librería comparten nombre; `gitthul_lib` evita el choque en Windows.
 [lib]
@@ -20,6 +20,7 @@ encoding_rs = "=0.8.35"
 chardetng = "=0.1.17"
 getrandom = "=0.2.17"
 sha2 = "=0.10.9"
+flate2 = "=1.1.9"
 gix = { version = "0.86.0", default-features = false, features = ["sha1"] }
 keyring = { version = "=3.6.3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 notify = "8.2.0"

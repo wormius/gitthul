@@ -1835,67 +1835,88 @@ export const de: Messages = {
   'logs.debug': 'Debug',
   'logs.configure': 'Protokolle konfigurieren',
   'logs.technical': 'Technische Daten',
-  'settings.section.recovery': 'Wiederherstellung',
-  'settings.recovery.description':
-    'Wiederherstellungspunkte schützen Änderungen, die Git nicht aufbewahrt. Sie werden im privaten Ordner von GitThul außerhalb deiner Repositorys gespeichert und können nach einem Neustart geprüft werden.',
-  'settings.recovery.retentionHint':
-    'Die Grenzen gelten für jedes Repository einzeln. Die Bereinigung behält ausstehende Punkte, noch nicht abgeschlossene importierte Punkte und Punkte, die Undo/Redo noch benötigt, auch wenn sie die Grenzen überschreiten. Eine ausstehende Kopie kannst du nach der Prüfung löschen.',
-  'settings.recovery.autoCleanup': 'Automatische Bereinigung',
-  'settings.recovery.maxCheckpoints': 'Maximale Punkte pro Repository',
-  'settings.recovery.maxAgeDays': 'Maximales Alter (Tage)',
-  'settings.recovery.maxMiB': 'Maximaler Speicher pro Repository (MiB)',
-  'settings.recovery.invalidLimit': 'Gib eine ganze Zahl zwischen {min} und {max} ein.',
-  'settings.recovery.refresh': 'Liste aktualisieren',
-  'settings.recovery.import': 'Vorhandene Punkte importieren',
-  'settings.recovery.openDirectory': 'Wiederherstellungsordner öffnen',
-  'settings.recovery.cleanup': 'Jetzt bereinigen',
-  'settings.recovery.directory': 'Wiederherstellungsordner',
-  'settings.recovery.total': 'Punkte: {count} · insgesamt {size}',
-  'settings.recovery.pendingNotice': 'Zu prüfende Wiederherstellungspunkte: {count}.',
-  'settings.recovery.loading': 'Wiederherstellungspunkte werden gelesen…',
-  'settings.recovery.empty': 'Es wurden noch keine Wiederherstellungspunkte gespeichert.',
-  'settings.recovery.points': 'Gespeicherte Punkte',
-  'settings.recovery.savedState': 'Gespeicherter Zustand',
-  'settings.recovery.sizeMiB': '{size} MiB',
-  'settings.recovery.pointSize': 'Dateien: {count} · {size}',
-  'settings.recovery.status.pending': 'Ausstehend',
-  'settings.recovery.status.completed': 'Vorgang abgeschlossen',
-  'settings.recovery.status.legacy': 'Importiert',
-  'settings.recovery.active': 'Von Undo/Redo verwendet',
-  'settings.recovery.restore': 'Wiederherstellen…',
-  'settings.recovery.export': 'Dateien exportieren…',
-  'settings.recovery.remove': 'Kopie löschen…',
-  'settings.recovery.restoreTitle': 'Wiederherstellungspunkt wiederherstellen',
-  'settings.recovery.restoreGitDescription':
-    'In {repository} werden die {count} in diesem Punkt enthaltenen Dateien, der Staging-Index und die erfassten Git-Referenzen ersetzt. Spätere Änderungen in diesem Umfang werden durch den gespeicherten Zustand ersetzt.',
-  'settings.recovery.restoreFilesDescription':
-    'In {repository} werden die {count} in diesem Punkt enthaltenen Dateien ersetzt. Spätere Änderungen an diesen Dateien werden durch die gespeicherten Kopien ersetzt.',
-  'settings.recovery.confirmRestore': 'Sichern und wiederherstellen',
-  'settings.recovery.backupFirst':
-    'Vor der Wiederherstellung erstellt GitThul einen Wiederherstellungspunkt des aktuellen Zustands. Ändert sich das Repository nach dieser Vorschau, musst du sie erneut prüfen.',
-  'settings.recovery.previewPaths': 'Enthaltene Dateien: {count}',
-  'settings.recovery.morePaths': 'Und {count} weitere Dateien.',
-  'settings.recovery.cleanupDescription':
-    'Kopien, die die eingestellten Grenzen überschreiten, werden gelöscht. Ausstehende Punkte, noch nicht abgeschlossene importierte Punkte und Punkte, die Undo/Redo noch benötigt, bleiben erhalten. Repositorys und ihre Dateien bleiben unverändert.',
-  'settings.recovery.removeTitle': 'Diese Wiederherstellungskopie löschen',
-  'settings.recovery.removeDescription':
-    'Diese gespeicherte Kopie von {repository} wird gelöscht. Dateien und Git-Zustand des Repositorys bleiben unverändert. Die gelöschte Kopie kann mit GitThul nicht mehr wiederhergestellt werden.',
-  'settings.recovery.review': 'Wiederherstellung prüfen',
+  'settings.section.recovery': 'Sicherungen und Cache',
+  'settings.storage.title': 'Temporäre Dateien',
+  'settings.storage.description':
+    'GitThul verwaltet temporäre Wiederherstellungsdaten automatisch. Beim Leeren des Caches bleiben Daten für aktive Vorgänge und Notfallsicherungen erhalten.',
+  'settings.storage.total': 'Temporäre Dateien: {size}',
+  'settings.storage.protected':
+    'Daten für aktive oder noch nicht abgeschlossene Vorgänge sind geschützt.',
+  'settings.storage.cleanup': 'Cache leeren…',
+  'settings.storage.cleanupTitle': 'Temporäre Dateien entfernen',
+  'settings.storage.cleanupDescription':
+    'Nicht mehr benötigte temporäre Dateien werden gelöscht. Aktive Wiederherstellungsdaten und Notfallsicherungen bleiben erhalten.',
+  'settings.storage.confirmCleanup': 'Cache leeren',
+  'settings.storage.cleaned': '{size} freigegeben.',
+  'settings.storage.configurationWarning':
+    'Die automatische Bereinigung ist ausgesetzt, weil die Einstellungsdatei nicht gelesen werden konnte.',
+  'settings.storage.loading': 'Speicherbelegung wird gelesen…',
+  'settings.backup.title': 'Notfallsicherungen',
+  'settings.backup.description':
+    'GitThul sichert vollständige lokale Repositorys im Hintergrund, bei Änderungen höchstens einmal innerhalb von 24 Stunden. Die Sicherungen lassen sich auch wiederherstellen, wenn das ursprüngliche Repository und sein Remote verloren gehen.',
+  'settings.backup.enabled': 'Automatische Sicherungen',
+  'settings.backup.maxMiB': 'Globales Speicherlimit (MiB)',
+  'settings.backup.invalidLimit': 'Gib eine ganze Zahl zwischen {min} und {max} ein.',
+  'settings.backup.retention':
+    'Bei ausreichend Speicher bleiben bis zu 7 tägliche, 4 wöchentliche und 3 monatliche Versionen erhalten. Die letzte gültige Sicherung jedes Repositorys wird immer behalten.',
+  'settings.backup.total': 'Sicherungen: {size} von {limit}',
+  'settings.backup.overBudget':
+    'Die gespeicherten Sicherungen überschreiten das globale Speicherlimit. Die letzte gültige Sicherung jedes Repositorys bleibt erhalten; neue Sicherungen warten, bis mehr Speicherplatz verfügbar ist.',
+  'settings.backup.corruptNotice':
+    'Beschädigte Sicherungsdaten wurden erkannt. Intakte Wiederherstellungspunkte bleiben zum Wiederherstellen verfügbar. Bereinigung und Erstellung neuer Sicherungen sind ausgesetzt, um die gespeicherten Daten zu erhalten.',
+  'settings.backup.points': 'Wiederherstellungspunkte für Repositorys',
+  'settings.backup.empty': 'Es gibt noch keine abgeschlossenen Sicherungen.',
+  'settings.backup.noPoints': 'Für dieses Repository gibt es noch keine abgeschlossene Sicherung.',
+  'settings.backup.lastCompleted': 'Letzte abgeschlossene Sicherung: {date}',
+  'settings.backup.pointSize': '{count} Dateien · {size}',
+  'settings.backup.sizeMiB': '{size} MiB',
+  'settings.backup.restore': 'In einem neuen Ordner wiederherstellen…',
+  'settings.backup.restoreTitle': 'Repository wiederherstellen',
+  'settings.backup.restoreDescription':
+    '{repository} vom {date} wird in einem neuen Ordner wiederhergestellt. Das ursprüngliche Repository bleibt erhalten.',
+  'settings.backup.confirmRestore': 'Ordner wählen und wiederherstellen',
+  'settings.backup.restored': 'Repository in {path} wiederhergestellt.',
+  'settings.backup.refresh': 'Aktualisieren',
+  'settings.backup.error.unknown': 'Die Sicherungsaktion konnte nicht abgeschlossen werden.',
+  'settings.backup.error.invalid':
+    'Die Sicherung ist unvollständig oder beschädigt und kann nicht wiederhergestellt werden.',
+  'settings.backup.error.unavailable':
+    'Der Sicherungsspeicher ist nicht zugänglich. Prüfe den freien Speicherplatz und die Berechtigungen.',
+  'settings.backup.error.destination':
+    'Wähle einen neuen Zielordner. Vorhandene Dateien können nicht überschrieben werden.',
+  'settings.backup.error.stale':
+    'Die Sicherung hat sich geändert oder ist nicht mehr verfügbar. Aktualisiere die Liste und versuche es erneut.',
+  'settings.backup.error.details': 'Technische Details',
+  'settings.backup.status.idle': 'Warten auf Änderungen',
+  'settings.backup.status.queued': 'Sicherung eingeplant',
+  'settings.backup.status.running': 'Sicherung läuft…',
+  'settings.backup.status.completed': 'Sicherung abgeschlossen',
+  'settings.backup.status.unchanged': 'Keine Änderungen seit der letzten Sicherung',
+  'settings.backup.status.tooSoon': 'Die nächste Sicherung erfolgt nach 24 Stunden',
+  'settings.backup.status.busy': 'Sicherung verschoben, solange das Repository in Verwendung ist',
+  'settings.backup.status.overBudget': 'Keine neue Sicherung: globales Speicherlimit erreicht',
+  'settings.backup.status.failed':
+    'Sicherung fehlgeschlagen; der vorherige Wiederherstellungspunkt bleibt erhalten',
+  'settings.backup.status.disabled': 'Automatische Sicherungen deaktiviert',
+  'settings.backup.reason.changed':
+    'Das Repository hat sich während der Sicherung geändert. GitThul versucht es später erneut.',
+  'settings.backup.reason.incomplete':
+    'Dieses Repository verwendet einen Speicher, der noch nicht eigenständig gesichert werden kann.',
+  'settings.backup.reason.io': 'Prüfe den freien Speicherplatz und die Ordnerberechtigungen.',
+  'settings.backup.reason.git': 'Git konnte die Repository-Sicherung nicht überprüfen.',
+  'settings.backup.reason.corrupt':
+    'Die gespeicherten Sicherungsdaten konnten nicht überprüft werden.',
+  'settings.storage.protectedCount': 'Geschützte temporäre Einträge: {count}.',
+  'settings.storage.uncertain':
+    'Einige temporäre Daten konnten nicht überprüft werden und bleiben erhalten.',
   'settings.recovery.error.stale':
-    'Das Repository oder der Wiederherstellungspunkt hat sich geändert. Aktualisiere die Liste und prüfe den Punkt vor der Wiederherstellung erneut.',
+    'Die temporären Daten haben sich geändert. Aktualisiere die Ansicht und versuche erneut, den Cache zu leeren.',
   'settings.recovery.error.invalid':
-    'Die Kopie ist ungültig oder unvollständig. Du kannst die Details prüfen; sie wurde nicht wiederhergestellt.',
+    'Einige temporäre Daten sind unvollständig oder beschädigt. GitThul behält sie, um wiederherstellbare Arbeit zu schützen.',
   'settings.recovery.error.protected':
-    'Der aktive Verlauf oder eine Vorschau benötigt diese Kopie noch. Schließe die Vorschau oder gib den Verlauf frei, bevor du sie löschst.',
+    'Ein aktiver oder noch nicht abgeschlossener Vorgang benötigt diese Daten. GitThul behält sie, bis sie sicher entfernt werden können.',
   'settings.recovery.error.unavailable':
-    'Zugriff auf das Repository oder die Sicherungen ist fehlgeschlagen. Prüfe den Pfad, die Berechtigungen und den verfügbaren Speicherplatz.',
+    'Die temporären Dateien sind nicht zugänglich. Prüfe den Pfad, die Berechtigungen und den verfügbaren Speicherplatz.',
   'settings.recovery.error.cancelled': 'Der Vorgang wurde abgebrochen.',
-  'settings.recovery.error.unknown': 'Die Wiederherstellung konnte nicht ausgeführt werden.',
-  'settings.recovery.error.details': 'Technische Details anzeigen',
-  'settings.recovery.overBudget':
-    'Die Grenzen bleiben überschritten, da {count} Punkte geschützt sind. Die Bereinigung behält sie, solange sie ausstehend oder in Verwendung sind.',
-  'settings.recovery.uncertain':
-    'Es gibt {count} unvollständige oder beschädigte Sicherungsgruppen. Die Bereinigung behält sie, um Datenverlust zu vermeiden. Öffne den Wiederherstellungsordner und prüfe ihre Dateien.',
-  'settings.recovery.configurationWarning':
-    'Die Wiederherstellungskonfiguration konnte nicht gelesen werden. Die automatische Bereinigung ist ausgesetzt. Speichere gültige Einstellungen, um sie wieder zu aktivieren.',
+  'settings.recovery.error.unknown': 'Der Cache konnte nicht geleert werden.',
 };

@@ -3,56 +3,71 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortsContext } from '@app/PortsContext';
 import { selectPorts } from '@core/adapters/selectPorts';
-import {
-  RecoveryOperationError,
-  type RecoveryPreview,
-  type RecoverySnapshot,
-} from '@core/domain/recovery';
+import { BackupOperationError, type BackupSnapshot } from '@core/domain/backup';
+import { RecoveryOperationError, type RecoverySnapshot } from '@core/domain/recovery';
+import type { BackupPort } from '@core/ports/BackupPort';
 import type { RecoveryPort } from '@core/ports/RecoveryPort';
 import { DEFAULT_SETTINGS } from '@core/domain/settings';
 import { I18nProvider } from '@i18n/I18nProvider';
 import { RecoverySection } from './RecoverySection';
 import { initSettingsData } from './useSettingsData';
 
-const snapshot: RecoverySnapshot = {
+const cache: RecoverySnapshot = {
   directory: '/mock/data/recovery',
   totalBytes: 1048576,
+  protectedCount: 1,
   checkpoints: [
     {
-      id: 'point-1',
-      repository: '/repos/example',
+      id: 'internal-point',
+      repository: '/private/internal-repo',
       createdAt: 1728000000000,
       label: 'undo.reset',
       status: 'pending',
       fileCount: 2,
       bytes: 1048576,
-      active: false,
+      active: true,
     },
   ],
 };
-const preview: RecoveryPreview = {
-  token: 'confirmed-state',
-  repository: '/repos/example',
-  fileCount: 2,
-  paths: ['src/file.ts', 'untracked.txt'],
-  includesGitState: true,
+const catalog: BackupSnapshot = {
+  directory: '/mock/data/backups',
+  totalBytes: 2097152,
+  maxBytes: 1073741824,
+  enabled: true,
+  corruptPoints: 0,
+  repositories: [
+    {
+      id: 'example',
+      name: 'example',
+      repository: '/deleted/example',
+      status: 'completed',
+      lastCompletedAt: 1728000000000,
+      points: [{ id: 'complete-point', createdAt: 1728000000000, bytes: 2097152, fileCount: 10 }],
+    },
+  ],
 };
 
-function setup(overrides: Partial<RecoveryPort> = {}) {
+function setup({
+  recovery: recoveryOverrides = {},
+  backup: backupOverrides = {},
+}: {
+  recovery?: Partial<RecoveryPort>;
+  backup?: Partial<BackupPort>;
+} = {}) {
   const ports = selectPorts();
   const recovery = {
-    read: vi.fn(() => Promise.resolve(structuredClone(snapshot))),
-    cleanup: vi.fn(() => Promise.resolve({ removed: 0, freedBytes: 0 })),
-    importLegacy: vi.fn(() => Promise.resolve(0)),
-    remove: vi.fn((_id: string) => Promise.resolve()),
-    preview: vi.fn((_id: string) => Promise.resolve(preview)),
-    restore: vi.fn((_token: string) => Promise.resolve()),
-    cancelPreview: vi.fn((_token: string) => Promise.resolve()),
-    export: vi.fn((_id: string) => Promise.resolve(true)),
-    openDirectory: vi.fn(() => Promise.resolve()),
-    ...overrides,
+    read: vi.fn(() => Promise.resolve(structuredClone(cache))),
+    cleanup: vi.fn(() => Promise.resolve({ removed: 1, freedBytes: 1048576 })),
+    ...recoveryOverrides,
   } satisfies RecoveryPort;
+  const backup = {
+    read: vi.fn(() => Promise.resolve(structuredClone(catalog))),
+    schedule: vi.fn((_repository: string) => Promise.resolve()),
+    restore: vi.fn((_id: string) => Promise.resolve({ path: '/restored/example' })),
+    ...backupOverrides,
+  } satisfies BackupPort;
   ports.recovery = recovery;
+  ports.backup = backup;
   const view = render(
     <PortsContext value={ports}>
       <I18nProvider initialLocale="es-MX">
@@ -60,7 +75,7 @@ function setup(overrides: Partial<RecoveryPort> = {}) {
       </I18nProvider>
     </PortsContext>,
   );
-  return { ports, recovery, ...view };
+  return { ports, recovery, backup, ...view };
 }
 
 beforeEach(() => {
@@ -68,211 +83,438 @@ beforeEach(() => {
   initSettingsData(DEFAULT_SETTINGS);
 });
 
-describe('RecoverySection', () => {
-  it('muestra la depuración suspendida por configuración inválida y la reactiva al guardar ajustes válidos', async () => {
-    const user = userEvent.setup();
-    const read = vi.fn(() =>
-      Promise.resolve({ ...snapshot, configurationWarning: true } as RecoverySnapshot),
+describe('Backups and cache', () => {
+  it('shows complete repository backups and cache usage without exposing internal snapshots', async () => {
+    setup();
+    expect(await screen.findByText('/deleted/example')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Archivos temporales' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Respaldos de emergencia' })).toBeVisible();
+    expect(screen.getByText(/Último respaldo terminado:/)).toBeVisible();
+    expect(screen.getByRole('spinbutton', { name: 'Límite global de espacio (MiB)' })).toHaveValue(
+      1024,
     );
-    const { ports } = setup({ read });
-    expect(await screen.findByText(/depuración automática está suspendida/)).toBeVisible();
-    const toggle = screen.getByRole('switch', { name: 'Depuración automática' });
-    expect(toggle).not.toBeChecked();
-    read.mockResolvedValueOnce({ ...snapshot, configurationWarning: false });
-    await user.click(toggle);
-    await waitFor(() => expect(toggle).toBeChecked());
-    expect(screen.queryByText(/depuración automática está suspendida/)).not.toBeInTheDocument();
-    expect((await ports.settings.read()).recovery.autoCleanup).toBe(true);
-    expect(read).toHaveBeenCalledTimes(2);
-  });
-  it('descubre las copias persistidas y su aviso pendiente cada vez que se monta', async () => {
-    const first = setup();
-    expect(await screen.findByText('/repos/example')).toBeVisible();
-    expect(screen.getByText('Puntos por revisar: 1.')).toBeVisible();
-    expect(screen.getByText('/mock/data/recovery')).toBeVisible();
-    expect(screen.getByText('Hacer reset')).toBeVisible();
-    first.unmount();
-    const next = setup();
-    await screen.findByText('/repos/example');
-    expect(next.recovery.read).toHaveBeenCalledOnce();
+    expect(screen.getByRole('switch', { name: 'Respaldos automáticos' })).toBeChecked();
+    expect(screen.queryByText('/private/internal-repo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Hacer reset')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Importar|Exportar|Eliminar copia/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: 'Depuración automática' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('spinbutton')).toHaveLength(1);
   });
 
-  it('solo restaura después de mostrar el alcance y confirmar el token inspeccionado', async () => {
+  it('clears unused cache only after confirmation and keeps emergency backups restorable', async () => {
     const user = userEvent.setup();
-    const { recovery } = setup();
-    await user.click(await screen.findByRole('button', { name: 'Restaurar…' }));
-    const dialog = await screen.findByRole('dialog');
-    expect(dialog).toHaveTextContent('índice de staging y las referencias Git');
-    expect(dialog).toHaveTextContent('src/file.ts');
-    expect(dialog).toHaveTextContent('punto de recuperación del estado actual');
-    expect(recovery.restore).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole('button', { name: 'Crear respaldo y restaurar' }));
+    const { recovery, backup } = setup();
+    await user.click(await screen.findByRole('button', { name: 'Limpiar caché…' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent(
+      'Se conservarán los datos de recuperación activos y los respaldos de emergencia',
+    );
+    expect(recovery.cleanup).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Limpiar caché' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(recovery.preview).toHaveBeenCalledWith('point-1');
-    expect(recovery.restore).toHaveBeenCalledWith('confirmed-state');
-    expect(recovery.cancelPreview).toHaveBeenCalledWith('confirmed-state');
-    expect(recovery.read).toHaveBeenCalledTimes(2);
+    expect(recovery.cleanup).toHaveBeenCalledOnce();
+    expect(backup.restore).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Restaurar en una carpeta nueva…' })).toBeEnabled();
+    expect(await screen.findByText('Se liberaron 1 MiB.')).toBeVisible();
   });
 
-  it('cancelar libera la vista previa sin restaurar y devuelve el foco', async () => {
+  it('a cache cleanup refusal keeps the confirmation open and describes the protected data', async () => {
     const user = userEvent.setup();
-    const { recovery } = setup();
-    const button = await screen.findByRole('button', { name: 'Restaurar…' });
+    setup({
+      recovery: {
+        cleanup: vi.fn(() => Promise.reject(new RecoveryOperationError('recovery.protected'))),
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: 'Limpiar caché…' }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Limpiar caché' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/operación|historial/);
+    expect(dialog).toBeVisible();
+  });
+
+  it('only restores the selected complete point after reviewing date and new folder requirement', async () => {
+    const user = userEvent.setup();
+    const { backup, recovery } = setup();
+    await user.click(
+      await screen.findByRole('button', { name: 'Restaurar en una carpeta nueva…' }),
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('example');
+    expect(dialog).toHaveTextContent('en una carpeta nueva');
+    expect(dialog).toHaveTextContent('El repositorio original se conservará');
+    expect(backup.restore).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Elegir carpeta y restaurar' }));
+    await waitFor(() => expect(backup.restore).toHaveBeenCalledWith('complete-point'));
+    expect(await screen.findByText('Repositorio restaurado en /restored/example.')).toBeVisible();
+    expect(recovery.cleanup).not.toHaveBeenCalled();
+  });
+
+  it('canceling review does not restore and returns focus to the selected point', async () => {
+    const user = userEvent.setup();
+    const { backup } = setup();
+    const button = await screen.findByRole('button', { name: 'Restaurar en una carpeta nueva…' });
     await user.click(button);
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(recovery.cancelPreview).toHaveBeenCalledWith('confirmed-state');
-    expect(recovery.restore).not.toHaveBeenCalled();
+    expect(backup.restore).not.toHaveBeenCalled();
     expect(button).toHaveFocus();
   });
 
-  it('abandonar la sección libera una vista previa pendiente de respuesta', async () => {
-    let resolve!: (value: RecoveryPreview) => void;
-    const pending = new Promise<RecoveryPreview>((complete) => {
-      resolve = complete;
-    });
-    const { recovery, unmount } = setup({ preview: vi.fn(() => pending) });
-    fireEvent.click(await screen.findByRole('button', { name: 'Restaurar…' }));
-    await waitFor(() => expect(recovery.preview).toHaveBeenCalledOnce());
-    unmount();
-    await act(async () => {
-      resolve(preview);
-      await pending;
-    });
-    expect(recovery.cancelPreview).toHaveBeenCalledWith('confirmed-state');
-    expect(recovery.restore).not.toHaveBeenCalled();
-  });
-
-  it('muestra un estado cambiado en vez de afirmar éxito y exige otra vista previa', async () => {
+  it('canceling the native folder selector is not reported as an error or successful restore', async () => {
     const user = userEvent.setup();
-    const failure = new RecoveryOperationError('recovery.stale', 'HEAD changed after preview');
-    const { recovery } = setup({ restore: vi.fn(() => Promise.reject(failure)) });
-    await user.click(await screen.findByRole('button', { name: 'Restaurar…' }));
+    setup({ backup: { restore: vi.fn(() => Promise.resolve(null)) } });
     await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', {
-        name: 'Crear respaldo y restaurar',
+      await screen.findByRole('button', { name: 'Restaurar en una carpeta nueva…' }),
+    );
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Elegir carpeta y restaurar',
       }),
     );
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'vuelve a revisar antes de restaurar',
-    );
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    await user.click(screen.getByText('Ver detalles técnicos'));
-    expect(screen.getByText('HEAD changed after preview')).toBeVisible();
-    expect(recovery.read).toHaveBeenCalledOnce();
-  });
-
-  it('exporta sin restaurar; cerrar el selector no produce un error', async () => {
-    const user = userEvent.setup();
-    const { recovery } = setup({ export: vi.fn(() => Promise.resolve(false)) });
-    await user.click(await screen.findByRole('button', { name: 'Exportar archivos…' }));
-    await waitFor(() => expect(recovery.export).toHaveBeenCalledWith('point-1'));
-    expect(recovery.restore).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Repositorio restaurado en/)).not.toBeInTheDocument();
   });
 
-  it('guarda los límites y la limpieza automática sin perder otros ajustes', async () => {
+  it('an invalid destination keeps the confirmation and displays native error detail without claiming success', async () => {
+    const user = userEvent.setup();
+    setup({
+      backup: {
+        restore: vi.fn(() =>
+          Promise.reject(new BackupOperationError('backup.destination', 'Destination exists')),
+        ),
+      },
+    });
+    await user.click(
+      await screen.findByRole('button', { name: 'Restaurar en una carpeta nueva…' }),
+    );
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Elegir carpeta y restaurar' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'No se pueden sobrescribir archivos existentes',
+    );
+    await user.click(within(dialog).getByText('Detalles técnicos'));
+    expect(within(dialog).getByText('Destination exists')).toBeVisible();
+    expect(screen.queryByText(/Repositorio restaurado en/)).not.toBeInTheDocument();
+  });
+
+  it('failed backup with no completed point never exposes a restore action', async () => {
+    setup({
+      backup: {
+        read: vi.fn(() =>
+          Promise.resolve({
+            ...catalog,
+            repositories: catalog.repositories.map((repo) => ({
+              ...repo,
+              status: 'overBudget' as const,
+              lastCompletedAt: null,
+              points: [],
+            })),
+          }),
+        ),
+      },
+    });
+    expect(
+      await screen.findByText('Sin nuevo respaldo: se alcanzó el límite global de espacio'),
+    ).toBeVisible();
+    expect(
+      screen.getByText('Este repositorio todavía no tiene un respaldo terminado.'),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Restaurar en una carpeta nueva…' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Último respaldo terminado:/)).not.toBeInTheDocument();
+  });
+
+  it('saving the global budget preserves other preferences and stopping automatic copies keeps existing points', async () => {
     const user = userEvent.setup();
     const { ports } = setup();
-    const limit = screen.getByRole('spinbutton', { name: 'Máximo de puntos por repositorio' });
+    await screen.findByText('/deleted/example');
+    const limit = screen.getByRole('spinbutton', { name: 'Límite global de espacio (MiB)' });
     await user.clear(limit);
-    await user.type(limit, '25');
+    await user.type(limit, '512');
     await user.tab();
-    await waitFor(async () =>
-      expect((await ports.settings.read()).recovery.maxCheckpoints).toBe(25),
-    );
-    await user.click(screen.getByRole('switch', { name: 'Depuración automática' }));
-    await waitFor(async () =>
-      expect((await ports.settings.read()).recovery.autoCleanup).toBe(false),
-    );
-    expect((await ports.settings.read()).recovery.maxAgeDays).toBe(30);
-    expect((await ports.settings.read()).appearance).toEqual(DEFAULT_SETTINGS.appearance);
+    await waitFor(async () => expect((await ports.settings.read()).backup.maxMiB).toBe(512));
+    await user.click(screen.getByRole('switch', { name: 'Respaldos automáticos' }));
+    await waitFor(async () => expect((await ports.settings.read()).backup.enabled).toBe(false));
+    expect(screen.getByRole('button', { name: 'Restaurar en una carpeta nueva…' })).toBeEnabled();
+    const settings = await ports.settings.read();
+    expect(settings.recovery).toEqual(DEFAULT_SETTINGS.recovery);
+    expect(settings.appearance).toEqual(DEFAULT_SETTINGS.appearance);
   });
 
-  it('rechaza límites inválidos y un fallo de disco revierte el cambio', async () => {
+  it('rejects an invalid budget and rolls back an enable preference if persistence fails', async () => {
     const user = userEvent.setup();
     const { ports } = setup();
-    const limit = screen.getByRole('spinbutton', { name: 'Antigüedad máxima (días)' });
+    await screen.findByText('/deleted/example');
+    const limit = screen.getByRole('spinbutton', { name: 'Límite global de espacio (MiB)' });
     await user.clear(limit);
     await user.type(limit, '0');
     await user.tab();
-    expect(await screen.findByRole('alert')).toHaveTextContent('entre 1 y 3650');
-    expect((await ports.settings.read()).recovery.maxAgeDays).toBe(30);
+    expect(await screen.findByRole('alert')).toHaveTextContent('entre 1 y 1048576');
+    expect((await ports.settings.read()).backup.maxMiB).toBe(1024);
     vi.spyOn(ports.settings, 'patch').mockRejectedValueOnce(new Error('disk full'));
-    await user.click(screen.getByRole('switch', { name: 'Depuración automática' }));
+    await user.click(screen.getByRole('switch', { name: 'Respaldos automáticos' }));
     await waitFor(() => expect(screen.getByRole('switch')).toBeChecked());
-    expect(screen.getByText('No se pudo completar la acción de recuperación.')).toBeVisible();
+    expect(screen.getByText('No se pudo completar la acción de respaldo.')).toBeVisible();
   });
 
-  it('limpia solo después de confirmar y descubre los resultados actualizados', async () => {
+  it('does not discard saved settings if only rereading backup status fails', async () => {
     const user = userEvent.setup();
-    const { recovery } = setup();
-    await screen.findByText('/repos/example');
-    await user.click(screen.getByRole('button', { name: 'Depurar ahora' }));
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('Se conservarán los puntos pendientes');
-    expect(recovery.cleanup).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole('button', { name: 'Depurar ahora' }));
-    await waitFor(() => expect(recovery.read).toHaveBeenCalledTimes(2));
-    expect(recovery.cleanup).toHaveBeenCalledOnce();
+    const read = vi.fn(() => Promise.resolve(catalog));
+    const { ports } = setup({ backup: { read } });
+    await screen.findByText('/deleted/example');
+    read.mockRejectedValueOnce(new Error('read failed'));
+    await user.click(screen.getByRole('switch', { name: 'Respaldos automáticos' }));
+    expect(await screen.findByText('No se pudo completar la acción de respaldo.')).toBeVisible();
+    expect((await ports.settings.read()).backup.enabled).toBe(false);
+    expect(screen.getByRole('switch')).not.toBeChecked();
   });
 
-  it('eliminar una copia pide confirmación y los puntos activos mantienen exportación disponible', async () => {
-    const user = userEvent.setup();
-    const { recovery } = setup();
-    await user.click(await screen.findByRole('button', { name: 'Eliminar copia…' }));
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('No se modificarán los archivos ni el estado Git');
-    expect(recovery.remove).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole('button', { name: 'Eliminar copia…' }));
-    await waitFor(() => expect(recovery.remove).toHaveBeenCalledWith('point-1'));
-  });
-
-  it('explica los puntos protegidos y las copias incompletas sin borrarlas', async () => {
-    const active: RecoverySnapshot = {
-      ...snapshot,
-      overBudget: true,
-      protectedCount: 1,
-      uncertainBuckets: 2,
-      checkpoints: snapshot.checkpoints.map((point) => ({
-        ...point,
-        active: true,
-        status: 'legacy',
-      })),
-    };
-    const { recovery } = setup({ read: vi.fn(() => Promise.resolve(active)) });
-    await screen.findByText('/repos/example');
-    expect(screen.getByRole('button', { name: 'Eliminar copia…' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Exportar archivos…' })).toBeEnabled();
-    expect(screen.getByText(/límites siguen excedidos/)).toBeVisible();
-    expect(screen.getByText(/grupos de respaldos incompletos/)).toBeVisible();
-    expect(screen.getByText('Puntos por revisar: 1.')).toBeVisible();
-    expect(recovery.cleanup).not.toHaveBeenCalled();
-  });
-
-  it('un rechazo al eliminar mantiene la confirmación y explica el fallo dentro del diálogo', async () => {
-    const user = userEvent.setup();
-    setup({
-      remove: vi.fn(() => Promise.reject(new RecoveryOperationError('recovery.protected'))),
+  it('ignores a late initial read after leaving the section', async () => {
+    let resolve!: (value: BackupSnapshot) => void;
+    const pending = new Promise<BackupSnapshot>((complete) => {
+      resolve = complete;
     });
-    await user.click(await screen.findByRole('button', { name: 'Eliminar copia…' }));
-    const dialog = screen.getByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Eliminar copia…' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('historial activo');
-    expect(screen.getByRole('dialog')).toBeVisible();
+    const { unmount } = setup({ backup: { read: vi.fn(() => pending) } });
+    unmount();
+    await act(async () => {
+      resolve(catalog);
+      await pending;
+    });
+    expect(screen.queryByText('/deleted/example')).not.toBeInTheDocument();
   });
 
-  it('importa solo tras la acción explícita y conserva el detalle de permisos', async () => {
+  it('explains unreadable settings and uncertain cache without presenting internal restore points', async () => {
+    setup({
+      recovery: {
+        read: vi.fn(() =>
+          Promise.resolve({ ...cache, configurationWarning: true, uncertainBuckets: 1 }),
+        ),
+      },
+    });
+    expect(await screen.findByText(/depuración automática está suspendida/)).toBeVisible();
+    expect(screen.getByText(/no pudieron verificarse|no se pudieron verificar/i)).toBeVisible();
+    expect(screen.queryByText('/private/internal-repo')).not.toBeInTheDocument();
+  });
+
+  it('refreshing storage does not schedule backups or restore anything', async () => {
+    const { backup } = setup();
+    await screen.findByText('/deleted/example');
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar' }));
+    await waitFor(() => expect(backup.read).toHaveBeenCalledTimes(2));
+    expect(backup.schedule).not.toHaveBeenCalled();
+    expect(backup.restore).not.toHaveBeenCalled();
+  });
+
+  it('an unavailable backup store is not mislabeled as an empty catalog and cache remains independent', async () => {
     const user = userEvent.setup();
-    const failure = new RecoveryOperationError('recovery.unavailable', 'Permission denied');
-    const { recovery } = setup();
-    expect(recovery.importLegacy).not.toHaveBeenCalled();
-    recovery.importLegacy = vi.fn(() => Promise.reject(failure));
-    await user.click(screen.getByRole('button', { name: 'Importar puntos existentes' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('permisos');
-    await user.click(screen.getByText('Ver detalles técnicos'));
-    expect(screen.getByText('Permission denied')).toBeVisible();
+    const { recovery } = setup({
+      backup: {
+        read: vi.fn(() => Promise.reject(new BackupOperationError('backup.unavailable'))),
+      },
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se pudo acceder al almacenamiento de respaldos',
+    );
+    expect(screen.queryByText('Todavía no hay respaldos terminados.')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Limpiar caché…' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Limpiar caché' }),
+    );
+    await waitFor(() => expect(recovery.cleanup).toHaveBeenCalledOnce());
+    expect(await screen.findByText('Se liberaron 1 MiB.')).toBeVisible();
+  });
+
+  it('queued background work updates completed restore points without any restore or scheduling action', async () => {
+    vi.useFakeTimers();
+    try {
+      const queued: BackupSnapshot = {
+        ...catalog,
+        repositories: catalog.repositories.map((repo) => ({
+          ...repo,
+          status: 'queued',
+          points: [],
+          lastCompletedAt: null,
+        })),
+      };
+      const read = vi.fn().mockResolvedValueOnce(queued).mockResolvedValue(catalog);
+      const { backup } = setup({ backup: { read } });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByText('Respaldo en cola')).toBeVisible();
+      expect(
+        screen.queryByRole('button', { name: 'Restaurar en una carpeta nueva…' }),
+      ).not.toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(screen.getByText('Respaldo terminado')).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Restaurar en una carpeta nueva…' })).toBeEnabled();
+      expect(backup.schedule).not.toHaveBeenCalled();
+      expect(backup.restore).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a late polling response cannot replace the catalog read after changing backup preferences', async () => {
+    vi.useFakeTimers();
+    try {
+      const queued: BackupSnapshot = {
+        ...catalog,
+        repositories: catalog.repositories.map((repo) => ({ ...repo, status: 'queued' })),
+      };
+      let resolve!: (value: BackupSnapshot) => void;
+      const delayed = new Promise<BackupSnapshot>((complete) => {
+        resolve = complete;
+      });
+      const read = vi
+        .fn()
+        .mockResolvedValueOnce(queued)
+        .mockResolvedValueOnce(delayed)
+        .mockResolvedValue(catalog);
+      setup({ backup: { read } });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      fireEvent.click(screen.getByRole('switch', { name: 'Respaldos automáticos' }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByText('Respaldo terminado')).toBeVisible();
+      await act(async () => {
+        resolve(queued);
+        await delayed;
+      });
+      expect(screen.queryByText('Respaldo en cola')).not.toBeInTheDocument();
+      expect(screen.getByText('Respaldo terminado')).toBeVisible();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(['idle', 'tooSoon'] as const)(
+    'observes a scheduled native job from %s while the section stays open',
+    async (status) => {
+      vi.useFakeTimers();
+      try {
+        const idle: BackupSnapshot = {
+          ...catalog,
+          repositories: catalog.repositories.map((repo) => ({ ...repo, status })),
+        };
+        const running: BackupSnapshot = {
+          ...catalog,
+          repositories: catalog.repositories.map((repo) => ({ ...repo, status: 'running' })),
+        };
+        const read = vi
+          .fn()
+          .mockResolvedValueOnce(idle)
+          .mockResolvedValueOnce(running)
+          .mockResolvedValue(catalog);
+        const { backup } = setup({ backup: { read } });
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(read).toHaveBeenCalledOnce();
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(29999);
+        });
+        expect(read).toHaveBeenCalledOnce();
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        expect(screen.getByText('Guardando respaldo…')).toBeVisible();
+        expect(read).toHaveBeenCalledTimes(2);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(4999);
+        });
+        expect(read).toHaveBeenCalledTimes(2);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        expect(screen.getByText('Respaldo terminado')).toBeVisible();
+        expect(read).toHaveBeenCalledTimes(3);
+        expect(backup.schedule).not.toHaveBeenCalled();
+        expect(backup.restore).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it('stops idle polling when automatic backups are disabled or the section is closed', async () => {
+    vi.useFakeTimers();
+    try {
+      initSettingsData({
+        ...DEFAULT_SETTINGS,
+        backup: { ...DEFAULT_SETTINGS.backup, enabled: false },
+      });
+      const { backup, unmount } = setup();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60000);
+      });
+      expect(backup.read).toHaveBeenCalledOnce();
+      act(() => {
+        initSettingsData(DEFAULT_SETTINGS);
+      });
+      unmount();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60000);
+      });
+      expect(backup.read).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('warns when reducing the global budget below protected backup usage and preserves restoration', async () => {
+    const user = userEvent.setup();
+    const read = vi.fn(() => Promise.resolve(catalog));
+    const { backup, ports } = setup({ backup: { read } });
+    await screen.findByText('/deleted/example');
+    expect(screen.queryByText(/respaldos guardados superan/i)).not.toBeInTheDocument();
+    read.mockResolvedValueOnce({ ...catalog, maxBytes: 1048576 });
+    const limit = screen.getByRole('spinbutton', { name: 'Límite global de espacio (MiB)' });
+    await user.clear(limit);
+    await user.type(limit, '1');
+    await user.tab();
+    expect(await screen.findByText(/respaldos guardados superan/i)).toHaveTextContent(
+      /último respaldo válido/i,
+    );
+    expect((await ports.settings.read()).backup.maxMiB).toBe(1);
+    expect(screen.getByRole('button', { name: 'Restaurar en una carpeta nueva…' })).toBeEnabled();
+    expect(backup.restore).not.toHaveBeenCalled();
+    expect(backup.schedule).not.toHaveBeenCalled();
+  });
+
+  it('warns about damaged points and paused automatic captures while healthy points stay restorable', async () => {
+    const user = userEvent.setup();
+    const { backup } = setup({
+      backup: {
+        read: vi.fn(() => Promise.resolve({ ...catalog, corruptPoints: 2 })),
+      },
+    });
+    const warning = await screen.findByRole('alert');
+    expect(warning).toHaveTextContent('Se detectaron datos de respaldo dañados.');
+    expect(warning).toHaveTextContent('Los puntos sanos siguen disponibles para restaurar.');
+    expect(warning).toHaveTextContent('suspendidas');
+    expect(screen.getByRole('button', { name: 'Restaurar en una carpeta nueva…' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Restaurar en una carpeta nueva…' }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Elegir carpeta y restaurar',
+      }),
+    );
+    await waitFor(() => expect(backup.restore).toHaveBeenCalledWith('complete-point'));
   });
 });

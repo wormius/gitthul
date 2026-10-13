@@ -4,16 +4,14 @@ import type { TerminalExit } from '@core/ports/TerminalPort';
 import { logOperation } from './logOperation';
 
 const LABELS: Record<string, Record<string, string>> = {
+  backup: {
+    read: 'leer respaldos de emergencia',
+    schedule: 'programar respaldo de repositorio',
+    restore: 'restaurar repositorio en carpeta nueva',
+  },
   recovery: {
     read: 'leer puntos de recuperación',
-    cleanup: 'depurar respaldos de recuperación',
-    importLegacy: 'importar copias existentes de recuperación',
-    remove: 'eliminar copia de recuperación',
-    preview: 'previsualizar recuperación',
-    restore: 'restaurar un punto de recuperación',
-    cancelPreview: 'cancelar vista previa de recuperación',
-    export: 'exportar archivos de recuperación',
-    openDirectory: 'abrir carpeta de recuperación',
+    cleanup: 'limpiar archivos temporales inactivos',
   },
   settings: {
     read: 'leer ajustes',

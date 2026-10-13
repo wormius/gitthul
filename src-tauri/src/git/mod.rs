@@ -4,6 +4,10 @@
 //! una última ficha para poder seguir mostrando rutas ausentes, pero cada lista
 //! refresca las carpetas disponibles: el estado Git real siempre manda.
 
+pub(crate) mod backup;
+#[cfg(test)]
+mod backup_audit_tests;
+pub(crate) mod backup_store;
 mod commit;
 mod conflict;
 mod detail;

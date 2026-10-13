@@ -1806,67 +1806,83 @@ export const en: Messages = {
   'logs.debug': 'Debug',
   'logs.configure': 'Configure logs',
   'logs.technical': 'Technical data',
-  'settings.section.recovery': 'Recovery',
-  'settings.recovery.description':
-    'Recovery points protect changes that Git does not preserve. They are saved in GitThul’s private folder, outside your repositories, and can be reviewed after a restart.',
-  'settings.recovery.retentionHint':
-    'Limits apply to each repository separately. Cleanup keeps pending points, unfinished imported points, and points still needed by undo/redo, even when they exceed the limits. You can delete a pending copy after reviewing it.',
-  'settings.recovery.autoCleanup': 'Automatic cleanup',
-  'settings.recovery.maxCheckpoints': 'Maximum points per repository',
-  'settings.recovery.maxAgeDays': 'Maximum age (days)',
-  'settings.recovery.maxMiB': 'Maximum space per repository (MiB)',
-  'settings.recovery.invalidLimit': 'Enter a whole number between {min} and {max}.',
-  'settings.recovery.refresh': 'Refresh list',
-  'settings.recovery.import': 'Import existing points',
-  'settings.recovery.openDirectory': 'Open recovery folder',
-  'settings.recovery.cleanup': 'Clean up now',
-  'settings.recovery.directory': 'Recovery folder',
-  'settings.recovery.total': 'Points: {count} · {size} in total',
-  'settings.recovery.pendingNotice': 'Recovery points to review: {count}.',
-  'settings.recovery.loading': 'Reading recovery points…',
-  'settings.recovery.empty': 'No recovery points have been saved yet.',
-  'settings.recovery.points': 'Saved points',
-  'settings.recovery.savedState': 'Saved state',
-  'settings.recovery.sizeMiB': '{size} MiB',
-  'settings.recovery.pointSize': 'Files: {count} · {size}',
-  'settings.recovery.status.pending': 'Pending',
-  'settings.recovery.status.completed': 'Operation completed',
-  'settings.recovery.status.legacy': 'Imported',
-  'settings.recovery.active': 'In use by undo/redo',
-  'settings.recovery.restore': 'Restore…',
-  'settings.recovery.export': 'Export files…',
-  'settings.recovery.remove': 'Delete copy…',
-  'settings.recovery.restoreTitle': 'Restore a recovery point',
-  'settings.recovery.restoreGitDescription':
-    'In {repository}, the {count} files included in this point, the staging index, and the captured Git references will be replaced. Later changes within that scope will be replaced by the saved state.',
-  'settings.recovery.restoreFilesDescription':
-    'In {repository}, the {count} files included in this point will be replaced. Later changes to those files will be replaced by the saved copies.',
-  'settings.recovery.confirmRestore': 'Back up and restore',
-  'settings.recovery.backupFirst':
-    'Before restoring, GitThul will create a recovery point of the current state. If the repository changes after this preview, you will need to review it again.',
-  'settings.recovery.previewPaths': 'Included files: {count}',
-  'settings.recovery.morePaths': 'And {count} more files.',
-  'settings.recovery.cleanupDescription':
-    'Copies exceeding the configured limits will be deleted. Pending points, unfinished imported points, and points still needed by undo/redo will be kept. Repositories and their files will remain unchanged.',
-  'settings.recovery.removeTitle': 'Delete this recovery copy',
-  'settings.recovery.removeDescription':
-    'This saved copy of {repository} will be deleted. The repository’s files and Git state will remain unchanged. The deleted copy will no longer be recoverable through GitThul.',
-  'settings.recovery.review': 'Review recovery',
+  'settings.section.recovery': 'Backups and cache',
+  'settings.storage.title': 'Temporary files',
+  'settings.storage.description':
+    'GitThul manages temporary recovery data automatically. Clearing the cache keeps data needed by active operations and does not delete emergency backups.',
+  'settings.storage.total': 'Temporary files: {size}',
+  'settings.storage.protected': 'Data needed by active or unfinished operations is protected.',
+  'settings.storage.cleanup': 'Clear cache…',
+  'settings.storage.cleanupTitle': 'Clear temporary files',
+  'settings.storage.cleanupDescription':
+    'Delete unused temporary files. Active recovery data and emergency backups will be kept.',
+  'settings.storage.confirmCleanup': 'Clear cache',
+  'settings.storage.cleaned': 'Freed {size}.',
+  'settings.storage.configurationWarning':
+    'Automatic cleanup is paused because the settings file could not be read.',
+  'settings.storage.loading': 'Reading storage…',
+  'settings.backup.title': 'Emergency backups',
+  'settings.backup.description':
+    'GitThul saves complete local repository backups in the background, at most once every 24 hours when changes exist. They can be restored even if the original repository and remote are lost.',
+  'settings.backup.enabled': 'Automatic backups',
+  'settings.backup.maxMiB': 'Global space limit (MiB)',
+  'settings.backup.invalidLimit': 'Enter a whole number between {min} and {max}.',
+  'settings.backup.retention':
+    'Keeps up to 7 daily, 4 weekly and 3 monthly versions while space allows. The last valid backup of each repository is always kept.',
+  'settings.backup.total': 'Backups: {size} of {limit}',
+  'settings.backup.overBudget':
+    'The stored backups exceed the global space limit. The last valid backup of each repository is kept; new backups will wait for more space.',
+  'settings.backup.corruptNotice':
+    'Damaged backup data was detected. Healthy restore points remain available for restoration. Backup cleanup and new backups are paused to preserve the stored data.',
+  'settings.backup.points': 'Repository restore points',
+  'settings.backup.empty': 'There are no completed backups yet.',
+  'settings.backup.noPoints': 'This repository has no completed backup yet.',
+  'settings.backup.lastCompleted': 'Last completed backup: {date}',
+  'settings.backup.pointSize': '{count} files · {size}',
+  'settings.backup.sizeMiB': '{size} MiB',
+  'settings.backup.restore': 'Restore to a new folder…',
+  'settings.backup.restoreTitle': 'Restore repository',
+  'settings.backup.restoreDescription':
+    'Restore {repository} from {date} into a new folder. The original repository will be kept.',
+  'settings.backup.confirmRestore': 'Choose a folder and restore',
+  'settings.backup.restored': 'Repository restored to {path}.',
+  'settings.backup.refresh': 'Refresh',
+  'settings.backup.error.unknown': 'The backup action could not be completed.',
+  'settings.backup.error.invalid': 'The backup is incomplete or damaged and cannot be restored.',
+  'settings.backup.error.unavailable':
+    'The backup store could not be accessed. Check available space and permissions.',
+  'settings.backup.error.destination':
+    'Choose a new destination folder. Existing files cannot be overwritten.',
+  'settings.backup.error.stale':
+    'The backup changed or is no longer available. Refresh and try again.',
+  'settings.backup.error.details': 'Technical details',
+  'settings.backup.status.idle': 'Waiting for changes',
+  'settings.backup.status.queued': 'Backup queued',
+  'settings.backup.status.running': 'Backing up…',
+  'settings.backup.status.completed': 'Backup completed',
+  'settings.backup.status.unchanged': 'No changes since the last backup',
+  'settings.backup.status.tooSoon': 'The next backup will be made after 24 hours',
+  'settings.backup.status.busy': 'Backup postponed while the repository is in use',
+  'settings.backup.status.overBudget': 'No new backup: global space limit reached',
+  'settings.backup.status.failed': 'Backup failed; the previous restore point is kept',
+  'settings.backup.status.disabled': 'Automatic backups disabled',
+  'settings.backup.reason.changed':
+    'The repository changed while it was being backed up. GitThul will try again later.',
+  'settings.backup.reason.incomplete':
+    'This repository uses storage that cannot yet be backed up independently.',
+  'settings.backup.reason.io': 'Check available disk space and folder permissions.',
+  'settings.backup.reason.git': 'Git could not verify the repository backup.',
+  'settings.backup.reason.corrupt': 'The stored backup data could not be verified.',
+  'settings.storage.protectedCount': 'Protected temporary items: {count}.',
+  'settings.storage.uncertain': 'Some temporary data could not be verified and will be kept.',
   'settings.recovery.error.stale':
-    'The repository or recovery point changed. Refresh the list and review it again before restoring.',
+    'Temporary data changed. Refresh and try clearing the cache again.',
   'settings.recovery.error.invalid':
-    'The copy is invalid or incomplete. You can inspect the details; it has not been restored.',
+    'Some temporary data is incomplete or damaged. GitThul keeps it to protect recoverable work.',
   'settings.recovery.error.protected':
-    'The active history or a preview still needs this copy. Close the preview or release that history before deleting it.',
+    'An active or unfinished operation still needs this data. GitThul will keep it until it can be safely removed.',
   'settings.recovery.error.unavailable':
-    'The repository or backups could not be accessed. Check the path, permissions, and available space.',
+    'Temporary files could not be accessed. Check the path, permissions, and available space.',
   'settings.recovery.error.cancelled': 'The operation was cancelled.',
-  'settings.recovery.error.unknown': 'The recovery action could not be completed.',
-  'settings.recovery.error.details': 'View technical details',
-  'settings.recovery.overBudget':
-    'Limits are still exceeded because {count} points are protected. Cleanup will keep them until they are no longer pending or in use.',
-  'settings.recovery.uncertain':
-    'There are {count} incomplete or damaged backup groups. Cleanup keeps them to prevent data loss. Open the recovery folder to inspect their files.',
-  'settings.recovery.configurationWarning':
-    'The recovery configuration could not be read. Automatic cleanup is suspended; save valid settings to enable it again.',
+  'settings.recovery.error.unknown': 'The cache could not be cleared.',
 };

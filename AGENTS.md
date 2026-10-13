@@ -125,21 +125,50 @@ también las rutas canónicas existentes. Git puede devolver /private/var en mac
 o una forma distinta de la ruta Windows. Conservar las protecciones de principal,
 actual, bloqueo y trabajo pendiente al aceptar un alias del mismo directorio.
 
-La política recovery de settings.json controla depuración automática, cantidad,
-antigüedad y espacio. Los límites son blandos: nunca eliminar puntos activos,
-pendientes, parejas incompletas ni copias referidas por una restauración interrumpida.
-Ante corrupción o ambigüedad, conservar el almacén afectado. No depurar las referencias
-refs/gitthul/undo/objects/: pueden proteger puntos antiguos y otros worktrees.
-Exportar archivos no reemplaza la base de objetos Git que necesitan commits y stashes.
+Las capturas operativas son internas, con depuración automática predeterminada
+(100 puntos, 30 días y 1024 MiB por repositorio); los valores recovery heredados
+se validan para conservar configuraciones inválidas, pero no son controles de UI.
+Los límites son blandos: nunca eliminar puntos activos, pendientes, parejas
+incompletas ni copias referidas por una restauración interrumpida. Ante corrupción
+o ambigüedad, conservar el almacén afectado. No depurar refs/gitthul/undo/objects/:
+pueden proteger puntos antiguos y otros worktrees. recovery_read y recovery_cleanup
+solo sirven al resumen y limpieza manual de caché; no exponer restauración,
+importación o exportación de capturas individuales por IPC.
 
-La recuperación persistente exige vista previa, token y confirmación. Antes de escribir,
-guardar un baseline durable pendiente; aplicar los mismos bloqueos y comprobaciones
-de cambios posteriores que Deshacer/Rehacer. Completar la pareja solo con el estado
-posterior durable. La importación antigua es explícita y por copia, sin modificar
-el origen ni seguir rutas absolutas no verificadas en los manifiestos.
+Los respaldos de emergencia son independientes de la caché operativa.
+backup_store.rs guarda manifiestos y chunks comprimidos/deduplicados bajo
+app_local_data_dir()/backups. Un punto publicado debe ser autónomo: datos Git,
+índice, trabajo local y archivos sin seguimiento no ignorados, con worktrees
+normalizados a repositorios independientes, objetos alternativos locales,
+submódulos inicializados y objetos LFS necesarios. No presentar como completo
+un repositorio bare, clone superficial/parcial, submódulo ausente, LFS incompleto o configuración
+externa no cubierta. Preservar symlinks como enlaces, sin recorrer sus destinos.
+Validar Git y contenido antes de publicar; restaurar exclusivamente en una carpeta
+nueva, con rutas de manifiesto verificadas y sin reemplazar destinos existentes.
+Una captura no debe ejecutar hooks, contactar al remoto ni mantener un bloqueo de
+escritura Git durante toda la copia. Revalidar fuentes para rechazar cambios
+concurrentes; cancelar al cambiar política o terminar la aplicación.
+
+BackupSchedulingBridge programa las pestañas abiertas/restauradas sin bloquear
+navegación. backup.rs ejecuta una sola tarea con prioridad baja: primera
+comprobación tras 30 segundos, luego cada hora en sesiones largas, con mínimo
+24 horas entre puntos nuevos y solo cuando hay cambios. La retención 7 diarios,
+4 semanales y 3 mensuales comparte un límite GLOBAL de 1024 MiB iniciales;
+sujeta a espacio, sin duplicar puntos entre categorías. Proteger indefinidamente
+el último punto válido de cada repositorio aunque desaparezca, se olvide o quede
+inactivo. La depuración global corre al arrancar y diariamente. Si no cabe una
+copia completa, conservar la anterior e informar falta de espacio. La consulta
+IPC devuelve metadatos en memoria, sin esperar compresión ni validación de datos.
+Mantener un bloqueo de archivo del almacén durante su vida para impedir que otro
+proceso elimine temporales de una captura activa. Una configuración ilegible
+suspende también la depuración de respaldos hasta guardar una política válida.
+Un manifiesto dañado no oculta respaldos independientes sanos; mostrar advertencia
+y suspender eliminación/capturas ante contenido ambiguo. Limpiar caché nunca borra
+respaldos. Mantener dominio, BackupPort, mock, adaptador Tauri, IPC y cinco idiomas
+alineados y comprobar restauración con el repositorio fuente eliminado.
 
 Los ajustes y biblioteca usan los directorios de configuración del usuario;
-los logs y recovery usan sus directorios de datos. Resolverlos con Tauri, sin rutas
+los logs, recovery y backups usan sus directorios de datos. Resolverlos con Tauri, sin rutas
 personales fijas ni almacenamiento dentro del repositorio fuente. Una configuración
 ilegible suspende la depuración automática y permite arrancar; conservar sus bytes
 antes de repararla y mantener la suspensión al escribir otras preferencias.
@@ -232,7 +261,8 @@ los cinco catálogos; src/i18n/i18n.test.ts comprueba claves, vacíos y placehol
 
 Las herramientas seleccionadas son Node.js 20.20.2 (en .nvmrc), npm 10.8.2 y
 Rust/Cargo 1.97.0 (en rust-toolchain.toml), además de Git y las dependencias nativas
-de Tauri 2 para la plataforma. rust-version = 1.88 declara el límite del grafo,
+de Tauri 2 para la plataforma. rust-version = 1.89 declara el límite del grafo
+y de File::try_lock para la exclusión del almacén entre procesos,
 sin afirmar que se haya certificado como mínimo efectivo en todos los sistemas.
 Python y Bash sirven a herramientas externas opcionales, no a las comprobaciones
 ordinarias. OpenSSH proporciona ssh y ssh-keygen para los remotos y las funciones

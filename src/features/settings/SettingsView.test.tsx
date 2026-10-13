@@ -114,7 +114,7 @@ describe('SettingsView', () => {
     expect(tabs[2]).toHaveTextContent('Git');
     expect(tabs[3]).toHaveTextContent('Atajos');
     expect(tabs[4]).toHaveTextContent('Actualizaciones');
-    expect(tabs[5]).toHaveTextContent('Recuperación');
+    expect(tabs[5]).toHaveTextContent('Respaldos y caché');
     expect(tabs[6]).toHaveTextContent('Registros y diagnóstico');
     expect(tabs[7]).toHaveTextContent('Acerca de');
   });

@@ -1,31 +1,15 @@
 import { expect, it, vi } from 'vitest';
 import { createTauriRecoveryPort } from './tauriRecoveryPort';
 
-it('conecta las operaciones de recuperación con sus argumentos nativos exactos', async () => {
+it('expone sólo estadísticas y limpieza de la caché interna', async () => {
   const call = vi.fn((_command: string, _args?: Record<string, unknown>): Promise<unknown> =>
     Promise.resolve(false),
   );
   const port = createTauriRecoveryPort(call);
   await port.read();
   await port.cleanup();
-  await port.importLegacy();
-  await port.remove('point');
-  await port.preview('point');
-  await port.restore('token');
-  await port.cancelPreview('token');
-  expect(await port.export('point')).toBe(false);
-  await port.openDirectory();
-  expect(call.mock.calls).toEqual([
-    ['recovery_read'],
-    ['recovery_cleanup'],
-    ['recovery_import_legacy'],
-    ['recovery_remove', { id: 'point' }],
-    ['recovery_preview', { id: 'point' }],
-    ['recovery_restore', { token: 'token' }],
-    ['recovery_cancel_preview', { token: 'token' }],
-    ['recovery_export', { id: 'point' }],
-    ['recovery_open_directory'],
-  ]);
+  expect(call.mock.calls).toEqual([['recovery_read'], ['recovery_cleanup']]);
+  expect(Object.keys(port).sort()).toEqual(['cleanup', 'read']);
 });
 
 it('conserva un error estructurado y no lo convierte en una cancelación', async () => {

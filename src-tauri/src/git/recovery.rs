@@ -1,26 +1,25 @@
-//! Explicit recovery of persisted checkpoints. Preview tokens pin both snapshots
-//! and restoration reuses the same stale guards and transactions as session undo.
+//! Internal checkpoint policy and safe cache cleanup. Individual checkpoint
+//! restoration is no longer exposed through application IPC.
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use serde_json::{json, Value};
+use tauri::{AppHandle, Manager};
+
+use super::{recovery_store, undo::UndoError, GitCommandError};
+
+#[cfg(test)]
+use super::{repository, undo_checkpoint::Checkpoint, GitWriteLocks};
+#[cfg(test)]
+use serde::Serialize;
+#[cfg(test)]
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
-use serde::Serialize;
-use serde_json::{json, Value};
-use tauri::{AppHandle, Manager, State};
-use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_opener::OpenerExt;
-
-use super::{
-    recovery_store, repository, undo::UndoError, undo_checkpoint::Checkpoint, GitCommandError,
-    GitWriteLocks,
-};
-
+#[cfg(test)]
 const PREVIEW_LIFETIME: Duration = Duration::from_secs(15 * 60);
 static CONFIGURATION_WARNING: AtomicBool = AtomicBool::new(false);
 
@@ -28,17 +27,20 @@ pub(crate) fn configuration_warning() -> bool {
     CONFIGURATION_WARNING.load(Ordering::Relaxed)
 }
 
+#[cfg(test)]
 struct PreparedRecovery {
     target: Arc<Checkpoint>,
     baseline: Arc<Checkpoint>,
     created: Instant,
 }
 
+#[cfg(test)]
 #[derive(Clone, Default)]
 pub(crate) struct RecoveryPreviews {
     entries: Arc<Mutex<HashMap<String, PreparedRecovery>>>,
 }
 
+#[cfg(test)]
 impl RecoveryPreviews {
     fn expire(&self) {
         self.entries
@@ -75,7 +77,9 @@ pub(crate) fn policy_from_settings(
     policy
         .validate()
         .map_err(|_| "Los límites de recuperación no son válidos".to_owned())?;
-    Ok(policy)
+    // Legacy values remain readable/validated, but operational checkpoints now
+    // have an internal automatic policy, independent of emergency backups.
+    Ok(recovery_store::RecoveryPolicy::default())
 }
 
 fn startup_policy(settings: Result<Value, String>) -> (recovery_store::RecoveryPolicy, bool) {
@@ -148,10 +152,7 @@ pub(crate) fn update_policy(policy: recovery_store::RecoveryPolicy) -> Result<()
 }
 
 #[tauri::command]
-pub async fn recovery_read(
-    previews: State<'_, RecoveryPreviews>,
-) -> Result<Value, GitCommandError> {
-    previews.expire();
+pub async fn recovery_read() -> Result<Value, GitCommandError> {
     tauri::async_runtime::spawn_blocking(|| {
         let overview = recovery_store::list().map_err(failure)?;
         let entries = serde_json::to_value(&overview).map_err(|_| interrupted())?;
@@ -172,18 +173,16 @@ pub async fn recovery_read(
 }
 
 #[tauri::command]
-pub async fn recovery_cleanup(
-    previews: State<'_, RecoveryPreviews>,
-) -> Result<Value, GitCommandError> {
-    previews.expire();
+pub async fn recovery_cleanup() -> Result<Value, GitCommandError> {
     tauri::async_runtime::spawn_blocking(|| {
-        let result = recovery_store::cleanup().map_err(failure)?;
+        let result = recovery_store::clear_cache().map_err(failure)?;
         Ok(json!({ "removed": result.removed_checkpoints, "freedBytes": result.removed_bytes }))
     })
     .await
     .map_err(|_| interrupted())?
 }
 
+#[cfg(test)]
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecoveryPreview {
@@ -194,6 +193,7 @@ pub struct RecoveryPreview {
     includes_git_state: bool,
 }
 
+#[cfg(test)]
 fn prepare(
     id: &str,
     locks: &GitWriteLocks,
@@ -241,19 +241,7 @@ fn prepare(
     Ok(result)
 }
 
-#[tauri::command]
-pub async fn recovery_preview(
-    id: String,
-    locks: State<'_, GitWriteLocks>,
-    previews: State<'_, RecoveryPreviews>,
-) -> Result<RecoveryPreview, GitCommandError> {
-    let locks = locks.inner().clone();
-    let previews = previews.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || prepare(&id, &locks, &previews))
-        .await
-        .map_err(|_| interrupted())?
-}
-
+#[cfg(test)]
 fn restore(
     token: &str,
     locks: &GitWriteLocks,
@@ -300,91 +288,6 @@ fn restore(
     locks.resolutions.clear_repository(&current.id);
     super::undo_checkpoint::notify_undo_change(path).map_err(failure)?;
     Ok(())
-}
-
-#[tauri::command]
-pub async fn recovery_restore(
-    token: String,
-    locks: State<'_, GitWriteLocks>,
-    previews: State<'_, RecoveryPreviews>,
-) -> Result<(), GitCommandError> {
-    let locks = locks.inner().clone();
-    let previews = previews.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || restore(&token, &locks, &previews))
-        .await
-        .map_err(|_| interrupted())?
-}
-
-#[tauri::command]
-pub fn recovery_cancel_preview(token: String, previews: State<'_, RecoveryPreviews>) {
-    previews
-        .entries
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .remove(&token);
-}
-
-#[tauri::command]
-pub async fn recovery_remove(id: String) -> Result<(), GitCommandError> {
-    tauri::async_runtime::spawn_blocking(move || {
-        if recovery_store::list()
-            .map_err(failure)?
-            .entries
-            .iter()
-            .any(|entry| entry.id == id && entry.active)
-        {
-            return Err(GitCommandError::new("recovery.protected", json!({})));
-        }
-        recovery_store::remove(&id).map_err(failure)?;
-        Ok(())
-    })
-    .await
-    .map_err(|_| interrupted())?
-}
-
-#[tauri::command]
-pub async fn recovery_export(id: String, app: AppHandle) -> Result<bool, GitCommandError> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let selected = app.dialog().file().blocking_pick_folder();
-        let Some(selected) = selected else {
-            return Ok(false);
-        };
-        let path = selected.into_path().map_err(|_| interrupted())?;
-        recovery_store::export(&id, &path).map_err(failure)?;
-        Ok(true)
-    })
-    .await
-    .map_err(|_| interrupted())?
-}
-
-#[tauri::command]
-pub async fn recovery_import_legacy(
-    app: AppHandle,
-    locks: State<'_, GitWriteLocks>,
-) -> Result<usize, GitCommandError> {
-    let locks = locks.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let selected = app.dialog().file().blocking_pick_folder();
-        let Some(selected) = selected else {
-            return Ok(0);
-        };
-        let path = selected.into_path().map_err(|_| interrupted())?;
-        let repo = repository::discover(&path)
-            .map_err(|_| GitCommandError::new("repo.notARepository", json!({ "path": path })))?;
-        let lock = locks.repository(&repo.id);
-        let _guard = lock.lock().unwrap_or_else(|e| e.into_inner());
-        recovery_store::import_legacy(Path::new(&repo.id)).map_err(failure)
-    })
-    .await
-    .map_err(|_| interrupted())?
-}
-
-#[tauri::command]
-pub fn recovery_open_directory(app: AppHandle) -> Result<(), GitCommandError> {
-    let path = recovery_store::root_path().map_err(failure)?;
-    app.opener()
-        .open_path(path.to_string_lossy(), None::<&str>)
-        .map_err(|_| interrupted())
 }
 
 #[cfg(test)]
@@ -524,6 +427,11 @@ mod tests {
         let (policy, warning) = startup_policy(Ok(json!({})));
         assert!(!warning);
         assert!(policy.auto_cleanup);
+        let (policy, warning) = startup_policy(Ok(json!({"recovery": {
+            "autoCleanup": false, "maxCheckpoints": 200, "maxMiB": 2048
+        }})));
+        assert!(!warning);
+        assert_eq!(policy, recovery_store::RecoveryPolicy::default());
     }
 
     #[test]

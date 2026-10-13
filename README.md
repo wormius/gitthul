@@ -58,17 +58,19 @@ pueden impedir restaurar un punto. Un push publicado limita Deshacer: corregir
 historia compartida requiere Revertir y un nuevo push explícito.
 
 El historial de los botones es de sesión. Las operaciones compuestas conservan
-puntos en disco, en el directorio de datos de GitThul y separados por repositorio
-y worktree. En **Configuración → Recuperación** puedes consultarlos después de
-reiniciar, restaurarlos con vista previa y respaldo del estado actual, exportarlos
-e importar las copias antiguas.
+capturas internas en los datos de GitThul, separadas por repositorio y worktree.
+GitThul las depura automáticamente y protege las operaciones activas o pendientes.
+En **Configuración → Respaldos y caché** puedes limpiar los temporales que ya no
+se necesitan, sin modificar tus repositorios ni borrar respaldos de emergencia.
 
-La depuración automática aplica límites de cantidad, antigüedad y espacio. Los
-puntos activos y las operaciones pendientes están protegidos y pueden superar
-esos límites. Las copias contienen datos locales y necesitan espacio en disco;
-no sustituyen un respaldo completo del repositorio. Consulta la
-[guía de recuperación](docs/recuperacion-persistente.md) para conocer el alcance,
-los límites y las opciones de conservación.
+Los respaldos de emergencia permiten recuperar un repositorio completo en una
+carpeta nueva, incluso si desaparecieron el original y su remoto. Se preparan en
+segundo plano al abrir el repositorio; después se guarda otro solo si cambió y
+pasaron al menos 24 horas. Comparten contenidos comprimidos y un límite global
+inicial de **1 GiB**. La conservación busca 7 puntos diarios, 4 semanales y 3
+mensuales, según el espacio disponible, y siempre protege el último respaldo
+válido de cada repositorio. Consulta la [guía de respaldos y caché](docs/recuperacion-persistente.md)
+para conocer su alcance y las condiciones necesarias para una copia completa.
 
 ## Instalación y ayuda
 

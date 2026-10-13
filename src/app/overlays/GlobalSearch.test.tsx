@@ -29,6 +29,27 @@ beforeEach(() => {
 });
 
 describe('GlobalSearch', () => {
+  it.each([
+    ['caché', 'Limpiar caché…', 'settings.storage.cleanup'],
+    ['respaldos automáticos', 'Respaldos automáticos', 'settings.backup.enabled'],
+    ['límite global', 'Límite global de espacio (MiB)', 'settings.backup.maxMiB'],
+  ])('finds the current backup and cache control for %s', async (query, label, focus) => {
+    useShellStore.getState().openSettings();
+    useShellStore.getState().setOverlay('search');
+    renderSearch();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: query } });
+    const option = await screen.findByRole('option', {
+      name: `${label} Opciones de configuración · Respaldos y caché`,
+    });
+    fireEvent.click(option);
+    expect(useShellStore.getState()).toMatchObject({
+      settingsOpen: true,
+      settingsSection: 'recovery',
+      settingsFocus: focus,
+      overlay: 'none',
+    });
+  });
+
   it('abre las variantes del tema desde la búsqueda de ajustes', async () => {
     useShellStore.getState().openSettings();
     useShellStore.getState().setOverlay('search');

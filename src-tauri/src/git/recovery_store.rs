@@ -6,10 +6,13 @@ use std::{
     collections::{BTreeSet, HashMap},
     fs,
     io::Write,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, OnceLock, Weak},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+#[cfg(test)]
+use std::path::Component;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -272,6 +275,7 @@ fn valid_checkpoint(name: &str) -> bool {
                 .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
     })
 }
+#[cfg(test)]
 fn resolve_id(root: &Path, id: &str) -> Result<(PathBuf, PathBuf), UndoError> {
     if id.contains('\\') || id.contains('\0') {
         return Err(UndoError::Stale);
@@ -681,6 +685,22 @@ pub(super) fn cleanup() -> Result<RecoveryCleanup, UndoError> {
     let root = root_path()?;
     cleanup_buckets(buckets(&root)?, policy())
 }
+
+/// Manual cache cleaning removes every safely disposable checkpoint. Live undo,
+/// pending operations and uncertain/corrupt buckets retain their protections.
+pub(super) fn clear_cache() -> Result<RecoveryCleanup, UndoError> {
+    let _guard = lock();
+    let root = root_path()?;
+    cleanup_buckets(
+        buckets(&root)?,
+        RecoveryPolicy {
+            auto_cleanup: true,
+            max_checkpoints: 0,
+            max_age_days: 0,
+            max_mi_b: 0,
+        },
+    )
+}
 fn cleanup_buckets(
     selected: Vec<(PathBuf, Bucket)>,
     policy: RecoveryPolicy,
@@ -776,6 +796,7 @@ fn cleanup_bucket_path(bucket: PathBuf) {
     let _ = cleanup_buckets(vec![(bucket.clone(), scan_bucket(&bucket))], policy());
 }
 
+#[cfg(test)]
 pub(super) fn load(id: &str) -> Result<Arc<Checkpoint>, UndoError> {
     let _guard = lock();
     let root = root_path()?;
@@ -792,6 +813,7 @@ pub(super) fn load(id: &str) -> Result<Arc<Checkpoint>, UndoError> {
     register(&checkpoint);
     Ok(checkpoint)
 }
+#[cfg(test)]
 pub(super) fn remove(id: &str) -> Result<RecoveryCleanup, UndoError> {
     let _guard = lock();
     let root = root_path()?;
@@ -838,6 +860,7 @@ pub(super) fn remove(id: &str) -> Result<RecoveryCleanup, UndoError> {
         uncertain_buckets: 0,
     })
 }
+#[cfg(test)]
 pub(super) fn export(id: &str, destination: &Path) -> Result<PathBuf, UndoError> {
     let _guard = lock();
     let root = root_path()?;
@@ -868,6 +891,7 @@ pub(super) fn export(id: &str, destination: &Path) -> Result<PathBuf, UndoError>
     sync_directory(&destination)?;
     Ok(result)
 }
+#[cfg(test)]
 pub(super) fn import_legacy(repository: &Path) -> Result<usize, UndoError> {
     let _guard = lock();
     let (target, identity) = location(repository)?;
@@ -1078,6 +1102,28 @@ mod tests {
             write_json(&path, &manifest).unwrap();
         }
         assert_eq!(cleanup().unwrap().removed_checkpoints, 2);
+    }
+
+    #[test]
+    fn manual_cache_cleaning_preserves_pending_points_and_emergency_backups() {
+        let temporary = tempfile::tempdir().unwrap();
+        let repo = repository(temporary.path(), "repo");
+        let data = temporary.path().join("data");
+        let backup = data.join("backups/keep");
+        fs::create_dir_all(backup.parent().unwrap()).unwrap();
+        fs::write(&backup, b"independent emergency backup").unwrap();
+        let _guard = test_store(data.join("recovery"), RecoveryPolicy::default()).unwrap();
+        let completed = Checkpoint::capture(&repo, &[]).unwrap();
+        completed.recovery_complete_preview().unwrap();
+        let pending = Checkpoint::capture(&repo, &[]).unwrap();
+        assert_eq!(clear_cache().unwrap().removed_checkpoints, 0);
+        drop(completed);
+        drop(pending);
+        let result = clear_cache().unwrap();
+        assert_eq!(result.removed_checkpoints, 1);
+        assert_eq!(list().unwrap().entries.len(), 1);
+        assert_eq!(fs::read(&backup).unwrap(), b"independent emergency backup");
+        assert_eq!(clear_cache().unwrap().removed_checkpoints, 0);
     }
     #[test]
     fn malformed_manifest_and_interrupted_journal_make_entire_bucket_conservative() {
