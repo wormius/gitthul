@@ -8,13 +8,15 @@ Con el foco en una lista o en las tarjetas, **Ctrl/Cmd + A** selecciona todos lo
 repositorios visibles. **Shift + flechas** extiende la selección y
 **Ctrl/Cmd + Espacio** alterna el repositorio enfocado.
 
-Usa **Abrir** para abrir los seleccionados en pestañas. También puedes pulsar
-Enter o elegir la acción de abrir desde el menú contextual. Las pestañas que ya
-están abiertas se reutilizan.
+Abre el menú contextual sobre uno de los seleccionados y elige **Abrir** para
+abrirlos en pestañas. También puedes pulsar Enter. Las pestañas que ya están
+abiertas se reutilizan. Con el foco en la lista o en una tarjeta,
+**Shift + F10** abre el menú contextual.
 
-Usa **Olvidar** para quitarlos de la lista de GitThul. La confirmación muestra los
-nombres y rutas de todos los seleccionados. Sus carpetas y el historial de Git se
-conservan. Cancelar mantiene los repositorios en la biblioteca.
+Elige **Olvidar** en el menú contextual para quitarlos de la lista de GitThul.
+La confirmación muestra los nombres y rutas de todos los seleccionados. Sus
+carpetas y el historial de Git se conservan. Cancelar mantiene los repositorios
+en la biblioteca.
 
 Si un repositorio aparece en varias secciones o espacios, se cuenta una sola vez.
 Al filtrar, los repositorios que quedan ocultos dejan de estar seleccionados.

@@ -70,6 +70,15 @@ function openedRepositoryIds() {
     .tabs.flatMap((tab) => (tab.surface.kind === 'working' ? [tab.surface.repoId] : []));
 }
 
+function expectContextOnlyBatchActions() {
+  expect(screen.queryByRole('toolbar', { name: 'Selección de repositorios' })).toBeNull();
+  expect(
+    screen
+      .queryAllByRole('button', { name: /^(?:Abrir|Olvidar) \d+ repositorios$/ })
+      .filter((button) => !button.closest('[role="dialog"]')),
+  ).toEqual([]);
+}
+
 beforeEach(() => {
   useRepositoriesStore.getState().reset();
   useShellStore.getState().reset();
@@ -83,6 +92,7 @@ describe('RepositoriesView con biblioteca real', () => {
     expect(await knownRows()).toHaveLength(4);
     expect(screen.getByRole('region', { name: 'Recientes' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Espacios' })).toBeInTheDocument();
+    expectContextOnlyBatchActions();
   });
 
   it('selecciona varios con Ctrl y los abre sin duplicar las pestañas existentes', async () => {
@@ -99,11 +109,15 @@ describe('RepositoriesView con biblioteca real', () => {
     expect(gitthul).toHaveAttribute('aria-selected', 'true');
     expect(bitacora).toHaveAttribute('aria-selected', 'true');
     expect(openedRepositoryIds()).toEqual([]);
+    expectContextOnlyBatchActions();
 
-    await user.click(screen.getByRole('button', { name: 'Abrir 2 repositorios' }));
+    fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Abrir 2 repositorios' }));
     await waitFor(() => expect(openedRepositoryIds().sort()).toEqual(['bitacora', 'gitthul']));
     await waitFor(() => expect(markOpened).toHaveBeenCalledTimes(2));
-    await user.click(screen.getByRole('button', { name: 'Abrir 2 repositorios' }));
+    await waitFor(() => expect(useRepositoriesStore.getState().batchBusy).toBe(false));
+    fireEvent.contextMenu(within(bitacora).getByText('/home/example/projects/bitacora'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Abrir 2 repositorios' }));
     await waitFor(() => expect(markOpened).toHaveBeenCalledTimes(4));
     expect(openedRepositoryIds().sort()).toEqual(['bitacora', 'gitthul']);
   });
@@ -163,6 +177,7 @@ describe('RepositoriesView con biblioteca real', () => {
   });
 
   it('comparte la selección entre Recientes y Todos sin contar dos veces el mismo repositorio', async () => {
+    const user = userEvent.setup();
     renderView(makePorts());
     const rows = await knownRows();
     const allGitthul = rowAt(rows, '/home/example/projects/gitthul');
@@ -173,9 +188,12 @@ describe('RepositoriesView con biblioteca real', () => {
 
     clickRow(allGitthul);
     clickRow(recentBitacora, { ctrlKey: true });
-    expect(screen.getByRole('button', { name: 'Abrir 2 repositorios' })).toBeVisible();
+    fireEvent.contextMenu(within(recentGitthul).getByText('/home/example/projects/gitthul'));
+    expect(await screen.findByRole('menuitem', { name: 'Abrir 2 repositorios' })).toBeVisible();
+    expectContextOnlyBatchActions();
     expect(recentGitthul).toHaveAttribute('aria-selected', 'true');
     expect(rowAt(rows, '/home/example/projects/bitacora')).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{Escape}');
 
     clickRow(recentGitthul, { ctrlKey: true });
     expect(allGitthul).toHaveAttribute('aria-selected', 'false');
@@ -196,8 +214,16 @@ describe('RepositoriesView con biblioteca real', () => {
     );
 
     await waitFor(() => expect(useRepositoriesStore.getState().selected?.id).toBe('bitacora'));
-    expect(screen.queryByRole('button', { name: 'Abrir 2 repositorios' })).toBeNull();
-    expect(await knownRows()).toHaveLength(1);
+    const filteredRows = await knownRows();
+    expect(filteredRows).toHaveLength(1);
+    await user.pointer({
+      keys: '[MouseRight]',
+      target: within(filteredRows[0]!).getByText('/home/example/projects/bitacora'),
+    });
+    expect(await screen.findByRole('menuitem', { name: 'Abrir' })).toBeVisible();
+    expect(screen.queryByRole('menuitem', { name: 'Abrir 2 repositorios' })).toBeNull();
+    expectContextOnlyBatchActions();
+    await user.keyboard('{Escape}');
     await user.clear(screen.getByLabelText('Filtrar los repositorios por nombre o por ruta'));
     expect(rowAt(await knownRows(), '/home/example/projects/gitthul')).toHaveAttribute(
       'aria-selected',
@@ -215,11 +241,14 @@ describe('RepositoriesView con biblioteca real', () => {
     await ports.library.addToSpace('space-1', 'dotfiles');
     renderView(ports);
     const rows = await knownRows();
-    clickRow(rowAt(rows, '/home/example/projects/gitthul'));
+    const gitthul = rowAt(rows, '/home/example/projects/gitthul');
+    clickRow(gitthul);
     clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
 
-    await user.click(screen.getByRole('button', { name: 'Olvidar 2 repositorios' }));
+    fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Olvidar 2 repositorios' }));
     let dialog = await screen.findByRole('dialog', { name: 'Olvidar 2 repositorios' });
+    expectContextOnlyBatchActions();
     const targets = within(dialog).getByRole('list', { name: 'Repositorios que se van a olvidar' });
     expect(within(targets).getByText('gitthul')).toBeVisible();
     expect(within(targets).getByText('/home/example/projects/gitthul')).toBeVisible();
@@ -232,7 +261,8 @@ describe('RepositoriesView con biblioteca real', () => {
     expect(forget).not.toHaveBeenCalled();
     expect(await ports.git.listRepositories()).toHaveLength(4);
 
-    await user.click(screen.getByRole('button', { name: 'Olvidar 2 repositorios' }));
+    fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Olvidar 2 repositorios' }));
     dialog = await screen.findByRole('dialog', { name: 'Olvidar 2 repositorios' });
     await user.click(within(dialog).getByRole('button', { name: 'Olvidar 2 repositorios' }));
     await waitFor(() => expect(forget).toHaveBeenCalledTimes(2));
@@ -249,6 +279,7 @@ describe('RepositoriesView con biblioteca real', () => {
   });
 
   it('selecciona tarjetas entre espacios y cuenta una sola vez las membresías repetidas', async () => {
+    const user = userEvent.setup();
     const ports = makePorts();
     await ports.library.createSpace('Uno');
     await ports.library.createSpace('Dos');
@@ -269,7 +300,10 @@ describe('RepositoriesView con biblioteca real', () => {
     clickRow(gitthulFirst);
     clickRow(bitacora, { ctrlKey: true });
     expect(gitthulSecond).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: 'Abrir 2 repositorios' })).toBeVisible();
+    fireEvent.contextMenu(within(gitthulSecond).getByText('/home/example/projects/gitthul'));
+    expect(await screen.findByRole('menuitem', { name: 'Abrir 2 repositorios' })).toBeVisible();
+    expectContextOnlyBatchActions();
+    await user.keyboard('{Escape}');
     clickRow(gitthulSecond, { ctrlKey: true });
     expect(gitthulFirst).toHaveAttribute('aria-selected', 'false');
     expect(gitthulSecond).toHaveAttribute('aria-selected', 'false');
@@ -277,7 +311,9 @@ describe('RepositoriesView con biblioteca real', () => {
 
     clickRow(gitthulFirst);
     clickRow(dotfiles, { shiftKey: true });
-    expect(screen.getByRole('button', { name: 'Abrir 3 repositorios' })).toBeVisible();
+    fireEvent.contextMenu(within(dotfiles).getByText('/home/example/dotfiles'));
+    expect(await screen.findByRole('menuitem', { name: 'Abrir 3 repositorios' })).toBeVisible();
+    expectContextOnlyBatchActions();
     expect(bitacora).toHaveAttribute('aria-selected', 'true');
     expect(dotfiles).toHaveAttribute('aria-selected', 'true');
     expect(openedRepositoryIds()).toEqual([]);

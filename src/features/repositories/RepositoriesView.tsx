@@ -21,8 +21,6 @@ import { EmptyState } from '@ui/EmptyState';
 import type { MenuEntry } from '@ui/menuUtils';
 import { Skeleton } from '@ui/Skeleton';
 import { SplitPane } from '@ui/SplitPane';
-import { Spinner } from '@ui/Spinner';
-import { Toolbar } from '@ui/Toolbar';
 import { VirtualList } from '@ui/VirtualList';
 
 import { CloneRepoDialog } from './CloneRepoDialog';
@@ -38,7 +36,6 @@ import { RepoFilterBar } from './RepoFilterBar';
 import { RepoRow } from './RepoRow';
 import { RepoSection } from './RepoSection';
 import { RepoStatsPanel } from './RepoStatsPanel';
-import { OpenAllIcon, TrashIcon } from './RepositoryIcons';
 import { SpaceNameDialog } from './SpaceNameDialog';
 import { CREATE_SPACE_TARGET, SpaceDropTargets } from './SpaceDropTargets';
 import {
@@ -289,7 +286,7 @@ export function RepositoriesView() {
   );
 
   return (
-    <div className={styles.view}>
+    <div className={styles.view} aria-busy={batchBusy}>
       <SplitPane
         label={t('repositories.split')}
         storageId="repositories.split"
@@ -309,54 +306,6 @@ export function RepositoriesView() {
               shown={visible.length}
               total={repositories?.length ?? 0}
             />
-            <Toolbar
-              className={styles.selectionBar}
-              label={t('repositories.selection.title')}
-              aria-busy={batchBusy}
-            >
-              <span className={styles.selectionCount}>
-                {t('repositories.selection.count', { count: selectedRepos.length })}
-              </span>
-              <Button
-                size="sm"
-                iconStart={<OpenAllIcon />}
-                aria-label={
-                  selectedRepos.length > 1
-                    ? t('repositories.menu.openSelected', { count: selectedRepos.length })
-                    : selected
-                      ? t('gesture.repos.open', { repo: selected.name })
-                      : t('gesture.repos.openNone')
-                }
-                disabled={batchBusy || selectedRepos.length === 0}
-                onClick={() => {
-                  if (selectedRepos.length > 1) actions.openMany(selectedRepos);
-                  else if (selected) actions.open(selected);
-                }}
-              >
-                {t('repositories.action.openFolder')}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                iconStart={<TrashIcon />}
-                aria-label={
-                  selectedRepos.length > 1
-                    ? t('repositories.menu.forgetSelected', { count: selectedRepos.length })
-                    : selected
-                      ? t('gesture.repos.forget', { repo: selected.name })
-                      : t('gesture.repos.forgetNone')
-                }
-                disabled={batchBusy || selectedRepos.length === 0}
-                onClick={() => {
-                  if (selectedRepos.length > 1)
-                    openDialog({ kind: 'forgetMany', repos: selectedRepos });
-                  else if (selected) openDialog({ kind: 'forget', repo: selected });
-                }}
-              >
-                {t('repositories.action.forget')}
-              </Button>
-              {batchBusy && <Spinner label={t('repositories.selection.busy')} />}
-            </Toolbar>
             {layout === 'list' && dragging?.kind === 'repo' && library && (
               <SpaceDropTargets
                 spaces={library.spaces}

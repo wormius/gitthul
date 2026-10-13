@@ -167,7 +167,6 @@ export const de: Messages = {
   'repositories.split': 'Breite der Repository-Liste',
   'repositories.actions': 'Repository-Aktionen',
   'repositories.action.openFolder': 'Öffnen',
-  'repositories.action.forget': 'Vergessen',
   'repositories.action.create': 'Anlegen',
   'repositories.action.clone': 'Klonen',
   'repositories.action.terminal': 'Terminal',
@@ -346,11 +345,9 @@ export const de: Messages = {
   'repositories.home.empty.description':
     'Öffne ein vorhandenes Repository, erstelle ein neues oder klone ein Remote-Repository mit den Schaltflächen oben links.',
 
-  'repositories.selection.title': 'Repository-Auswahl',
   'repositories.selection.count': '{count} ausgewählt',
   'repositories.selection.description':
     'Öffne die ausgewählten Repositorys in Tabs oder entferne sie aus GitThul.',
-  'repositories.selection.busy': 'Repositorys werden verarbeitet…',
   'repositories.menu.openSelected': '{count} Repositorys öffnen',
   'repositories.menu.forgetSelected': '{count} Repositorys vergessen',
   'repositories.forgetMany.title': '{count} Repositorys vergessen',

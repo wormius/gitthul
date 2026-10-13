@@ -167,7 +167,6 @@ export const fr: Messages = {
   'repositories.split': 'Largeur de la liste des dépôts',
   'repositories.actions': 'Actions de dépôt',
   'repositories.action.openFolder': 'Ouvrir',
-  'repositories.action.forget': 'Oublier',
   'repositories.action.create': 'Créer',
   'repositories.action.clone': 'Cloner',
   'repositories.action.terminal': 'Terminal',
@@ -346,11 +345,9 @@ export const fr: Messages = {
   'repositories.home.empty.description':
     'Ouvrez un dépôt existant, créez-en un ou clonez un dépôt distant avec les boutons en haut à gauche.',
 
-  'repositories.selection.title': 'Sélection de dépôts',
   'repositories.selection.count': '{count} sélectionnés',
   'repositories.selection.description':
     'Ouvre les dépôts sélectionnés dans des onglets ou retire-les de GitThul.',
-  'repositories.selection.busy': 'Traitement des dépôts…',
   'repositories.menu.openSelected': 'Ouvrir {count} dépôts',
   'repositories.menu.forgetSelected': 'Oublier {count} dépôts',
   'repositories.forgetMany.title': 'Oublier {count} dépôts',

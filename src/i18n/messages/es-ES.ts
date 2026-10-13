@@ -171,7 +171,6 @@ export const esES: Messages = {
   'repositories.split': 'Ancho de la lista de repositorios',
   'repositories.actions': 'Acciones de repositorio',
   'repositories.action.openFolder': 'Abrir',
-  'repositories.action.forget': 'Olvidar',
   'repositories.action.create': 'Crear',
   'repositories.action.clone': 'Clonar',
   'repositories.action.terminal': 'Terminal',
@@ -349,11 +348,9 @@ export const esES: Messages = {
   'repositories.home.empty.description':
     'Abre un repositorio existente, crea uno nuevo o clona un repositorio remoto con los botones de arriba a la izquierda.',
 
-  'repositories.selection.title': 'Selección de repositorios',
   'repositories.selection.count': '{count} seleccionados',
   'repositories.selection.description':
     'Abre los repositorios seleccionados en pestañas u olvídalos en GitThul.',
-  'repositories.selection.busy': 'Procesando repositorios…',
   'repositories.menu.openSelected': 'Abrir {count} repositorios',
   'repositories.menu.forgetSelected': 'Olvidar {count} repositorios',
   'repositories.forgetMany.title': 'Olvidar {count} repositorios',
