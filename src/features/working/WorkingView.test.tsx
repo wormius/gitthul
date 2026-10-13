@@ -2063,6 +2063,46 @@ describe('WorkingView', () => {
     },
   );
 
+  it('aplaza los avisos del watcher durante stash y refresca al terminar', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const createStash = ports.git.createStash.bind(ports.git);
+    let finish: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const create = vi.spyOn(ports.git, 'createStash').mockImplementation(async (...args) => {
+      await gate;
+      return createStash(...args);
+    });
+    const readStatus = vi.spyOn(ports.git, 'readStatus');
+    let notify: ((change: { worktree: boolean; git: boolean }) => void) | undefined;
+    vi.spyOn(ports.git, 'watchRepository').mockImplementation((_id, listener) => {
+      notify = listener;
+      return Promise.resolve(() => undefined);
+    });
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    await screen.findByRole('region', { name: 'Cambios' });
+    await user.click(screen.getByRole('button', { name: 'Crear stash' }));
+    expect(useWorkingStore.getState().pendingWrites).toBe(1);
+    const before = readStatus.mock.calls.length;
+    act(() => {
+      notify?.({ worktree: true, git: false });
+      notify?.({ worktree: true, git: true });
+    });
+    expect(readStatus).toHaveBeenCalledTimes(before);
+    await act(async () => {
+      finish();
+      await gate;
+    });
+    await waitFor(() => expect(useWorkingStore.getState().pendingWrites).toBe(0));
+    await waitFor(() => expect(useWorkingStore.getState().context?.hasWip).toBe(false));
+    expect(create).toHaveBeenCalledOnce();
+    expect(readStatus.mock.calls.length).toBeGreaterThan(before);
+    expect(screen.getByRole('button', { name: 'Crear stash' })).toBeDisabled();
+  });
+
   it('pasar un archivo al staging lo mueve de Cambios a Stage sin recargar la vista', async () => {
     const user = userEvent.setup();
 
@@ -2737,6 +2777,56 @@ describe('WorkingView', () => {
       await refreshGate;
     });
   });
+
+  it.each([false, true])(
+    'un stash completo descarta una lectura anterior del watcher (metadatos: %s)',
+    async (metadata) => {
+      const user = userEvent.setup();
+      const ports = makePorts();
+      const readStatus = ports.git.readStatus.bind(ports.git);
+      const initial = await readStatus('gitthul');
+      const untracked = initial.unstaged.filter((file) => file.change === 'untracked');
+      expect(untracked.length).toBeGreaterThan(0);
+      const stale: WorkingStatus = { ...initial, staged: [], unstaged: untracked, conflicted: [] };
+      let delayNext = false;
+      let finish: ((value: WorkingStatus) => void) | undefined;
+      vi.spyOn(ports.git, 'readStatus').mockImplementation((id, query) => {
+        if (!delayNext) return readStatus(id, query);
+        delayNext = false;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      });
+      let notify: ((change: { worktree: boolean; git: boolean }) => void) | undefined;
+      vi.spyOn(ports.git, 'watchRepository').mockImplementation((_id, listener) => {
+        notify = listener;
+        return Promise.resolve(() => undefined);
+      });
+      const create = vi.spyOn(ports.git, 'createStash');
+      renderApp(ports);
+      await openRepo(user, GITTHUL_PATH);
+      await screen.findByRole('region', { name: 'Cambios' });
+      delayNext = true;
+      act(() => notify?.({ worktree: true, git: metadata }));
+      await waitFor(() => expect(finish).toBeDefined());
+
+      await user.click(screen.getByRole('button', { name: 'Crear stash' }));
+      await waitFor(() => expect(useWorkingStore.getState().pendingWrites).toBe(0));
+      expect(create).toHaveBeenCalledOnce();
+      expect(create).toHaveBeenCalledWith(
+        'gitthul',
+        expect.any(String),
+        expect.objectContaining({ includeUntracked: true }),
+      );
+      expect((await readStatus('gitthul')).clean).toBe(true);
+      await act(async () => {
+        finish?.(stale);
+        await Promise.resolve();
+      });
+      expect(useWorkingStore.getState().context?.hasWip).toBe(false);
+      expect(screen.getByRole('button', { name: 'Crear stash' })).toBeDisabled();
+    },
+  );
 
   it('un Pop conflictivo abre Resolver sin esperar al watcher y solo se ejecuta una vez', async () => {
     const user = userEvent.setup();

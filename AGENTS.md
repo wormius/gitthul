@@ -81,6 +81,10 @@ representa el árbol vacío para selecciones que incluyen el commit raíz. Los d
 extremos históricos deben fijarse a SHAs antes de listar y abrir sus archivos;
 workingRange compara esa revisión con el estado actual completo del árbol de trabajo.
 
+WorkingView invalida las lecturas anteriores al comenzar una escritura. Los avisos
+del watcher recibidos durante la operación se acumulan y se consultan al terminar;
+una respuesta tardía no puede reemplazar el estado devuelto por stash, POP o Stage.
+
 Las pruebas de escritura usan repositorios descartables. No experimentar con
 reset, limpieza o recuperación destructiva sobre repositorios del usuario.
 
