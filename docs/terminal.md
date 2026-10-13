@@ -10,6 +10,11 @@ historial, y al cargar más commits cuando te acercas al final. Puedes escribir
 y ejecutar comandos mientras se prepara el grafo. Si la lectura falla, el panel
 muestra el error y ofrece **Reintentar** sin cerrar la terminal.
 
+En el grafo lateral, los commits se representan con anillos huecos, el WIP con
+un círculo sólido y los stashes con cuadrados sólidos. Las ramas se distinguen
+por sus colores y patrones de línea; cambiar de rama no cambia la forma de los
+commits.
+
 En Unix, GitThul abre el shell configurado para tu cuenta. Cuando utilizas zsh,
 este carga su configuración habitual, incluidos los plugins de Oh My Zsh. La
 terminal admite color y ajusta sus dimensiones al tamaño del panel y de la

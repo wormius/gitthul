@@ -185,6 +185,10 @@ Comprobar teclado, foco, accesibilidad, paneles estrechos y edición de texto se
 Los atajos no deben interceptar entrada normal ni composición de texto. No comunicar
 un estado solo por color; mantener foco visible y contraste verificable.
 
+El grafo de Terminal usa anillos para todos los commits. WIP es un círculo sólido
+y stash un cuadrado sólido; las ramas se distinguen por tono y patrón de línea.
+Conservar el dibujante compartido y la simbología especial al ajustar su paleta.
+
 Todo texto de la interfaz de usuario del producto usa i18n. Las muestras internas
 de la galería conservan su convención actual; no requieren una traducción global
 por esta reorganización. Mantener es-MX, es-ES, en, de y fr coherentes en claves,

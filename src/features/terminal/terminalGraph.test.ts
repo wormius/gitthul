@@ -123,7 +123,7 @@ describe('terminalGraph', () => {
     expect(new Set(palette.branches.map((branch) => branch.dash.join(','))).size).toBeGreaterThan(
       1,
     );
-    expect(new Set(palette.branches.map((branch) => branch.shape)).size).toBeGreaterThan(1);
+    expect(new Set(palette.branches.map((branch) => branch.shape))).toEqual(new Set(['ring']));
     expect(palette.wip).toBe('gray');
     expect(palette.stash).toBe('blue');
     expect(palette.wipNode).toBe('dark-ink');
