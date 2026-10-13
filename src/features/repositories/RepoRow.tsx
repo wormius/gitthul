@@ -20,6 +20,7 @@ interface RepoRowProps {
   avatar: RepoAvatar | null;
   /** Lo que la fila ya era **antes** de este clic; de ahí sale la doble selección. */
   selected: boolean;
+  canOpenOnClick?: boolean;
   spaces?: readonly Space[];
   /**
    * Los espacios a los que pertenece, cuando toca enseñarlos.
@@ -71,6 +72,7 @@ export function RepoRow({
   repo,
   avatar,
   selected,
+  canOpenOnClick = true,
   spaces = [],
   when,
   menu,
@@ -84,11 +86,24 @@ export function RepoRow({
   const dragPreview = useRef<HTMLDivElement>(null);
 
   const onMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    wasSelected.current = event.button === 0 && selected;
+    wasSelected.current =
+      event.button === 0 &&
+      selected &&
+      canOpenOnClick &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey;
   };
 
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.detail !== 1 || !wasSelected.current) return;
+    if (
+      event.detail !== 1 ||
+      !wasSelected.current ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
+    )
+      return;
 
     wasSelected.current = false;
     onOpen();
@@ -115,7 +130,13 @@ export function RepoRow({
         onDragEnd={onDragEnd}
         onMouseDown={onMouseDown}
         onClick={onClick}
+        onDoubleClick={(event) => {
+          if (event.ctrlKey || event.metaKey || event.shiftKey) event.stopPropagation();
+        }}
         onContextMenu={onSelect}
+        onKeyDown={(event) => {
+          if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) onSelect();
+        }}
       >
         <RepoDragPreview ref={dragPreview} repo={repo} avatar={avatar} />
         {avatar ? (

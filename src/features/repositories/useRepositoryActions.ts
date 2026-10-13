@@ -16,16 +16,18 @@ import {
 import type { Repository, RepoSummary } from '@core/domain/repository';
 import type { CloneRequest, GitQuery } from '@core/ports/GitPort';
 
-import { useRepositoriesStore } from './repositoriesStore';
+import { useRepositoriesStore, type RepositoryBatchFailure } from './repositoriesStore';
 
 export interface RepositoryActions {
   load: (signal?: AbortSignal) => Promise<void>;
   openFolder: () => void;
   open: (repo: RepoSummary, onOpened?: () => void) => void;
+  openMany: (repos: readonly RepoSummary[]) => void;
   openAll: (space: Space, repos: readonly RepoSummary[]) => void;
   reveal: (repo: RepoSummary) => void;
   locate: (repo: RepoSummary) => void;
   forget: (repo: RepoSummary, next: RepoSummary | null) => void;
+  forgetMany: (repos: readonly RepoSummary[]) => void;
   setSort: (sort: RepoSort) => void;
   setLayout: (layout: LibraryLayout) => void;
   setView: (view: LibraryView) => void;
@@ -87,12 +89,16 @@ export function useRepositoryActions(): RepositoryActions {
     };
     const reload = () => load();
 
+    const activateRepository = async (repo: RepoSummary) => {
+      await git.markOpened(repo.id);
+      store().setLibrary(await libraryPort.recordOpening(repo.id));
+      shell().openWorking(baseFor(repo));
+    };
+
     const openRepository = async (repo: RepoSummary, showError: boolean): Promise<boolean> => {
       try {
-        await git.markOpened(repo.id);
-        store().setLibrary(await libraryPort.recordOpening(repo.id));
+        await activateRepository(repo);
         if (showError) store().setOpenError(null);
-        shell().openWorking(baseFor(repo));
         return true;
       } catch (error) {
         if (isCancelled(error)) return false;
@@ -102,6 +108,74 @@ export function useRepositoryActions(): RepositoryActions {
         }
         return false;
       }
+    };
+
+    const runBatch = (
+      repos: readonly RepoSummary[],
+      operation: 'open' | 'forget',
+      space?: Space,
+    ) => {
+      if (store().batchBusy) return;
+      const unique = [...new Map(repos.map((repo) => [repo.id, repo])).values()];
+      if (unique.length === 0) return;
+
+      store().setBatchBusy(true);
+      store().setBatchFailures([]);
+      store().setOpenError(null);
+      if (operation === 'forget') store().closeDialog();
+
+      void (async () => {
+        const failures: RepositoryBatchFailure[] = [];
+        const succeeded = new Set<string>();
+        let cancelled = 0;
+        try {
+          // Library persistence and tab activation follow the same stable order.
+          for (const repo of unique) {
+            try {
+              if (operation === 'open') await activateRepository(repo);
+              else await git.forgetRepository(repo.id);
+              succeeded.add(repo.id);
+            } catch (error) {
+              if (isCancelled(error)) cancelled += 1;
+              else failures.push({ repo, error: toGitOperationError(error), operation });
+            }
+          }
+          store().setBatchFailures(failures);
+          if (operation === 'forget') {
+            store().selectMany(
+              new Set([...store().selectedIds].filter((id) => !succeeded.has(id))),
+              store().selectedFrom,
+            );
+          }
+          const partial = failures.length > 0 || cancelled > 0;
+          shell().setStatus({
+            tone: partial ? 'warning' : 'success',
+            key: space
+              ? partial
+                ? 'repositories.status.openedSpaceWithFailures'
+                : 'repositories.status.openedSpace'
+              : operation === 'open'
+                ? partial
+                  ? 'repositories.status.openedManyWithFailures'
+                  : 'repositories.status.openedMany'
+                : partial
+                  ? 'repositories.status.forgottenManyWithFailures'
+                  : 'repositories.status.forgottenMany',
+            params: {
+              count: succeeded.size,
+              failed: failures.length,
+              cancelled,
+              ...(space ? { space: space.name } : {}),
+            },
+          });
+        } finally {
+          try {
+            await reload();
+          } finally {
+            store().setBatchBusy(false);
+          }
+        }
+      })();
     };
 
     return {
@@ -138,28 +212,14 @@ export function useRepositoryActions(): RepositoryActions {
         })();
       },
       open: (repo, onOpened) => {
+        if (store().batchBusy) return;
         void (async () => {
           if (await openRepository(repo, true)) onOpened?.();
           void reload();
         })();
       },
-      openAll: (space, repos) => {
-        void (async () => {
-          let failed = 0;
-          for (const repo of repos) {
-            if (!(await openRepository(repo, false))) failed += 1;
-          }
-          void reload();
-          shell().setStatus({
-            tone: failed === 0 ? 'success' : 'warning',
-            key:
-              failed === 0
-                ? 'repositories.status.openedSpace'
-                : 'repositories.status.openedSpaceWithFailures',
-            params: { space: space.name, count: repos.length, failed },
-          });
-        })();
-      },
+      openMany: (repos) => runBatch(repos, 'open'),
+      openAll: (space, repos) => runBatch(repos, 'open', space),
       reveal: (repo) => {
         void system.revealPath(repo.path).catch(() => {
           shell().setStatus({
@@ -190,6 +250,7 @@ export function useRepositoryActions(): RepositoryActions {
         })();
       },
       forget: (repo, next) => {
+        if (store().batchBusy) return;
         void (async () => {
           try {
             await git.forgetRepository(repo.id);
@@ -205,6 +266,7 @@ export function useRepositoryActions(): RepositoryActions {
           }
         })();
       },
+      forgetMany: (repos) => runBatch(repos, 'forget'),
       setSort: (sort) => {
         void libraryPort.setSort(sort).then(store().setLibrary);
       },

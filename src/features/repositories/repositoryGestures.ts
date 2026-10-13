@@ -22,14 +22,19 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
   const home = useShellStore(isHome);
   const settingsOpen = useShellStore((state) => state.settingsOpen);
   const selected = useRepositoriesStore((state) => state.selected);
+  const selectedIds = useRepositoriesStore((state) => state.selectedIds);
+  const batchBusy = useRepositoriesStore((state) => state.batchBusy);
   const library = useRepositoriesStore((state) => state.library);
   const repositories = useRepositoriesStore((state) => state.repositories);
   const setRenaming = useRepositoriesStore((state) => state.setRenaming);
   const openDialog = useRepositoriesStore((state) => state.openDialog);
 
   return useMemo<readonly GestureDefinition[]>(() => {
-    const away = !home || settingsOpen;
+    const away = !home || settingsOpen || batchBusy;
     const repo = selected;
+    const chosen = (repositories ?? []).filter((candidate) => selectedIds.has(candidate.id));
+    const multiple = chosen.length > 1;
+    const counted = { count: chosen.length };
     const named = { repo: repo?.name ?? '' };
     const spaces = library?.spaces ?? [];
     const showingSpaces = library?.layout === 'spaces';
@@ -77,22 +82,32 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
       },
       {
         id: 'repos.open',
-        label: repo ? t('gesture.repos.open', named) : t('gesture.repos.openNone'),
+        label: multiple
+          ? t('repositories.menu.openSelected', counted)
+          : repo
+            ? t('gesture.repos.open', named)
+            : t('gesture.repos.openNone'),
         triggers: ['activate', 'menu', 'search'],
-        disabled: away || !repo,
-        hiddenInSearch: away || !repo,
+        disabled: away || chosen.length === 0,
+        hiddenInSearch: away || chosen.length === 0,
         run: () => {
-          if (repo) actions.open(repo);
+          if (multiple) actions.openMany(chosen);
+          else if (repo) actions.open(repo);
         },
       },
       {
         id: 'repos.forget',
-        label: repo ? t('gesture.repos.forget', named) : t('gesture.repos.forgetNone'),
+        label: multiple
+          ? t('repositories.menu.forgetSelected', counted)
+          : repo
+            ? t('gesture.repos.forget', named)
+            : t('gesture.repos.forgetNone'),
         triggers: ['menu', 'search'],
-        disabled: away || !repo,
-        hiddenInSearch: away || !repo,
+        disabled: away || chosen.length === 0,
+        hiddenInSearch: away || chosen.length === 0,
         run: () => {
-          if (repo) openDialog({ kind: 'forget', repo });
+          if (multiple) openDialog({ kind: 'forgetMany', repos: chosen });
+          else if (repo) openDialog({ kind: 'forget', repo });
         },
       },
       {
@@ -262,5 +277,17 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
         },
       },
     ];
-  }, [actions, home, settingsOpen, library, openDialog, repositories, selected, setRenaming, t]);
+  }, [
+    actions,
+    home,
+    settingsOpen,
+    batchBusy,
+    library,
+    openDialog,
+    repositories,
+    selected,
+    selectedIds,
+    setRenaming,
+    t,
+  ]);
 }

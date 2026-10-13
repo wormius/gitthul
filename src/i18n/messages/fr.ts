@@ -167,6 +167,7 @@ export const fr: Messages = {
   'repositories.split': 'Largeur de la liste des dépôts',
   'repositories.actions': 'Actions de dépôt',
   'repositories.action.openFolder': 'Ouvrir',
+  'repositories.action.forget': 'Oublier',
   'repositories.action.create': 'Créer',
   'repositories.action.clone': 'Cloner',
   'repositories.action.terminal': 'Terminal',
@@ -236,7 +237,7 @@ export const fr: Messages = {
   'repositories.status.spaceDeleted': '{space} a été supprimé.',
   'repositories.status.openedSpace': '{count} dépôts de {space} ont été ouverts.',
   'repositories.status.openedSpaceWithFailures':
-    'Les dépôts de {space} ont été ouverts, sauf {failed} en échec.',
+    '{count} dépôts de {space} ouverts ; {failed} ont échoué et {cancelled} ont été annulés.',
   'repositories.status.addedToSpace': '{repo} a été ajouté à {space}.',
   'repositories.status.removedFromSpace': '{repo} a été retiré de {space}.',
   'repositories.status.movedToSpace': '{repo} a été déplacé de {from} vers {to}.',
@@ -344,6 +345,31 @@ export const fr: Messages = {
   'repositories.home.empty.title': 'GitThul ne connaît encore aucun dépôt',
   'repositories.home.empty.description':
     'Ouvrez un dépôt existant, créez-en un ou clonez un dépôt distant avec les boutons en haut à gauche.',
+
+  'repositories.selection.title': 'Sélection de dépôts',
+  'repositories.selection.count': '{count} sélectionnés',
+  'repositories.selection.description':
+    'Ouvre les dépôts sélectionnés dans des onglets ou retire-les de GitThul.',
+  'repositories.selection.busy': 'Traitement des dépôts…',
+  'repositories.menu.openSelected': 'Ouvrir {count} dépôts',
+  'repositories.menu.forgetSelected': 'Oublier {count} dépôts',
+  'repositories.forgetMany.title': 'Oublier {count} dépôts',
+  'repositories.forgetMany.description':
+    'Ces {count} dépôts seront retirés de la liste de GitThul. Leurs dossiers et leur historique Git seront conservés.',
+  'repositories.forgetMany.confirm': 'Oublier {count} dépôts',
+  'repositories.forgetMany.cancel': 'Conserver {count} dépôts',
+  'repositories.forgetMany.close': 'Fermer sans oublier {count} dépôts',
+  'repositories.forgetMany.list': 'Dépôts à oublier',
+  'repositories.status.openedMany': '{count} dépôts ouverts.',
+  'repositories.status.openedManyWithFailures':
+    '{count} dépôts ouverts ; {failed} ont échoué et {cancelled} ont été annulés.',
+  'repositories.status.forgottenMany':
+    'GitThul a oublié {count} dépôts ; leurs dossiers et leur historique sont conservés.',
+  'repositories.status.forgottenManyWithFailures':
+    'GitThul a oublié {count} dépôts ; {failed} ont échoué et {cancelled} ont été annulés.',
+  'repositories.failures.title': '{count} dépôts n’ont pas pu être traités',
+  'repositories.failures.close': 'Fermer les résultats des dépôts',
+  'repositories.failures.list': 'Dépôts avec des erreurs',
 
   'repositories.forget.description':
     '{repo} quitte la liste de GitThul. Ni le dossier {path} ni son historique ne sont touchés.',

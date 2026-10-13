@@ -84,6 +84,12 @@ workingRange compara esa revisión con el estado actual completo del árbol de t
 Las pruebas de escritura usan repositorios descartables. No experimentar con
 reset, limpieza o recuperación destructiva sobre repositorios del usuario.
 
+La selección de Repositorios usa selectedIds, únicos entre listas y espacios.
+selected solo contiene un repositorio si la selección es singular. Filtrar y
+recargar descartan los IDs ocultos o retirados. Abrir/olvidar por lotes procesa
+los IDs en orden, evita duplicados y conserva los errores por entrada; olvidar
+retira entradas del catálogo sin borrar carpetas ni historial de Git.
+
 ## Recuperación y persistencia
 
 El historial de Deshacer/Rehacer es de sesión. Las operaciones compuestas usan

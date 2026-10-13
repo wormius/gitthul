@@ -58,6 +58,18 @@ function rowAt(rows: readonly HTMLElement[], path: string) {
   return row;
 }
 
+function clickRow(row: HTMLElement, modifiers: { ctrlKey?: boolean; shiftKey?: boolean } = {}) {
+  const target = within(row).getByText(/\//);
+  fireEvent.mouseDown(target, { button: 0, detail: 1, ...modifiers });
+  fireEvent.click(target, { button: 0, detail: 1, ...modifiers });
+}
+
+function openedRepositoryIds() {
+  return useShellStore
+    .getState()
+    .tabs.flatMap((tab) => (tab.surface.kind === 'working' ? [tab.surface.repoId] : []));
+}
+
 beforeEach(() => {
   useRepositoriesStore.getState().reset();
   useShellStore.getState().reset();
@@ -71,6 +83,204 @@ describe('RepositoriesView con biblioteca real', () => {
     expect(await knownRows()).toHaveLength(4);
     expect(screen.getByRole('region', { name: 'Recientes' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Espacios' })).toBeInTheDocument();
+  });
+
+  it('selecciona varios con Ctrl y los abre sin duplicar las pestañas existentes', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const markOpened = vi.spyOn(ports.git, 'markOpened');
+    renderView(ports);
+    const rows = await knownRows();
+    const gitthul = rowAt(rows, '/home/example/projects/gitthul');
+    const bitacora = rowAt(rows, '/home/example/projects/bitacora');
+
+    clickRow(gitthul);
+    clickRow(bitacora, { ctrlKey: true });
+    expect(gitthul).toHaveAttribute('aria-selected', 'true');
+    expect(bitacora).toHaveAttribute('aria-selected', 'true');
+    expect(openedRepositoryIds()).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: 'Abrir 2 repositorios' }));
+    await waitFor(() => expect(openedRepositoryIds().sort()).toEqual(['bitacora', 'gitthul']));
+    await waitFor(() => expect(markOpened).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole('button', { name: 'Abrir 2 repositorios' }));
+    await waitFor(() => expect(markOpened).toHaveBeenCalledTimes(4));
+    expect(openedRepositoryIds().sort()).toEqual(['bitacora', 'gitthul']);
+  });
+
+  it('extiende rangos con Mayús, selecciona todo con Ctrl+A y reemplaza con un clic normal', async () => {
+    renderView(makePorts());
+    const rows = await knownRows();
+    const all = screen.getByRole('listbox', { name: 'Repositorios conocidos' });
+    expect(all).toHaveAttribute('aria-multiselectable', 'true');
+
+    clickRow(rows[0]!);
+    clickRow(rows[2]!, { shiftKey: true });
+    expect(within(all).getAllByRole('option', { selected: true })).toHaveLength(3);
+    fireEvent.keyDown(all, { key: 'a', ctrlKey: true });
+    expect(within(all).getAllByRole('option', { selected: true })).toHaveLength(4);
+    clickRow(rows[3]!);
+    expect(within(all).getAllByRole('option', { selected: true })).toEqual([rows[3]]);
+    expect(openedRepositoryIds()).toEqual([]);
+  });
+
+  it('abre las acciones del lote con el menú contextual del teclado', async () => {
+    renderView(makePorts());
+    const rows = await knownRows();
+    clickRow(rows[0]!);
+    clickRow(rows[1]!, { ctrlKey: true });
+    const list = screen.getByRole('listbox', { name: 'Repositorios conocidos' });
+    list.focus();
+
+    fireEvent.keyDown(list, { key: 'F10', shiftKey: true });
+    expect(await screen.findByRole('menuitem', { name: /Abrir 2 repositorios/ })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: /Olvidar 2 repositorios/ })).toBeEnabled();
+    expect(within(list).getAllByRole('option', { selected: true })).toHaveLength(2);
+  });
+
+  it('el menú de un miembro conserva el lote y el de otro repositorio lo reemplaza', async () => {
+    const user = userEvent.setup();
+    renderView(makePorts());
+    const rows = await knownRows();
+    const gitthul = rowAt(rows, '/home/example/projects/gitthul');
+    const bitacora = rowAt(rows, '/home/example/projects/bitacora');
+    const dotfiles = rowAt(rows, '/home/example/dotfiles');
+    clickRow(gitthul);
+    clickRow(bitacora, { ctrlKey: true });
+
+    fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
+    expect(await screen.findByRole('menuitem', { name: 'Abrir 2 repositorios' })).toBeVisible();
+    expect(screen.getByRole('menuitem', { name: 'Olvidar 2 repositorios' })).toBeVisible();
+    expect(bitacora).toHaveAttribute('aria-selected', 'true');
+    await user.keyboard('{Escape}');
+
+    fireEvent.contextMenu(within(dotfiles).getByText('/home/example/dotfiles'));
+    expect(await screen.findByRole('menuitem', { name: 'Abrir' })).toBeVisible();
+    expect(screen.queryByRole('menuitem', { name: 'Abrir 2 repositorios' })).toBeNull();
+    expect(dotfiles).toHaveAttribute('aria-selected', 'true');
+    expect(gitthul).toHaveAttribute('aria-selected', 'false');
+    expect(bitacora).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('comparte la selección entre Recientes y Todos sin contar dos veces el mismo repositorio', async () => {
+    renderView(makePorts());
+    const rows = await knownRows();
+    const allGitthul = rowAt(rows, '/home/example/projects/gitthul');
+    const recent = within(screen.getByRole('region', { name: 'Recientes' })).getByRole('listbox');
+    const recentRows = within(recent).getAllByRole('option');
+    const recentGitthul = rowAt(recentRows, '/home/example/projects/gitthul');
+    const recentBitacora = rowAt(recentRows, '/home/example/projects/bitacora');
+
+    clickRow(allGitthul);
+    clickRow(recentBitacora, { ctrlKey: true });
+    expect(screen.getByRole('button', { name: 'Abrir 2 repositorios' })).toBeVisible();
+    expect(recentGitthul).toHaveAttribute('aria-selected', 'true');
+    expect(rowAt(rows, '/home/example/projects/bitacora')).toHaveAttribute('aria-selected', 'true');
+
+    clickRow(recentGitthul, { ctrlKey: true });
+    expect(allGitthul).toHaveAttribute('aria-selected', 'false');
+    expect(recentGitthul).toHaveAttribute('aria-selected', 'false');
+    expect(useRepositoriesStore.getState().selected?.id).toBe('bitacora');
+    expect(openedRepositoryIds()).toEqual([]);
+  });
+
+  it('el filtro retira de la selección los repositorios que ya no están visibles', async () => {
+    const user = userEvent.setup();
+    renderView(makePorts());
+    const rows = await knownRows();
+    clickRow(rowAt(rows, '/home/example/projects/gitthul'));
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+    await user.type(
+      screen.getByLabelText('Filtrar los repositorios por nombre o por ruta'),
+      'bitacora',
+    );
+
+    await waitFor(() => expect(useRepositoriesStore.getState().selected?.id).toBe('bitacora'));
+    expect(screen.queryByRole('button', { name: 'Abrir 2 repositorios' })).toBeNull();
+    expect(await knownRows()).toHaveLength(1);
+    await user.clear(screen.getByLabelText('Filtrar los repositorios por nombre o por ruta'));
+    expect(rowAt(await knownRows(), '/home/example/projects/gitthul')).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+  });
+
+  it('olvidar varios confirma nombres y rutas, permite cancelar y conserva los no seleccionados', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const forget = vi.spyOn(ports.git, 'forgetRepository');
+    await ports.library.createSpace('Trabajo');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'bitacora');
+    await ports.library.addToSpace('space-1', 'dotfiles');
+    renderView(ports);
+    const rows = await knownRows();
+    clickRow(rowAt(rows, '/home/example/projects/gitthul'));
+    clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
+
+    await user.click(screen.getByRole('button', { name: 'Olvidar 2 repositorios' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Olvidar 2 repositorios' });
+    const targets = within(dialog).getByRole('list', { name: 'Repositorios que se van a olvidar' });
+    expect(within(targets).getByText('gitthul')).toBeVisible();
+    expect(within(targets).getByText('/home/example/projects/gitthul')).toBeVisible();
+    expect(within(targets).getByText('bitacora')).toBeVisible();
+    expect(within(targets).getByText('/home/example/projects/bitacora')).toBeVisible();
+    expect(
+      within(dialog).getByText(/Sus carpetas y su historial Git se conservarán/),
+    ).toBeVisible();
+    await user.click(within(dialog).getByRole('button', { name: 'Conservar 2 repositorios' }));
+    expect(forget).not.toHaveBeenCalled();
+    expect(await ports.git.listRepositories()).toHaveLength(4);
+
+    await user.click(screen.getByRole('button', { name: 'Olvidar 2 repositorios' }));
+    dialog = await screen.findByRole('dialog', { name: 'Olvidar 2 repositorios' });
+    await user.click(within(dialog).getByRole('button', { name: 'Olvidar 2 repositorios' }));
+    await waitFor(() => expect(forget).toHaveBeenCalledTimes(2));
+    expect(forget.mock.calls.map(([id]) => id).sort()).toEqual(['bitacora', 'gitthul']);
+    await waitFor(() =>
+      expect(
+        useRepositoriesStore
+          .getState()
+          .repositories?.map((repo) => repo.id)
+          .sort(),
+      ).toEqual(['dotfiles', 'gitthul-worktree']),
+    );
+    expect((await ports.library.read()).spaces[0]?.repos).toContain('dotfiles');
+  });
+
+  it('selecciona tarjetas entre espacios y cuenta una sola vez las membresías repetidas', async () => {
+    const ports = makePorts();
+    await ports.library.createSpace('Uno');
+    await ports.library.createSpace('Dos');
+    await ports.library.addToSpace('space-1', 'gitthul');
+    await ports.library.addToSpace('space-1', 'bitacora');
+    await ports.library.addToSpace('space-2', 'gitthul');
+    await ports.library.addToSpace('space-2', 'dotfiles');
+    await ports.library.setLayout('spaces');
+    renderView(ports);
+    await knownRows();
+    const first = within(await screen.findByRole('listbox', { name: 'Repositorios de Uno' }));
+    const second = within(screen.getByRole('listbox', { name: 'Repositorios de Dos' }));
+    const gitthulFirst = rowAt(first.getAllByRole('option'), '/home/example/projects/gitthul');
+    const gitthulSecond = rowAt(second.getAllByRole('option'), '/home/example/projects/gitthul');
+    const bitacora = rowAt(first.getAllByRole('option'), '/home/example/projects/bitacora');
+    const dotfiles = rowAt(second.getAllByRole('option'), '/home/example/dotfiles');
+
+    clickRow(gitthulFirst);
+    clickRow(bitacora, { ctrlKey: true });
+    expect(gitthulSecond).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Abrir 2 repositorios' })).toBeVisible();
+    clickRow(gitthulSecond, { ctrlKey: true });
+    expect(gitthulFirst).toHaveAttribute('aria-selected', 'false');
+    expect(gitthulSecond).toHaveAttribute('aria-selected', 'false');
+    expect(useRepositoriesStore.getState().selected?.id).toBe('bitacora');
+
+    clickRow(gitthulFirst);
+    clickRow(dotfiles, { shiftKey: true });
+    expect(screen.getByRole('button', { name: 'Abrir 3 repositorios' })).toBeVisible();
+    expect(bitacora).toHaveAttribute('aria-selected', 'true');
+    expect(dotfiles).toHaveAttribute('aria-selected', 'true');
+    expect(openedRepositoryIds()).toEqual([]);
   });
 
   it('persiste el layout y monta miembros vivos como tarjetas seleccionables', async () => {
@@ -391,7 +601,7 @@ describe('RepositoriesView con biblioteca real', () => {
     expect(useShellStore.getState().status).toEqual({
       tone: 'warning',
       key: 'repositories.status.openedSpaceWithFailures',
-      params: { space: 'Trabajo', count: 2, failed: 1 },
+      params: { space: 'Trabajo', count: 1, failed: 1, cancelled: 0 },
     });
   });
 

@@ -113,6 +113,35 @@ describe('VirtualList', () => {
     expect([...(onSelectionChange.mock.lastCall?.[0] ?? [])]).toEqual(['sha-3', 'sha-4', 'sha-5']);
   });
 
+  it('Space selects and Ctrl+Space toggles without activating a row', () => {
+    const activate = vi.fn();
+    const selection = vi.fn<(next: ReadonlySet<string>) => void>();
+    render(
+      <Harness
+        initialSelected={['sha-0', 'sha-1']}
+        onSelectionChange={selection}
+        onActivate={activate}
+      />,
+    );
+    fireEvent.keyDown(list(), { key: ' ', ctrlKey: true });
+    expect(selection).toHaveBeenLastCalledWith(new Set(['sha-1']));
+    fireEvent.keyDown(list(), { key: ' ' });
+    expect(selection).toHaveBeenLastCalledWith(new Set(['sha-0']));
+    expect(activate).not.toHaveBeenCalled();
+  });
+
+  it('leaves Space available to controls inside a row', () => {
+    const selection = vi.fn<(next: ReadonlySet<string>) => void>();
+    render(
+      <Harness
+        onSelectionChange={selection}
+        renderRow={(commit) => <button>{commit.subject}</button>}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Commit número 0' }), { key: ' ' });
+    expect(selection).not.toHaveBeenCalled();
+  });
+
   it('las flechas mueven la fila activa y la anuncian sin sacar el foco de la lista', () => {
     render(<Harness />);
 

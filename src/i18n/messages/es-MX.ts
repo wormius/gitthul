@@ -193,6 +193,7 @@ export const esMX = {
   'repositories.split': 'Ancho de la lista de repositorios',
   'repositories.actions': 'Acciones de repositorio',
   'repositories.action.openFolder': 'Abrir',
+  'repositories.action.forget': 'Olvidar',
   'repositories.action.create': 'Crear',
   'repositories.action.clone': 'Clonar',
   'repositories.action.terminal': 'Terminal',
@@ -263,7 +264,7 @@ export const esMX = {
   'repositories.status.spaceDeleted': 'Se eliminó {space}.',
   'repositories.status.openedSpace': 'Se abrieron {count} repositorios de {space}.',
   'repositories.status.openedSpaceWithFailures':
-    'Se abrieron los repositorios de {space}, salvo {failed} que fallaron.',
+    'Se abrieron {count} repositorios de {space}; {failed} fallaron y {cancelled} se cancelaron.',
   'repositories.status.addedToSpace': 'Se agregó {repo} a {space}.',
   'repositories.status.removedFromSpace': 'Se sacó {repo} de {space}.',
   'repositories.status.movedToSpace': 'Se movió {repo} de {from} a {to}.',
@@ -372,6 +373,31 @@ export const esMX = {
   'repositories.home.empty.title': 'GitThul todavía no conoce ningún repositorio',
   'repositories.home.empty.description':
     'Abre un repositorio existente, crea uno nuevo o clona un repositorio remoto con los botones de arriba a la izquierda.',
+
+  'repositories.selection.title': 'Selección de repositorios',
+  'repositories.selection.count': '{count} seleccionados',
+  'repositories.selection.description':
+    'Abre los repositorios seleccionados en pestañas u olvídalos en GitThul.',
+  'repositories.selection.busy': 'Procesando repositorios…',
+  'repositories.menu.openSelected': 'Abrir {count} repositorios',
+  'repositories.menu.forgetSelected': 'Olvidar {count} repositorios',
+  'repositories.forgetMany.title': 'Olvidar {count} repositorios',
+  'repositories.forgetMany.description':
+    'Estos {count} repositorios se quitarán de la lista de GitThul. Sus carpetas y su historial Git se conservarán.',
+  'repositories.forgetMany.confirm': 'Olvidar {count} repositorios',
+  'repositories.forgetMany.cancel': 'Conservar {count} repositorios',
+  'repositories.forgetMany.close': 'Cerrar sin olvidar {count} repositorios',
+  'repositories.forgetMany.list': 'Repositorios que se van a olvidar',
+  'repositories.status.openedMany': 'Se abrieron {count} repositorios.',
+  'repositories.status.openedManyWithFailures':
+    'Se abrieron {count} repositorios; {failed} fallaron y {cancelled} se cancelaron.',
+  'repositories.status.forgottenMany':
+    'GitThul olvidó {count} repositorios; sus carpetas y su historial se conservaron.',
+  'repositories.status.forgottenManyWithFailures':
+    'GitThul olvidó {count} repositorios; {failed} fallaron y {cancelled} se cancelaron.',
+  'repositories.failures.title': 'No se pudieron procesar {count} repositorios',
+  'repositories.failures.close': 'Cerrar los resultados de los repositorios',
+  'repositories.failures.list': 'Repositorios con errores',
 
   'repositories.forget.description':
     '{repo} se quitará de la lista de GitThul. La carpeta {path} y su historial se conservarán.',

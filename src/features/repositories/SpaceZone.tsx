@@ -193,6 +193,8 @@ export function SpaceZone({
             <div
               role="listbox"
               aria-label={t('repositories.spaces.zoneList', { space: space.name })}
+              aria-multiselectable="true"
+              data-space-id={space.id}
               className={styles.grid}
             >
               {children}

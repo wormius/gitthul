@@ -1,0 +1,30 @@
+.repositories {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 35vh;
+  margin: 0;
+  padding: var(--space-2);
+  overflow: auto;
+  list-style: none;
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.repositories:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.repository {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.path {
+  color: var(--text-secondary);
+  font-family: var(--font-family-code);
+  font-size: var(--text-sm);
+}

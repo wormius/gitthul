@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RepoSummary } from '@core/domain/repository';
@@ -16,23 +17,28 @@ const repo: RepoSummary = {
   lastOpenedAt: 1,
 };
 
-function renderRow(selected = false) {
+function renderRow(selected = false, props: Partial<ComponentProps<typeof RepoRow>> = {}) {
   const onOpen = vi.fn();
+  const onSelect = vi.fn();
+  const onActivate = vi.fn();
   render(
     <I18nProvider initialLocale="es-MX">
-      <RepoRow
-        repo={repo}
-        avatar={null}
-        selected={selected}
-        when="hace 2 días"
-        menu={[]}
-        onOpen={onOpen}
-        onSelect={vi.fn()}
-      />
+      <div onDoubleClick={onActivate}>
+        <RepoRow
+          repo={repo}
+          avatar={null}
+          selected={selected}
+          when="hace 2 días"
+          menu={[]}
+          onOpen={onOpen}
+          onSelect={onSelect}
+          {...props}
+        />
+      </div>
     </I18nProvider>,
   );
   const row = screen.getByText('/repos/gitthul').closest('div') as HTMLElement;
-  return { row, onOpen };
+  return { row, onOpen, onSelect, onActivate };
 }
 
 describe('RepoRow', () => {
@@ -49,6 +55,40 @@ describe('RepoRow', () => {
     fireEvent.mouseDown(row, { button: 0, detail: 1 });
     fireEvent.click(row, { button: 0, detail: 1 });
     expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it.each(['ctrlKey', 'metaKey', 'shiftKey'] as const)(
+    '%s no abre una fila ya seleccionada',
+    (modifier) => {
+      const { row, onOpen, onActivate } = renderRow(true);
+
+      fireEvent.mouseDown(row, { button: 0, [modifier]: true });
+      fireEvent.click(row, { button: 0, detail: 1, [modifier]: true });
+      fireEvent.doubleClick(row, { button: 0, [modifier]: true });
+
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(onActivate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('no abre un miembro de la selección múltiple al reducirla con un clic', () => {
+    const { row, onOpen } = renderRow(true, { canOpenOnClick: false });
+
+    fireEvent.mouseDown(row, { button: 0 });
+    fireEvent.click(row, { button: 0, detail: 1 });
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('prepara la selección contextual antes de abrir el menú desde el teclado', () => {
+    const { row, onSelect } = renderRow(false, {
+      menu: [{ key: 'open', label: 'Abrir', onSelect: vi.fn() }],
+    });
+
+    fireEvent.keyDown(row, { key: 'ContextMenu' });
+
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(screen.getByRole('menuitem', { name: 'Abrir' })).toBeInTheDocument();
   });
 
   it('el hover no desplaza la fila', () => {

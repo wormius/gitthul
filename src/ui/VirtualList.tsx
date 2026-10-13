@@ -303,6 +303,16 @@ export function VirtualList<T>({
         event.preventDefault();
         move(items.length - 1, event);
         break;
+      case ' ': {
+        if (!selectable || event.target !== event.currentTarget) return;
+        const item = items[currentIndex];
+        if (item === undefined) return;
+        event.preventDefault();
+        const id = getKey(item, currentIndex);
+        activeKeyRef.current = id;
+        selection.select(id, allIds, event);
+        break;
+      }
       case 'Enter': {
         const item = items[currentIndex];
 

@@ -21,6 +21,8 @@ import { EmptyState } from '@ui/EmptyState';
 import type { MenuEntry } from '@ui/menuUtils';
 import { Skeleton } from '@ui/Skeleton';
 import { SplitPane } from '@ui/SplitPane';
+import { Spinner } from '@ui/Spinner';
+import { Toolbar } from '@ui/Toolbar';
 import { VirtualList } from '@ui/VirtualList';
 
 import { CloneRepoDialog } from './CloneRepoDialog';
@@ -36,6 +38,7 @@ import { RepoFilterBar } from './RepoFilterBar';
 import { RepoRow } from './RepoRow';
 import { RepoSection } from './RepoSection';
 import { RepoStatsPanel } from './RepoStatsPanel';
+import { OpenAllIcon, TrashIcon } from './RepositoryIcons';
 import { SpaceNameDialog } from './SpaceNameDialog';
 import { CREATE_SPACE_TARGET, SpaceDropTargets } from './SpaceDropTargets';
 import {
@@ -68,13 +71,17 @@ export function RepositoriesView() {
   const folderError = useRepositoriesStore((state) => state.folderError);
   const openError = useRepositoriesStore((state) => state.openError);
   const selected = useRepositoriesStore((state) => state.selected);
-  const selectedFrom = useRepositoriesStore((state) => state.selectedFrom);
+  const selectedIds = useRepositoriesStore((state) => state.selectedIds);
+  const batchBusy = useRepositoriesStore((state) => state.batchBusy);
+  const batchFailures = useRepositoriesStore((state) => state.batchFailures);
+  const setBatchFailures = useRepositoriesStore((state) => state.setBatchFailures);
   const filter = useRepositoriesStore((state) => state.filter);
   const dialog = useRepositoriesStore((state) => state.dialog);
   const renaming = useRepositoriesStore((state) => state.renaming);
   const dragging = useRepositoriesStore((state) => state.dragging);
   const dragOver = useRepositoriesStore((state) => state.dragOver);
   const select = useRepositoriesStore((state) => state.select);
+  const selectMany = useRepositoriesStore((state) => state.selectMany);
   const setFilter = useRepositoriesStore((state) => state.setFilter);
   const setFolderError = useRepositoriesStore((state) => state.setFolderError);
   const openDialog = useRepositoriesStore((state) => state.openDialog);
@@ -113,31 +120,54 @@ export function RepositoriesView() {
     [elapsed, readAt, t],
   );
   const getKey = useCallback((repo: RepoSummary) => repo.id, []);
-  const markedIn = useCallback(
-    (origin: SelectionOrigin) =>
-      selected && selectedFrom === origin ? new Set([selected.id]) : new Set<string>(),
-    [selected, selectedFrom],
-  );
-  const recentSelection = useMemo(() => markedIn(RECENT_ORIGIN), [markedIn]);
-  const allSelection = useMemo(() => markedIn(ALL_ORIGIN), [markedIn]);
+  const selectedRepos = useMemo(() => {
+    const byId = new Map((repositories ?? []).map((repo) => [repo.id, repo]));
+    return [...selectedIds].flatMap((id) => {
+      const repo = byId.get(id);
+      return repo ? [repo] : [];
+    });
+  }, [repositories, selectedIds]);
   const pickFrom = useCallback(
-    (list: readonly RepoSummary[], origin: SelectionOrigin) => (next: ReadonlySet<string>) => {
-      const [id] = [...next];
-      select(list.find((repo) => repo.id === id) ?? null, origin);
+    (origin: SelectionOrigin) => (next: ReadonlySet<string>) => selectMany(next, origin),
+    [selectMany],
+  );
+  const contextPick = useCallback(
+    (repo: RepoSummary, origin: SelectionOrigin) => {
+      if (!selectedIds.has(repo.id)) select(repo, origin);
     },
-    [select],
+    [select, selectedIds],
+  );
+  const activate = useCallback(
+    (repo: RepoSummary) => {
+      if (batchBusy) return;
+      if (selectedRepos.length > 1) actions.openMany(selectedRepos);
+      else actions.open(repo);
+    },
+    [actions, batchBusy, selectedRepos],
   );
 
   const clearOnDeadSpace = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (!(event.target instanceof Element)) return;
-    if (event.target.closest('a, button, input, [role="option"], [role="menuitem"]')) return;
+    if (
+      event.target.closest('a, button, input, [role="option"], [role="menuitem"], [role="toolbar"]')
+    )
+      return;
     select(null);
   };
 
   const rowMenuFor = useCallback(
     (repo: RepoSummary) =>
-      rowMenu({ repo, spaces: library?.spaces ?? [], t, gestures, actions, openDialog }),
-    [actions, gestures, library?.spaces, openDialog, t],
+      rowMenu({
+        repo,
+        targets: selectedIds.has(repo.id) ? selectedRepos : [repo],
+        busy: batchBusy,
+        spaces: library?.spaces ?? [],
+        t,
+        gestures,
+        actions,
+        openDialog,
+      }),
+    [actions, batchBusy, gestures, library?.spaces, openDialog, selectedIds, selectedRepos, t],
   );
 
   const currentSpace = library?.view.kind === 'space' ? library.view.id : null;
@@ -198,12 +228,13 @@ export function RepositoriesView() {
       <RepoRow
         repo={repo}
         avatar={avatarOf(repo.id)}
-        selected={selected?.id === repo.id && selectedFrom === origin}
+        selected={selectedIds.has(repo.id)}
+        canOpenOnClick={selectedIds.size === 1}
         spaces={filtering ? spacesOf(library?.spaces ?? [], repo.id) : []}
         when={since(repo)}
         menu={rowMenuFor(repo)}
-        onOpen={() => actions.open(repo)}
-        onSelect={() => select(repo, origin)}
+        onOpen={() => activate(repo)}
+        onSelect={() => contextPick(repo, origin)}
         onDragStart={() => setDragging({ kind: 'repo', repo, from: null })}
         onDragEnd={() => setDragging(null)}
       />
@@ -247,10 +278,10 @@ export function RepositoriesView() {
       getKey={getKey}
       label={t('repositories.list.label')}
       rowHeight={rowHeight}
-      selectionMode="single"
-      selected={allSelection}
-      onSelectedChange={pickFrom(visible, ALL_ORIGIN)}
-      onActivate={(repo) => actions.open(repo)}
+      selectionMode="multiple"
+      selected={selectedIds}
+      onSelectedChange={pickFrom(ALL_ORIGIN)}
+      onActivate={activate}
       empty={empty}
       renderRow={row(ALL_ORIGIN)}
       scrollParent={panelScrollRef}
@@ -278,6 +309,54 @@ export function RepositoriesView() {
               shown={visible.length}
               total={repositories?.length ?? 0}
             />
+            <Toolbar
+              className={styles.selectionBar}
+              label={t('repositories.selection.title')}
+              aria-busy={batchBusy}
+            >
+              <span className={styles.selectionCount}>
+                {t('repositories.selection.count', { count: selectedRepos.length })}
+              </span>
+              <Button
+                size="sm"
+                iconStart={<OpenAllIcon />}
+                aria-label={
+                  selectedRepos.length > 1
+                    ? t('repositories.menu.openSelected', { count: selectedRepos.length })
+                    : selected
+                      ? t('gesture.repos.open', { repo: selected.name })
+                      : t('gesture.repos.openNone')
+                }
+                disabled={batchBusy || selectedRepos.length === 0}
+                onClick={() => {
+                  if (selectedRepos.length > 1) actions.openMany(selectedRepos);
+                  else if (selected) actions.open(selected);
+                }}
+              >
+                {t('repositories.action.openFolder')}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                iconStart={<TrashIcon />}
+                aria-label={
+                  selectedRepos.length > 1
+                    ? t('repositories.menu.forgetSelected', { count: selectedRepos.length })
+                    : selected
+                      ? t('gesture.repos.forget', { repo: selected.name })
+                      : t('gesture.repos.forgetNone')
+                }
+                disabled={batchBusy || selectedRepos.length === 0}
+                onClick={() => {
+                  if (selectedRepos.length > 1)
+                    openDialog({ kind: 'forgetMany', repos: selectedRepos });
+                  else if (selected) openDialog({ kind: 'forget', repo: selected });
+                }}
+              >
+                {t('repositories.action.forget')}
+              </Button>
+              {batchBusy && <Spinner label={t('repositories.selection.busy')} />}
+            </Toolbar>
             {layout === 'list' && dragging?.kind === 'repo' && library && (
               <SpaceDropTargets
                 spaces={library.spaces}
@@ -303,11 +382,11 @@ export function RepositoriesView() {
                     spaces={library.spaces}
                     repositories={visible}
                     avatarOf={avatarOf}
-                    selected={selected?.id ?? null}
-                    selectedIn={selectedFrom}
+                    selected={selectedIds}
                     menuFor={rowMenuFor}
-                    onSelect={(repo, space) => select(repo, spaceOrigin(space))}
-                    onOpen={actions.open}
+                    onSelectedChange={(next, space) => selectMany(next, spaceOrigin(space))}
+                    onContextSelect={(repo, space) => contextPick(repo, spaceOrigin(space))}
+                    onOpen={activate}
                     onOpenAll={actions.openAll}
                     onToggleCollapsed={(space: Space) =>
                       actions.setSpaceCollapsed(space.id, space.collapsed !== true)
@@ -356,10 +435,10 @@ export function RepositoriesView() {
                           getKey={getKey}
                           label={t('repositories.recent.label')}
                           rowHeight={rowHeight}
-                          selectionMode="single"
-                          selected={recentSelection}
-                          onSelectedChange={pickFrom(recent, RECENT_ORIGIN)}
-                          onActivate={(repo) => actions.open(repo)}
+                          selectionMode="multiple"
+                          selected={selectedIds}
+                          onSelectedChange={pickFrom(RECENT_ORIGIN)}
+                          onActivate={activate}
                           renderRow={row(RECENT_ORIGIN)}
                         />
                       </div>
@@ -385,7 +464,39 @@ export function RepositoriesView() {
         }
         second={
           <div className={styles.detail}>
-            {openError && selected ? (
+            {batchFailures.length > 0 ? (
+              <section
+                className={styles.batchResults}
+                aria-label={t('repositories.failures.title', { count: batchFailures.length })}
+              >
+                <h2>{t('repositories.failures.title', { count: batchFailures.length })}</h2>
+                <div className={styles.resultActions}>
+                  <Button
+                    size="sm"
+                    disabled={batchBusy}
+                    onClick={() => {
+                      const repos = batchFailures.map((failure) => failure.repo);
+                      if (batchFailures[0]?.operation === 'forget') actions.forgetMany(repos);
+                      else actions.openMany(repos);
+                    }}
+                  >
+                    {t('errorFix.retry')}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setBatchFailures([])}>
+                    {t('repositories.failures.close')}
+                  </Button>
+                </div>
+                <ul className={styles.failureList} aria-label={t('repositories.failures.list')}>
+                  {batchFailures.map(({ repo, error }) => (
+                    <li key={repo.id}>
+                      <h3>{repo.name}</h3>
+                      <code className={styles.failurePath}>{repo.path}</code>
+                      <GitErrorPanel error={error} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : openError && selected ? (
               <div className={styles.centered}>
                 <GitErrorPanel
                   error={openError}
@@ -394,6 +505,13 @@ export function RepositoriesView() {
                     locateRepo: () => actions.locate(selected),
                     forgetRepo: () => openDialog({ kind: 'forget', repo: selected }),
                   }}
+                />
+              </div>
+            ) : selectedRepos.length > 1 ? (
+              <div className={styles.centered}>
+                <EmptyState
+                  title={t('repositories.selection.count', { count: selectedRepos.length })}
+                  description={t('repositories.selection.description')}
                 />
               </div>
             ) : selected ? (
@@ -407,8 +525,14 @@ export function RepositoriesView() {
 
       <ForgetRepoDialog
         repo={dialog.kind === 'forget' ? dialog.repo : null}
+        repos={dialog.kind === 'forgetMany' ? dialog.repos : undefined}
         onCancel={closeDialog}
         onConfirm={() => {
+          if (dialog.kind === 'forgetMany') {
+            closeDialog();
+            actions.forgetMany(dialog.repos);
+            return;
+          }
           if (dialog.kind !== 'forget') return;
           closeDialog();
           actions.forget(dialog.repo, nextSelection(visible, dialog.repo.id));
@@ -462,6 +586,8 @@ function shortcutFrom(gestures: GestureRegistry, id: string) {
 
 function rowMenu({
   repo,
+  targets,
+  busy,
   spaces,
   t,
   gestures,
@@ -469,12 +595,32 @@ function rowMenu({
   openDialog,
 }: {
   repo: RepoSummary;
+  targets: readonly RepoSummary[];
+  busy: boolean;
   spaces: readonly Space[];
   t: I18nContextValue['t'];
   gestures: GestureRegistry;
   actions: RepositoryActions;
   openDialog: (dialog: RepositoriesDialog) => void;
 }): readonly MenuEntry[] {
+  if (targets.length > 1) {
+    return [
+      {
+        key: 'open-selected',
+        label: t('repositories.menu.openSelected', { count: targets.length }),
+        disabled: busy,
+        onSelect: () => actions.openMany(targets),
+      },
+      { kind: 'separator', key: 'before-forget-selected' },
+      {
+        key: 'forget-selected',
+        label: t('repositories.menu.forgetSelected', { count: targets.length }),
+        danger: true,
+        disabled: busy,
+        onSelect: () => openDialog({ kind: 'forgetMany', repos: targets }),
+      },
+    ];
+  }
   const membership = new Set(
     spaces.filter((space) => space.repos.includes(repo.id)).map((space) => space.id),
   );
@@ -518,7 +664,15 @@ function rowMenu({
 }
 
 function panelMenu(gestures: GestureRegistry): readonly MenuEntry[] {
+  const selectionActions = ['repos.open', 'repos.forget']
+    .filter((id) => gestures.get(id)?.disabled === false)
+    .map((id) => entryOf(gestures, id));
+
   return [
+    ...selectionActions,
+    ...(selectionActions.length > 0
+      ? [{ kind: 'separator' as const, key: 'after-selection' }]
+      : []),
     entryOf(gestures, 'repos.openFolder'),
     entryOf(gestures, 'repos.create'),
     entryOf(gestures, 'repos.clone'),

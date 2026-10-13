@@ -167,6 +167,7 @@ export const de: Messages = {
   'repositories.split': 'Breite der Repository-Liste',
   'repositories.actions': 'Repository-Aktionen',
   'repositories.action.openFolder': 'Öffnen',
+  'repositories.action.forget': 'Vergessen',
   'repositories.action.create': 'Anlegen',
   'repositories.action.clone': 'Klonen',
   'repositories.action.terminal': 'Terminal',
@@ -236,7 +237,7 @@ export const de: Messages = {
   'repositories.status.spaceDeleted': '{space} wurde gelöscht.',
   'repositories.status.openedSpace': '{count} Repositorys aus {space} wurden geöffnet.',
   'repositories.status.openedSpaceWithFailures':
-    'Die Repositorys aus {space} wurden geöffnet, bis auf {failed} fehlgeschlagene.',
+    '{count} Repositorys aus {space} geöffnet; {failed} fehlgeschlagen und {cancelled} abgebrochen.',
   'repositories.status.addedToSpace': '{repo} wurde zu {space} hinzugefügt.',
   'repositories.status.removedFromSpace': '{repo} wurde aus {space} entfernt.',
   'repositories.status.movedToSpace': '{repo} wurde von {from} nach {to} verschoben.',
@@ -344,6 +345,31 @@ export const de: Messages = {
   'repositories.home.empty.title': 'GitThul kennt noch kein Repository',
   'repositories.home.empty.description':
     'Öffne ein vorhandenes Repository, erstelle ein neues oder klone ein Remote-Repository mit den Schaltflächen oben links.',
+
+  'repositories.selection.title': 'Repository-Auswahl',
+  'repositories.selection.count': '{count} ausgewählt',
+  'repositories.selection.description':
+    'Öffne die ausgewählten Repositorys in Tabs oder entferne sie aus GitThul.',
+  'repositories.selection.busy': 'Repositorys werden verarbeitet…',
+  'repositories.menu.openSelected': '{count} Repositorys öffnen',
+  'repositories.menu.forgetSelected': '{count} Repositorys vergessen',
+  'repositories.forgetMany.title': '{count} Repositorys vergessen',
+  'repositories.forgetMany.description':
+    'Diese {count} Repositorys werden aus der GitThul-Liste entfernt. Ihre Ordner und ihre Git-Historie bleiben erhalten.',
+  'repositories.forgetMany.confirm': '{count} Repositorys vergessen',
+  'repositories.forgetMany.cancel': '{count} Repositorys behalten',
+  'repositories.forgetMany.close': 'Schließen, ohne {count} Repositorys zu vergessen',
+  'repositories.forgetMany.list': 'Zu entfernende Repositorys',
+  'repositories.status.openedMany': '{count} Repositorys geöffnet.',
+  'repositories.status.openedManyWithFailures':
+    '{count} Repositorys geöffnet; {failed} fehlgeschlagen und {cancelled} abgebrochen.',
+  'repositories.status.forgottenMany':
+    'GitThul hat {count} Repositorys vergessen; ihre Ordner und ihre Historie bleiben erhalten.',
+  'repositories.status.forgottenManyWithFailures':
+    'GitThul hat {count} Repositorys vergessen; {failed} fehlgeschlagen und {cancelled} abgebrochen.',
+  'repositories.failures.title': '{count} Repositorys konnten nicht verarbeitet werden',
+  'repositories.failures.close': 'Repository-Ergebnisse schließen',
+  'repositories.failures.list': 'Repositorys mit Fehlern',
 
   'repositories.forget.description':
     '{repo} verlässt die Liste von GitThul. Weder der Ordner {path} noch seine Historie werden angerührt.',
