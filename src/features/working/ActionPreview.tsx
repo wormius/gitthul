@@ -7,7 +7,7 @@ import type { GitQuery } from '@core/ports/GitPort';
 import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
 
-import { integrationOffer } from './integration';
+import { integrationOffer, type DragRef } from './integration';
 import styles from './ActionPreview.module.css';
 import { useWorkingStore, type ActionPreviewState } from './workingStore';
 
@@ -16,6 +16,10 @@ interface ActionPreviewProps {
   repoId: string;
   onMerge: (source: string, target: string, precondition: IntegrationPrecondition) => void;
   onRebase: (source: string, target: string, precondition: IntegrationPrecondition) => void;
+}
+
+function comparisonRef(reference: DragRef): string {
+  return reference.ref ?? `refs/${reference.kind === 'tag' ? 'tags' : 'heads'}/${reference.name}`;
 }
 
 /**
@@ -70,11 +74,11 @@ export function ActionPreview({ state, repoId, onMerge, onRebase }: ActionPrevie
   const handleCompare = useCallback(() => {
     openCompare({
       kind: 'refs',
-      source: { ref: state.source.name, label: state.source.name },
-      target: { ref: state.target.name, label: state.target.name },
+      source: { ref: comparisonRef(state.source), label: state.source.name },
+      target: { ref: comparisonRef(state.target), label: state.target.name },
     });
     close();
-  }, [openCompare, state.source.name, state.target.name, close]);
+  }, [openCompare, state.source, state.target, close]);
 
   // Cerrar con Escape.
   useEffect(() => {

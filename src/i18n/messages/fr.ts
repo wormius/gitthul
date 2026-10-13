@@ -874,6 +874,7 @@ export const fr: Messages = {
   'working.diff.source.index': 'Index',
   'working.diff.source.commit': 'Dans le commit {sha}',
   'working.diff.source.range': 'De {from} à {to}',
+  'working.diff.source.rangeFromRoot': 'Depuis le début jusqu’à {to}',
   'working.diff.source.workingRange': 'De {from} au WIP',
   'working.diff.content': 'Contenu',
   'working.diff.contentDiff': 'Diff',
@@ -1048,7 +1049,7 @@ export const fr: Messages = {
   'working.compare.loading': 'Comparaison de {range}',
   'working.compare.ahead': '{ref} a {count} commits que {other} n’a pas',
   'working.compare.truncated':
-    'La liste des fichiers ne compte que les {count} premiers commits de la plage',
+    'Le décompte des commits se limite aux {count} premiers de chaque côté ; la liste des fichiers est complète',
   'working.compare.empty.title': 'Aucune différence',
   'working.compare.empty.combined': 'Les {count} commits ne modifient aucun fichier',
   'working.compare.empty.description': '{source} et {target} n’ont aucun fichier différent',

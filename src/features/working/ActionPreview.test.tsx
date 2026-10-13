@@ -62,8 +62,8 @@ const compareOnlyState: ActionPreviewState = {
 
 const nonHeadTargetState: ActionPreviewState = {
   kind: 'merge',
-  source: { kind: 'branch', name: 'main' },
-  target: { kind: 'branch', name: 'origin/dev' },
+  source: { kind: 'branch', name: 'main', ref: 'refs/heads/main' },
+  target: { kind: 'branch', name: 'origin/dev', ref: 'refs/remotes/origin/dev' },
   headBranch: 'main',
 };
 
@@ -152,10 +152,53 @@ describe('ActionPreview', () => {
 
     expect(state.compare).toEqual({
       kind: 'refs',
-      source: { ref: 'feature', label: 'feature' },
-      target: { ref: 'main', label: 'main' },
+      source: { ref: 'refs/heads/feature', label: 'feature' },
+      target: { ref: 'refs/heads/main', label: 'main' },
     });
     expect(state.actionPreview).toBe(null);
+  });
+
+  it('al comparar una rama remota conserva su identidad completa', () => {
+    render(
+      <ActionPreview
+        state={nonHeadTargetState}
+        repoId="repo-1"
+        onMerge={vi.fn()}
+        onRebase={vi.fn()}
+      />,
+      { wrapper },
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Comparar' }));
+
+    expect(useWorkingStore.getState().compare).toEqual({
+      kind: 'refs',
+      source: { ref: 'refs/heads/main', label: 'main' },
+      target: { ref: 'refs/remotes/origin/dev', label: 'origin/dev' },
+    });
+  });
+
+  it('distingue un tag y una rama con el mismo nombre en la comparación', () => {
+    render(
+      <ActionPreview
+        state={{
+          ...compareOnlyState,
+          source: { kind: 'tag', name: 'main' },
+        }}
+        repoId="repo-1"
+        onMerge={vi.fn()}
+        onRebase={vi.fn()}
+      />,
+      { wrapper },
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Comparar' }));
+
+    expect(useWorkingStore.getState().compare).toEqual({
+      kind: 'refs',
+      source: { ref: 'refs/tags/main', label: 'main' },
+      target: { ref: 'refs/heads/main', label: 'main' },
+    });
   });
 
   it('Cancelar cierra el panel', () => {

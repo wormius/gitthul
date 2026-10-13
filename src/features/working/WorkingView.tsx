@@ -1244,6 +1244,7 @@ export function WorkingView({ base }: WorkingViewProps) {
         <ComparePanel
           repoId={base.repoId}
           compare={compare}
+          status={status}
           menuContext={menuContext}
           onClose={closeCompare}
         />

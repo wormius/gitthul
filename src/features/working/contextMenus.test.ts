@@ -224,7 +224,7 @@ describe('menú del commit', () => {
 
     expect(actions.compare).toHaveBeenCalledWith(
       { ref: 'a1b2c3d4e5', label: 'a1b2c3d' },
-      { ref: 'main', label: 'main' },
+      { ref: 'refs/heads/main', label: 'main' },
     );
   });
 
@@ -326,8 +326,8 @@ describe('menú de una rama local', () => {
     compare.onSelect();
 
     expect(actions.compare).toHaveBeenCalledWith(
-      { ref: 'dev', label: 'dev' },
-      { ref: 'main', label: 'main' },
+      { ref: 'refs/heads/dev', label: 'dev' },
+      { ref: 'refs/heads/main', label: 'main' },
     );
   });
 
@@ -370,6 +370,16 @@ describe('menú de una rama local', () => {
 describe('menú de una rama remota', () => {
   const items = remoteBranchMenu(context(), originDev);
 
+  it('compara la referencia remota completa con la rama local activa', () => {
+    const actions = makeActions();
+    select(remoteBranchMenu(context({ actions }), originDev), 'compare');
+
+    expect(actions.compare).toHaveBeenCalledWith(
+      { ref: 'refs/remotes/origin/dev', label: 'origin/dev' },
+      { ref: 'refs/heads/main', label: 'main' },
+    );
+  });
+
   it('cambia a ella creando la local que la sigue, y lo dice', () => {
     const actions = makeActions();
     const menu = remoteBranchMenu(context({ actions }), originDev);
@@ -406,6 +416,21 @@ describe('menú de una rama remota', () => {
 
 describe('menú de un tag', () => {
   const items = tagMenu(context(), tag);
+
+  it('distingue un tag de una rama con el mismo nombre al comparar', () => {
+    const actions = makeActions();
+    const sameNameTag = { ...tag, id: 'refs/tags/main', name: 'main' };
+
+    const menu = tagMenu(context({ actions }), sameNameTag);
+    expect(find(menu, 'compare').label).toBe('Comparar main con main');
+    expect(find(menu, 'compare').disabled).toBe(false);
+    select(menu, 'compare');
+
+    expect(actions.compare).toHaveBeenCalledWith(
+      { ref: 'refs/tags/main', label: 'main' },
+      { ref: 'refs/heads/main', label: 'main' },
+    );
+  });
 
   it('advierte de que cambiar a él deja HEAD desacoplado', () => {
     const checkout = find(items, 'checkout');

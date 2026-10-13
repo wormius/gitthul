@@ -866,6 +866,7 @@ export const en: Messages = {
   'working.diff.source.index': 'Staging area',
   'working.diff.source.commit': 'In commit {sha}',
   'working.diff.source.range': 'From {from} to {to}',
+  'working.diff.source.rangeFromRoot': 'From the beginning to {to}',
   'working.diff.source.workingRange': 'From {from} to WIP',
   'working.diff.content': 'Content',
   'working.diff.contentDiff': 'Diff',
@@ -1036,7 +1037,8 @@ export const en: Messages = {
   'working.compare.close': 'Close the comparison',
   'working.compare.loading': 'Comparing {range}',
   'working.compare.ahead': '{ref} has {count} commits that {other} does not',
-  'working.compare.truncated': 'The file list only counts the first {count} commits of the range',
+  'working.compare.truncated':
+    'Commit counts are limited to the first {count} on each side; the file list is complete',
   'working.compare.empty.title': 'No differences',
   'working.compare.empty.combined': 'The {count} commits change no files',
   'working.compare.empty.description': '{source} and {target} have no different files',

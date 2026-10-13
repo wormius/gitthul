@@ -34,6 +34,9 @@ export function sourceLabel(source: DiffSource, t: Translate): string {
     case 'commit':
       return t('working.diff.source.commit', { sha: shortSha(source.sha) });
     case 'range':
+      if (source.from === null) {
+        return t('working.diff.source.rangeFromRoot', { to: shortSha(source.to) });
+      }
       return t('working.diff.source.range', {
         from: shortSha(source.from),
         to: shortSha(source.to),

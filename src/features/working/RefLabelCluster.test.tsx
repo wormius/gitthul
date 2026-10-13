@@ -184,8 +184,8 @@ describe('RefLabelCluster', () => {
     fireEvent.drop(screen.getByTitle('Rama activa main'));
 
     expect(onReferenceDrop).toHaveBeenCalledWith(
-      { kind: 'branch', name: 'dev' },
-      { kind: 'branch', name: 'main' },
+      { kind: 'branch', name: 'dev', ref: 'refs/heads/dev' },
+      { kind: 'branch', name: 'main', ref: 'refs/heads/main' },
     );
   });
 
@@ -209,8 +209,8 @@ describe('RefLabelCluster', () => {
     fireEvent.drop(target);
 
     expect(onReferenceDrop).toHaveBeenCalledWith(
-      { kind: 'branch', name: 'main' },
-      { kind: 'branch', name: 'origin/release' },
+      { kind: 'branch', name: 'main', ref: 'refs/heads/main' },
+      { kind: 'branch', name: 'origin/release', ref: 'refs/remotes/origin/release' },
     );
   });
 

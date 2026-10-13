@@ -870,6 +870,7 @@ export const de: Messages = {
   'working.diff.source.index': 'Staging-Area',
   'working.diff.source.commit': 'Im Commit {sha}',
   'working.diff.source.range': 'Von {from} bis {to}',
+  'working.diff.source.rangeFromRoot': 'Vom Anfang bis {to}',
   'working.diff.source.workingRange': 'Von {from} bis WIP',
   'working.diff.content': 'Inhalt',
   'working.diff.contentDiff': 'Diff',
@@ -1045,7 +1046,8 @@ export const de: Messages = {
   'working.compare.close': 'Vergleich schließen',
   'working.compare.loading': '{range} wird verglichen',
   'working.compare.ahead': '{ref} hat {count} Commits, die {other} nicht hat',
-  'working.compare.truncated': 'Die Dateiliste zählt nur die ersten {count} Commits des Bereichs',
+  'working.compare.truncated':
+    'Die Commit-Zählung ist auf die ersten {count} pro Seite begrenzt; die Dateiliste ist vollständig',
   'working.compare.empty.title': 'Keine Unterschiede',
   'working.compare.empty.combined': 'Die {count} Commits ändern keine Dateien',
   'working.compare.empty.description':

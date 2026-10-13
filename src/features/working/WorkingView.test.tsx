@@ -1826,6 +1826,56 @@ describe('WorkingView', () => {
     ).toBeVisible();
   });
 
+  it('tres commits adyacentes de distintas líneas de historia comparan sus extremos', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const commits = (await ports.git.readCommits('gitthul', { limit: 3 })).commits;
+    const [newest, branchTip, oldest] = commits;
+
+    if (!newest || !branchTip || !oldest) throw new Error('El fixture necesita tres commits');
+
+    // El merge aparece encima de su segundo padre; la fila adyacente no
+    // continúa su primer padre y no forma una secuencia combinable con él.
+    const readCommits = ports.git.readCommits;
+    vi.spyOn(ports.git, 'readCommits').mockImplementation(async (repoId, page, query) => {
+      const result = await readCommits(repoId, page, query);
+      return {
+        ...result,
+        commits: result.commits.map((commit) =>
+          commit.sha === newest.sha ? { ...commit, parents: [oldest.sha, branchTip.sha] } : commit,
+        ),
+      };
+    });
+
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+
+    const grid = await screen.findByRole('grid', { name: 'Commits de gitthul' });
+    const rows = commits.map((commit) =>
+      within(grid).getByText(shortSha(commit.sha)).closest<HTMLElement>('[role="row"]'),
+    );
+    const [first, second, third] = rows;
+
+    if (!first || !second || !third) throw new Error('La tabla no montó suficientes filas');
+
+    fireEvent.mouseDown(first, { button: 0 });
+    fireEvent.mouseDown(second, { button: 0, ctrlKey: true });
+    fireEvent.mouseDown(third, { button: 0, ctrlKey: true });
+
+    expect(
+      await screen.findByRole('region', {
+        name: `Comparar ${shortSha(oldest.sha)} con ${shortSha(newest.sha)}`,
+      }),
+    ).toBeVisible();
+    expect(useWorkingStore.getState().compare).toMatchObject({
+      kind: 'refs',
+      source: { ref: oldest.sha },
+      target: { ref: newest.sha },
+      trigger: 'selection',
+    });
+    expect(screen.queryByRole('region', { name: /^Diff combinado de 3 commits/ })).toBeNull();
+  });
+
   it.each([
     ['commit y stash', 'commit-stash'],
     ['stash y WIP', 'stash-wip'],

@@ -74,6 +74,13 @@ privadas permanecen en los archivos seleccionados por el usuario, fuera del repo
 No persistir credenciales efímeras ni incluir secretos o datos reales innecesarios
 en registros y fixtures.
 
+La comparación lista diferencias netas mediante GitPort.readDiffFiles con el mismo
+DiffSource que readDiff. No formar esa lista uniendo archivos tocados en commits:
+historias distintas pueden terminar en árboles idénticos. En range, from=null
+representa el árbol vacío para selecciones que incluyen el commit raíz. Los dos
+extremos históricos deben fijarse a SHAs antes de listar y abrir sus archivos;
+workingRange compara esa revisión con el estado actual completo del árbol de trabajo.
+
 Las pruebas de escritura usan repositorios descartables. No experimentar con
 reset, limpieza o recuperación destructiva sobre repositorios del usuario.
 

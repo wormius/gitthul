@@ -1,18 +1,28 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isMerge, type Commit } from '@core/domain/commit';
 import { GitOperationError, isCancelled, isGitOperationError } from '@core/domain/errors';
 import type { TransferProgress } from '@core/domain/repository';
-import { CONFLICT_TEXT_LIMIT, exceedsConflictLimit, type WorkingStatus } from '@core/domain/status';
+import {
+  CONFLICT_TEXT_LIMIT,
+  exceedsConflictLimit,
+  type FileChange,
+  type WorkingStatus,
+} from '@core/domain/status';
 import type { CloneProgress, LineRef } from '@core/ports/GitPort';
 
 import { NO_LATENCY } from './latency';
 import { createMockGitPort, type MockGitPort } from './mockGitPort';
+import * as fixtureWorld from './fixture/world';
 
 let git: MockGitPort;
 
 beforeEach(() => {
   git = createMockGitPort({ latency: NO_LATENCY });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('repositorios', () => {
@@ -325,6 +335,38 @@ describe('historia', () => {
     expect(main.commits[0]?.sha).toBe((await git.readRefs('gitthul')).head.sha);
   });
 
+  it('resuelve referencias calificadas sin confundir rama y tag del mismo nombre', async () => {
+    const refs = await git.readRefs('gitthul');
+    const local = refs.branches.find((branch) => branch.name === 'main');
+    const remote = refs.branches.find((branch) => branch.kind === 'remote');
+    if (!local || !remote) throw new Error('El fixture requiere ramas local y remota');
+    const parent = (await git.readCommit('gitthul', local.tip)).commit.parents[0];
+    if (!parent) throw new Error('El fixture requiere un padre de main');
+    const tagged = await git.createTag('gitthul', local.name, { kind: 'commit', sha: parent });
+    const tag = tagged.tags.find((candidate) => candidate.name === local.name);
+    if (!tag) throw new Error('Debe existir el tag main');
+
+    for (const [ref, sha] of [
+      [local.id, local.tip],
+      [remote.id, remote.tip],
+      [tag.id, tag.target],
+    ] as const) {
+      expect((await git.readCommits('gitthul', { start: ref })).commits[0]?.sha).toBe(sha);
+      expect(await git.readDiffFiles('gitthul', { kind: 'commit', sha: ref })).toEqual(
+        (await git.readCommit('gitthul', sha)).files,
+      );
+      expect(
+        await git.readDiffFiles('gitthul', { kind: 'range', from: ref, to: local.id }),
+      ).toEqual(await git.readDiffFiles('gitthul', { kind: 'range', from: sha, to: local.tip }));
+    }
+
+    expect((await git.readCommits('gitthul', { start: local.name })).commits[0]?.sha).toBe(
+      local.tip,
+    );
+    await git.createBranch('gitthul', tag.id, { kind: 'commit', sha: local.tip });
+    expect((await git.readCommits('gitthul', { start: tag.id })).commits[0]?.sha).toBe(tag.target);
+  });
+
   it('el detalle de un commit trae sus archivos y las referencias que lo señalan', async () => {
     const refs = await git.readRefs('gitthul');
     const details = await git.readCommit('gitthul', refs.head.sha);
@@ -501,6 +543,180 @@ describe('diffs', () => {
 
     expect(file.binary).toBe(true);
     expect(file.text).toBeNull();
+  });
+});
+
+describe('archivos de un diff entre extremos', () => {
+  const change = (path: string, type: FileChange['change'] = 'modified'): FileChange => ({
+    path,
+    change: type,
+    binary: path.endsWith('.png'),
+    insertions: 1,
+    deletions: 1,
+  });
+  const readme = change('README.md', 'added');
+  const oldPath = change('docs/old.md', 'added');
+  const image = change('brand/icons/512x512.png', 'added');
+  const temporary = change('temporary.txt', 'added');
+  const edited = change('README.md');
+  const renamed: FileChange = {
+    ...oldPath,
+    path: 'docs/new.md',
+    previousPath: oldPath.path,
+    change: 'renamed',
+    insertions: 0,
+    deletions: 0,
+  };
+  const restored: FileChange = {
+    ...oldPath,
+    change: 'renamed',
+    previousPath: renamed.path,
+    insertions: 0,
+    deletions: 0,
+  };
+
+  function comparisons(status?: WorkingStatus) {
+    const world = fixtureWorld.buildWorld();
+    const repo = world.repos.get('gitthul');
+    if (!repo) throw new Error('El fixture requiere gitthul');
+    const base = repo.history.commits[0];
+    if (!base) throw new Error('El fixture requiere un commit');
+    const commits = [
+      { ...base, sha: 'root', parents: [] },
+      { ...base, sha: 'middle', parents: ['root'] },
+      { ...base, sha: 'restored', parents: ['middle'] },
+    ];
+    const clean: WorkingStatus = { staged: [], unstaged: [], conflicted: [], clean: true };
+    const candidate = {
+      ...repo,
+      history: {
+        ...repo.history,
+        commits: [...commits].reverse(),
+        byShaLookup: new Map(commits.map((commit) => [commit.sha, commit])),
+        filesBySha: new Map([
+          ['root', [readme, oldPath, image]],
+          ['middle', [edited, temporary, renamed]],
+          ['restored', [readme, { ...temporary, change: 'deleted' as const }, restored]],
+        ]),
+      },
+      refs: { ...repo.refs, head: { ...repo.refs.head, sha: 'root' } },
+      status: status ?? clean,
+    };
+    vi.spyOn(fixtureWorld, 'buildWorld').mockReturnValue({
+      ...world,
+      repos: new Map(world.repos).set('gitthul', candidate),
+    });
+  }
+
+  it('dos SHAs diferentes con el mismo árbol no muestran archivos ni hunks', async () => {
+    comparisons();
+    const source = { kind: 'range' as const, from: 'root', to: 'restored' };
+    expect(await git.readDiffFiles('gitthul', source)).toEqual([]);
+    const diff = await git.readDiff('gitthul', { path: readme.path, source });
+    expect(diff.change).toBe('unmodified');
+    expect(diff.content).toMatchObject({ kind: 'text', hunks: [] });
+    expect(diff.precondition.after).toEqual(diff.precondition.before);
+    const binary = await git.readDiff('gitthul', { path: image.path, source });
+    expect(binary.content.kind).toBe('binary');
+    if (binary.content.kind === 'binary') {
+      expect(binary.content.newSize).toBe(binary.content.oldSize);
+    }
+  });
+
+  it('comparar una revisión consigo misma no incluye su historial', async () => {
+    comparisons();
+    expect(
+      await git.readDiffFiles('gitthul', { kind: 'range', from: 'middle', to: 'middle' }),
+    ).toEqual([]);
+  });
+
+  it('conserva cambios netos y el renombre en cada sentido', async () => {
+    comparisons();
+    const forward = await git.readDiffFiles('gitthul', {
+      kind: 'range',
+      from: 'root',
+      to: 'middle',
+    });
+    expect(forward).toEqual([
+      expect.objectContaining({
+        path: 'docs/new.md',
+        previousPath: 'docs/old.md',
+        change: 'renamed',
+      }),
+      expect.objectContaining({ path: 'README.md', change: 'modified' }),
+      expect.objectContaining({ path: 'temporary.txt', change: 'added' }),
+    ]);
+    const reverse = await git.readDiffFiles('gitthul', {
+      kind: 'range',
+      from: 'middle',
+      to: 'root',
+    });
+    expect(reverse).toEqual([
+      expect.objectContaining({
+        path: 'docs/old.md',
+        previousPath: 'docs/new.md',
+        change: 'renamed',
+      }),
+      expect.objectContaining({ path: 'README.md', change: 'modified' }),
+      expect.objectContaining({ path: 'temporary.txt', change: 'deleted' }),
+    ]);
+    const diff = await git.readDiff('gitthul', {
+      path: 'docs/old.md',
+      source: { kind: 'range', from: 'middle', to: 'root' },
+    });
+    expect(diff).toMatchObject({ change: 'renamed', previousPath: 'docs/new.md' });
+  });
+
+  it('el árbol vacío permite listar el efecto combinado del commit raíz', async () => {
+    comparisons();
+    const files = await git.readDiffFiles('gitthul', { kind: 'range', from: null, to: 'root' });
+    expect(files.map((file) => file.path)).toEqual([
+      'brand/icons/512x512.png',
+      'docs/old.md',
+      'README.md',
+    ]);
+    expect(files.every((file) => file.change === 'added')).toBe(true);
+  });
+
+  it('WIP combina Stage y árbol de trabajo y excluye cambios que se cancelaron', async () => {
+    const untracked = change('new.txt', 'untracked');
+    comparisons({
+      staged: [edited, temporary],
+      unstaged: [readme, { ...temporary, change: 'deleted' }, untracked],
+      conflicted: [],
+      clean: false,
+    });
+    expect(await git.readDiffFiles('gitthul', { kind: 'workingRange', from: 'root' })).toEqual([
+      expect.objectContaining({ path: 'new.txt', change: 'added' }),
+    ]);
+    const diff = await git.readDiff('gitthul', {
+      path: 'temporary.txt',
+      source: { kind: 'workingRange', from: 'root' },
+    });
+    expect(diff.content).toMatchObject({ kind: 'text', hunks: [] });
+  });
+
+  it('commit, índice y worktree respetan sus propias listas', async () => {
+    const status = await git.readStatus('gitthul');
+    const head = (await git.readRefs('gitthul')).head.sha;
+    expect(await git.readDiffFiles('gitthul', { kind: 'index' })).toEqual(status.staged);
+    expect(await git.readDiffFiles('gitthul', { kind: 'worktree' })).toEqual(status.unstaged);
+    expect(await git.readDiffFiles('gitthul', { kind: 'commit', sha: head })).toEqual(
+      (await git.readCommit('gitthul', head)).files,
+    );
+  });
+
+  it('rechaza una revisión inexistente y respeta cancelación', async () => {
+    comparisons();
+    await expect(
+      git.readDiffFiles('gitthul', { kind: 'range', from: 'missing', to: 'root' }),
+    ).rejects.toMatchObject({ code: 'unknown' });
+    const controller = new AbortController();
+    controller.abort();
+    const error: unknown = await git
+      .readDiffFiles('gitthul', { kind: 'index' }, { signal: controller.signal })
+      .catch((reason: unknown) => reason);
+    expect(isCancelled(error)).toBe(true);
   });
 });
 

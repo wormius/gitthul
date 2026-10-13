@@ -901,6 +901,7 @@ export const esMX = {
   'working.diff.source.index': 'Staging',
   'working.diff.source.commit': 'En el commit {sha}',
   'working.diff.source.range': 'De {from} a {to}',
+  'working.diff.source.rangeFromRoot': 'Desde el inicio hasta {to}',
   'working.diff.source.workingRange': 'De {from} al WIP',
   'working.diff.content': 'Contenido',
   'working.diff.contentDiff': 'Diff',
@@ -1075,7 +1076,7 @@ export const esMX = {
   'working.compare.loading': 'Comparando {range}',
   'working.compare.ahead': '{ref} tiene {count} commits que {other} no',
   'working.compare.truncated':
-    'La lista de archivos solo cuenta los primeros {count} commits del rango',
+    'El recuento de commits se limita a los primeros {count} de cada lado; la lista de archivos está completa',
   'working.compare.empty.title': 'Sin diferencias',
   'working.compare.empty.combined': 'Los {count} commits no cambian ningún archivo',
   'working.compare.empty.description': '{source} y {target} no tienen archivos distintos',

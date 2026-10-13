@@ -11,6 +11,13 @@ describe('isDragRef', () => {
     expect(isDragRef({ kind: 'tag', name: 'v1.0.0' })).toBe(true);
   });
 
+  it('conserva referencias completas opcionales y rechaza identidades mal formadas', () => {
+    expect(isDragRef({ kind: 'branch', name: 'origin/dev', ref: 'refs/remotes/origin/dev' })).toBe(
+      true,
+    );
+    expect(isDragRef({ kind: 'branch', name: 'dev', ref: 42 })).toBe(false);
+  });
+
   it('rechaza null', () => {
     expect(isDragRef(null)).toBe(false);
   });

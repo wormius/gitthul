@@ -874,25 +874,47 @@ pub async fn git_read_diff(
     reads.finish(&operation_id);
     joined
         .map_err(|_| GitCommandError::internal("La tarea de diff se interrumpió"))?
-        .map_err(|error| match error {
-            diff::ReadDiffError::Cancelled => {
-                GitCommandError::internal("La lectura del diff fue cancelada")
-            }
-            diff::ReadDiffError::InvalidPathEncoding => {
-                GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
-            }
-            diff::ReadDiffError::RevisionNotFound(revision) => {
-                GitCommandError::new("history.startNotFound", json!({ "start": revision }))
-            }
-            diff::ReadDiffError::UnsupportedEncoding(encoding) => {
-                GitCommandError::new("text.encodingUnsupported", json!({ "encoding": encoding }))
-            }
-            diff::ReadDiffError::InvalidPath
-            | diff::ReadDiffError::GitFailed
-            | diff::ReadDiffError::MalformedOutput => {
-                GitCommandError::internal("Git no pudo leer el diff")
-            }
-        })
+        .map_err(|error| map_diff_error(error, &id))
+}
+
+#[tauri::command]
+pub async fn git_read_diff_files(
+    id: String,
+    source: diff::DiffSource,
+    operation_id: String,
+    reads: State<'_, GitReadOperations>,
+) -> Result<Vec<diff::FileChange>, GitCommandError> {
+    let path = existing_repository(&id)?;
+    let reads = reads.inner().clone();
+    let cancelled = reads.begin(&operation_id);
+    let joined = tauri::async_runtime::spawn_blocking(move || {
+        diff::read_files_cancellable(&path, &source, &cancelled)
+    })
+    .await;
+    reads.finish(&operation_id);
+    joined
+        .map_err(|_| GitCommandError::internal("La comparación de archivos se interrumpió"))?
+        .map_err(|error| map_diff_error(error, &id))
+}
+
+fn map_diff_error(error: diff::ReadDiffError, id: &str) -> GitCommandError {
+    match error {
+        diff::ReadDiffError::Cancelled => GitCommandError::new("operation.cancelled", json!({})),
+        diff::ReadDiffError::InvalidPathEncoding => {
+            GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
+        }
+        diff::ReadDiffError::RevisionNotFound(revision) => {
+            GitCommandError::new("history.startNotFound", json!({ "start": revision }))
+        }
+        diff::ReadDiffError::UnsupportedEncoding(encoding) => {
+            GitCommandError::new("text.encodingUnsupported", json!({ "encoding": encoding }))
+        }
+        diff::ReadDiffError::InvalidPath
+        | diff::ReadDiffError::GitFailed
+        | diff::ReadDiffError::MalformedOutput => {
+            GitCommandError::internal("Git no pudo leer el diff")
+        }
+    }
 }
 
 #[tauri::command]

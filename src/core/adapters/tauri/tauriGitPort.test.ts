@@ -759,6 +759,52 @@ describe('tauriGitPort', () => {
     });
   });
 
+  it('lists the native net changes for exact endpoints, WIP and a root range', async () => {
+    const files = [
+      { path: 'changed.txt', change: 'modified', binary: false, insertions: 2, deletions: 1 },
+    ];
+    const call = vi.fn().mockResolvedValue(files);
+    const port = createTauriGitPort(createMockGitPort(), call);
+    for (const source of [
+      { kind: 'range', from: 'abc1234', to: 'def5678' },
+      { kind: 'workingRange', from: 'abc1234' },
+      { kind: 'range', from: null, to: 'def5678' },
+    ] as const) {
+      await expect(port.readDiffFiles('/repos/uno', source)).resolves.toEqual(files);
+      expect(call).toHaveBeenLastCalledWith('git_read_diff_files', {
+        id: '/repos/uno',
+        source,
+        operationId: expect.stringMatching(/^diff-/) as unknown,
+      });
+    }
+  });
+
+  it('cancels the native file comparison when its selection goes away', async () => {
+    const controller = new AbortController();
+    let finish: ((value: unknown) => void) | undefined;
+    const call = vi.fn((command: string, _args?: Record<string, unknown>) => {
+      if (command === 'git_read_diff_files') {
+        return new Promise<unknown>((resolve) => {
+          finish = resolve;
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    const port = createTauriGitPort(createMockGitPort(), call);
+    const reading = port.readDiffFiles(
+      '/repos/uno',
+      { kind: 'range', from: 'abc1234', to: 'def5678' },
+      { signal: controller.signal },
+    );
+    await vi.waitFor(() => expect(call).toHaveBeenCalled());
+    controller.abort();
+    const operationId = call.mock.calls.find(([command]) => command === 'git_read_diff_files')?.[1]
+      ?.operationId;
+    await vi.waitFor(() => expect(call).toHaveBeenCalledWith('git_cancel_diff', { operationId }));
+    finish?.([]);
+    await expect(reading).rejects.toBeInstanceOf(OperationCancelledError);
+  });
+
   it('cancela en Rust un diff que ya no se necesita', async () => {
     const controller = new AbortController();
     let finishDiff: ((value: unknown) => void) | undefined;

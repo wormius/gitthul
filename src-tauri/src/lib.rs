@@ -127,6 +127,7 @@ pub fn run() {
             git::git_read_status,
             git::git_read_conflict,
             git::git_read_diff,
+            git::git_read_diff_files,
             git::git_cancel_diff,
             git::git_read_refs,
             git::git_read_commits,
