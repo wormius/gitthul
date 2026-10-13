@@ -1271,7 +1271,6 @@ export const esMX = {
   'view.terminal.refCopied': 'Referencia copiada',
   'view.terminal.transcribe': 'Transcribir {value}',
   'view.terminal.branchCount': 'Ramas: {count}',
-  'view.terminal.graphScroll': 'Desplazamiento horizontal del grafo',
   'view.terminal.command.show': 'Ver detalles de este commit',
   'view.terminal.command.log': 'Ver autor y fecha de este commit',
   'view.terminal.command.branch': 'Crear una rama en este commit',

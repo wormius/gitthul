@@ -10,23 +10,14 @@
   font-family: var(--font-family-code);
 }
 
-.list {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
 .progress {
   flex: none;
 }
 
 .row {
-  display: flex;
   align-items: center;
   min-width: 0;
   width: 100%;
-  gap: var(--space-1);
-  padding: 0 var(--space-2) 0 0;
   height: 100%;
   cursor: pointer;
   color: var(--text-primary);
@@ -40,7 +31,7 @@
 
 .graph {
   align-self: stretch;
-  flex: none;
+  padding: 0;
   overflow: hidden;
 }
 
@@ -96,36 +87,14 @@
   font-size: var(--text-sm);
 }
 
-.listViewport > div > div {
-  padding-block: 0;
-}
-
 .graphContent {
   display: block;
   width: max-content;
   height: 100%;
 }
 
-.graphScroll {
-  flex: none;
-  min-height: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--text-secondary) var(--surface-panel);
-}
-
 .branch {
   flex-shrink: 0;
-}
-
-.graphScroll::-webkit-scrollbar {
-  height: 8px;
-}
-
-.graphScroll::-webkit-scrollbar-thumb {
-  background: var(--text-secondary);
-  border-radius: var(--radius-sm);
 }
 
 .count {

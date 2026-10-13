@@ -14,10 +14,14 @@ import { RefIcon } from '@features/working/RefIcon';
 import { buildGraphAsync } from '@features/working/graph';
 import { graphEdgePadding, resolveGraphMetrics } from '@features/working/graphPaint';
 import { useI18n } from '@i18n/useI18n';
+import { DataGrid } from '@ui/DataGrid';
+import { DataGridCell } from '@ui/DataGridCell';
+import { DataGridRow } from '@ui/DataGridRow';
+import type { DataGridColumn } from '@ui/dataGridUtils';
 import { Menu } from '@ui/Menu';
 import { ProgressBar } from '@ui/ProgressBar';
 import { SearchInput } from '@ui/SearchInput';
-import { VirtualList } from '@ui/VirtualList';
+import { VirtualList, type VirtualRowContext } from '@ui/VirtualList';
 import type { MenuEntry } from '@ui/menuUtils';
 
 import styles from './TerminalRefSidebar.module.css';
@@ -138,7 +142,6 @@ export function TerminalRefSidebar({
   onInsert,
 }: TerminalRefSidebarProps) {
   const { t } = useI18n();
-  const [graphScroll, setGraphScroll] = useState(0);
   const [filter, setFilter] = useState('');
   const [openMenu, setOpenMenu] = useState<OpenInsertMenu | null>(null);
   const rowAnchors = useRef(new Map<string, HTMLElement>());
@@ -226,6 +229,21 @@ export function TerminalRefSidebar({
       form: 'ring',
     };
   }, [layout, metrics, palette]);
+  const columns = useMemo<readonly DataGridColumn[]>(() => {
+    const graphLabel = t('working.commitTable.column.graph');
+    const messageLabel = t('working.commitTable.column.subject');
+    return [
+      { key: 'graph', header: graphLabel, name: graphLabel, width: 96, minWidth: 72 },
+      {
+        key: 'message',
+        header: messageLabel,
+        name: messageLabel,
+        width: 240,
+        minWidth: 80,
+        grow: true,
+      },
+    ];
+  }, [t]);
 
   const chooseEntry = (entry: TerminalGraphEntry, anchor: HTMLElement | null) => {
     if (anchor) setOpenMenu({ kind: 'commit', entry, anchor });
@@ -324,19 +342,17 @@ export function TerminalRefSidebar({
     ];
   })();
 
-  const graphCell = (graphIndex: number, author: string) =>
-    graph && (
-      <span className={styles.graph} style={{ width: `min(${graph.width}px, 40%)` }}>
-        <span
-          className={styles.graphContent}
-          style={{ transform: `translateX(${-graphScroll}px)` }}
-        >
+  const graphCell = (graphIndex: number, author: string) => (
+    <DataGridCell columnKey="graph" className={styles.graph}>
+      {graph && (
+        <span className={styles.graphContent}>
           <CommitGraph column={graph} row={graphIndex} author={author} />
         </span>
-      </span>
-    );
+      )}
+    </DataGridCell>
+  );
 
-  const renderRow = (item: (typeof visibleRows)[number]) => {
+  const renderRow = (item: (typeof visibleRows)[number], context: VirtualRowContext) => {
     const { row, entry, graphIndex } = item;
     if (row.kind !== 'commit') {
       const activate = (anchor: HTMLElement | null) => {
@@ -344,13 +360,13 @@ export function TerminalRefSidebar({
         else if (anchor) setOpenMenu({ kind: 'stash', stash: row.stash, anchor });
       };
       return (
-        <div
+        <DataGridRow
+          index={context.index}
           className={styles.row}
           ref={(node) => {
             if (node) rowAnchors.current.set(row.key, node);
             else rowAnchors.current.delete(row.key);
           }}
-          role="button"
           tabIndex={0}
           onClick={(event) => activate(event.currentTarget)}
           onContextMenu={(event) => {
@@ -366,7 +382,7 @@ export function TerminalRefSidebar({
           }}
         >
           {graphCell(graphIndex, '')}
-          <span className={styles.details}>
+          <DataGridCell columnKey="message" className={styles.details}>
             <span
               className={styles.typeIcon}
               role="img"
@@ -383,8 +399,8 @@ export function TerminalRefSidebar({
             ) : (
               <span className={styles.summary}>{row.stash.message}</span>
             )}
-          </span>
-        </div>
+          </DataGridCell>
+        </DataGridRow>
       );
     }
     if (!entry) return null;
@@ -393,13 +409,13 @@ export function TerminalRefSidebar({
     );
     const tags = entry.insertOptions.filter((option) => option.kind === 'tag');
     return (
-      <div
+      <DataGridRow
+        index={context.index}
         ref={(node) => {
           if (node) rowAnchors.current.set(entry.key, node);
           else rowAnchors.current.delete(entry.key);
         }}
         className={styles.row}
-        role="button"
         tabIndex={0}
         onClick={(event: MouseEvent<HTMLDivElement>) => {
           chooseEntry(entry, event.currentTarget);
@@ -418,7 +434,7 @@ export function TerminalRefSidebar({
         title={`${entry.insertOptions.map((option) => option.value).join(', ')} — ${entry.commit.summary}`}
       >
         {graphCell(graphIndex, entry.commit.author.name)}
-        <span className={styles.details}>
+        <DataGridCell columnKey="message" className={styles.details}>
           <span className={styles.typeIcon} role="img" aria-label="Commit" title="Commit">
             <ShaIcon />
           </span>
@@ -447,8 +463,8 @@ export function TerminalRefSidebar({
             </span>
           )}
           <span className={styles.summary}>{entry.commit.summary}</span>
-        </span>
-      </div>
+        </DataGridCell>
+      </DataGridRow>
     );
   };
 
@@ -480,22 +496,15 @@ export function TerminalRefSidebar({
           }}
         />
       )}
-      {graph && (
-        <div
-          className={styles.graphScroll}
-          style={{ width: `min(${graph.width}px, 40%)` }}
-          role="region"
-          aria-label={t('view.terminal.graphScroll')}
-          tabIndex={0}
-          onScroll={(event) => setGraphScroll(event.currentTarget.scrollLeft)}
-        >
-          <div style={{ width: graph.width, height: 1 }} />
-        </div>
-      )}
-      <div className={styles.list}>
+      <DataGrid
+        columns={columns}
+        label={t('view.terminal.railLabel')}
+        rowCount={visibleRows.length}
+        storageId="terminal.references"
+      >
         <VirtualList
           items={visibleRows}
-          className={styles.listViewport}
+          semantics="rowgroup"
           onRangeChange={handleRange}
           getKey={({ row }) => row.key}
           renderRow={renderRow}
@@ -515,7 +524,7 @@ export function TerminalRefSidebar({
             )
           }
         />
-      </div>
+      </DataGrid>
       {openMenu && (
         <Menu
           items={menuItems}

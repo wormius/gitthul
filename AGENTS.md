@@ -198,6 +198,9 @@ commits son continuas; los enlaces WIP/stash son finos y punteados. Conservar el
 dibujante compartido y la simbología especial al ajustar su paleta. El motor
 conserva el tipo de cada enlace hasta el nodo de llegada; HEAD continúa hacia
 sus padres con enlaces de rama normales.
+Terminal usa DataGrid para compartir los anchos entre cabeceras y filas;
+el separador Grafo/Mensaje reparte el espacio dentro del panel y recuerda
+el ajuste mediante PaneStorage. No añadir una barra horizontal al grafo.
 
 Todo texto de la interfaz de usuario del producto usa i18n. Las muestras internas
 de la galería conservan su convención actual; no requieren una traducción global

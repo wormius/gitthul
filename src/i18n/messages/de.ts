@@ -1245,7 +1245,6 @@ export const de: Messages = {
   'view.terminal.refCopied': 'Referenz kopiert',
   'view.terminal.transcribe': '{value} eingeben',
   'view.terminal.branchCount': 'Branches: {count}',
-  'view.terminal.graphScroll': 'Graph horizontal scrollen',
   'view.terminal.command.show': 'Commit-Details anzeigen',
   'view.terminal.command.log': 'Autor und Datum des Commits anzeigen',
   'view.terminal.command.branch': 'Branch an diesem Commit erstellen',

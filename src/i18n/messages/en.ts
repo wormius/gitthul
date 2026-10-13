@@ -1229,7 +1229,6 @@ export const en: Messages = {
   'view.terminal.refCopied': 'Reference copied',
   'view.terminal.transcribe': 'Type {value}',
   'view.terminal.branchCount': 'Branches: {count}',
-  'view.terminal.graphScroll': 'Horizontal graph scrolling',
   'view.terminal.command.show': 'Show commit details',
   'view.terminal.command.log': 'Show commit author and date',
   'view.terminal.command.branch': 'Create a branch at this commit',

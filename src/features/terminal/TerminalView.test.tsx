@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,6 +11,7 @@ import { selectPorts, type AppPorts } from '@core/adapters/selectPorts';
 import { ThemeProvider } from '@design/ThemeProvider';
 import { I18nProvider } from '@i18n/I18nProvider';
 import { ToastProvider } from '@ui/ToastProvider';
+import { PaneStorageContext, memoryPaneSizeStore, type PaneSizeStore } from '@ui/paneStorage';
 import { useVirtualViewport } from '../../test/virtualViewport';
 
 import { PortsContext } from '@app/PortsContext';
@@ -28,21 +29,30 @@ function renderTerminal(props?: {
   repoId?: string | null;
   onOpenWorking?: () => void;
   onClose?: () => void;
+  sizes?: PaneSizeStore;
 }) {
-  const { cwd = '/home/user/project', repoId = 'repo-1', onOpenWorking, onClose } = props ?? {};
+  const {
+    cwd = '/home/user/project',
+    repoId = 'repo-1',
+    onOpenWorking,
+    onClose,
+    sizes = memoryPaneSizeStore,
+  } = props ?? {};
 
   return render(
     <PortsContext value={ports}>
       <ThemeProvider initialSettings={{ theme: 'thul', mode: 'dark' }}>
         <I18nProvider initialLocale="es-MX">
           <ToastProvider regionLabel="Avisos" dismissLabel="Cerrar aviso">
-            <TerminalView
-              sessionId="test-session"
-              cwd={cwd}
-              repoId={repoId}
-              onOpenWorking={onOpenWorking}
-              onClose={onClose}
-            />
+            <PaneStorageContext value={sizes}>
+              <TerminalView
+                sessionId="test-session"
+                cwd={cwd}
+                repoId={repoId}
+                onOpenWorking={onOpenWorking}
+                onClose={onClose}
+              />
+            </PaneStorageContext>
           </ToastProvider>
         </I18nProvider>
       </ThemeProvider>
@@ -59,6 +69,81 @@ describe('TerminalView', () => {
       git: createMockGitPort({ latency: NO_LATENCY }),
       terminal: createMockTerminalPort(),
     };
+  });
+
+  it('reparte el ancho desde la cabecera, lo recuerda y conserva los menús del grafo', async () => {
+    const values = new Map<string, number>();
+    const sizes: PaneSizeStore = {
+      read: (id) => values.get(id) ?? null,
+      write: (id, value) => {
+        values.set(id, value);
+      },
+    };
+    const user = userEvent.setup();
+    const first = renderTerminal({ repoId: 'gitthul', sizes });
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+    const rail = screen.getByRole('grid', { name: 'Referencias' });
+    const header = within(rail).getByRole('columnheader', { name: /Grafo/ }).parentElement!;
+    Object.defineProperty(header, 'clientWidth', { get: () => 320 });
+    const resizer = within(rail).getByRole('separator', { name: 'Grafo' });
+    act(() => resizer.focus());
+    await user.keyboard('{ArrowRight}');
+    expect(resizer).toHaveAttribute('aria-valuenow', '104');
+    expect(header.style.gridTemplateColumns).toBe('104px 216px');
+    expect(values.get('terminal.references.graph')).toBe(104);
+    expect(values.get('terminal.references.message')).toBe(216);
+
+    await waitFor(() => expect(within(rail).getAllByRole('row').length).toBeGreaterThan(1));
+    const firstRow = within(rail).getAllByRole('row')[1]!;
+    expect(firstRow.style.gridTemplateColumns).toBe(header.style.gridTemplateColumns);
+    expect(within(firstRow).getAllByRole('gridcell')).toHaveLength(2);
+    expect(screen.queryByRole('region', { name: /horizontal/i })).not.toBeInTheDocument();
+    expect(within(rail).getByRole('columnheader', { name: /Mensaje/ })).toBeInTheDocument();
+    const body = within(rail).getAllByRole('rowgroup')[1]!;
+    expect(body).not.toContainElement(header);
+
+    // El separador no roba las flechas del historial ni ejecuta comandos.
+    await user.click(body);
+    await user.keyboard('{ArrowDown}{Enter}');
+    const menu = await screen.findByRole('menu', { name: 'Referencias' });
+    expect(within(menu).getAllByRole('menuitem').length).toBeGreaterThan(0);
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    first.unmount();
+
+    renderTerminal({ repoId: 'gitthul', sizes });
+    expect(screen.getByRole('separator', { name: 'Grafo' })).toHaveAttribute(
+      'aria-valuenow',
+      '104',
+    );
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+  });
+
+  it('el arrastre del separador reserva espacio para el mensaje y permite volver a ampliar', async () => {
+    renderTerminal({ repoId: 'gitthul' });
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
+    const rail = screen.getByRole('grid', { name: 'Referencias' });
+    const header = within(rail).getByRole('columnheader', { name: /Grafo/ }).parentElement!;
+    Object.defineProperty(header, 'clientWidth', { get: () => 256 });
+    const resizer = within(rail).getByRole('separator', { name: 'Grafo' });
+    Object.assign(resizer, {
+      setPointerCapture: vi.fn(),
+      hasPointerCapture: () => true,
+      releasePointerCapture: vi.fn(),
+    });
+    const pointer = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true });
+      Object.assign(event, { clientX, button: 0, pointerId: 1 });
+      fireEvent(resizer, event);
+    };
+    pointer('pointerdown', 96);
+    pointer('pointermove', 700);
+    pointer('pointerup', 700);
+    expect(header.style.gridTemplateColumns).toBe('176px 80px');
+    for (let step = 0; step < 20; step += 1) fireEvent.keyDown(resizer, { key: 'ArrowLeft' });
+    expect(header.style.gridTemplateColumns).toBe('72px 184px');
+    fireEvent.keyDown(resizer, { key: 'ArrowRight' });
+    expect(header.style.gridTemplateColumns).toBe('80px 176px');
+    await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
   });
 
   it('muestra el progreso del historial y deja ejecutar comandos mientras se lee', async () => {
@@ -84,7 +169,9 @@ describe('TerminalView', () => {
     });
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument());
     expect(
-      within(screen.getByRole('list', { name: 'Referencias' })).getAllByRole('listitem').length,
+      within(screen.getByRole('grid', { name: 'Referencias' }))
+        .getAllByRole('row')
+        .slice(1).length,
     ).toBeGreaterThan(1);
   });
 
@@ -271,7 +358,7 @@ describe('TerminalView', () => {
     ports = { ...ports, git: { ...ports.git, readCommits } };
     renderTerminal({ cwd: '/home/example/projects/gitthul', repoId: 'gitthul' });
 
-    const rail = await screen.findByRole('list', { name: 'Referencias' });
+    const rail = await screen.findByRole('grid', { name: 'Referencias' });
     const input = screen.getByRole('textbox');
 
     expect(getComputedStyle(rail.parentElement!).display).toBe('flex');
@@ -279,14 +366,14 @@ describe('TerminalView', () => {
     await waitFor(() =>
       expect(
         within(rail)
-          .getAllByRole('button')
+          .getAllByRole('row')
           .some((row) => row.title.startsWith('main,')),
       ).toBe(true),
     );
     expect(within(rail).queryByText('main', { exact: true })).not.toBeInTheDocument();
-    expect(within(rail).getAllByRole('listitem').length).toBeGreaterThan(1);
-    expect(within(rail).getAllByRole('listitem')[0]).toHaveTextContent(/[a-z0-9]/i);
-    expect(within(rail).getAllByRole('listitem')[0]?.querySelector('canvas')).not.toBeNull();
+    expect(within(rail).getAllByRole('row').slice(1).length).toBeGreaterThan(1);
+    expect(within(rail).getAllByRole('row').slice(1)[0]).toHaveTextContent(/[a-z0-9]/i);
+    expect(within(rail).getAllByRole('row').slice(1)[0]?.querySelector('canvas')).not.toBeNull();
     const request = readCommits.mock.calls[0];
 
     expect(request?.[0]).toBe('gitthul');
@@ -318,16 +405,16 @@ describe('TerminalView', () => {
     };
     renderTerminal({ cwd: '/home/example/projects/gitthul', repoId: 'gitthul' });
 
-    const rail = await screen.findByRole('list', { name: 'Referencias' });
+    const rail = await screen.findByRole('grid', { name: 'Referencias' });
     await waitFor(() =>
       expect(
         within(rail)
-          .getAllByRole('button')
+          .getAllByRole('row')
           .some((row) => row.title.startsWith(`${local.name}, ${remote.name},`)),
       ).toBe(true),
     );
     const row = within(rail)
-      .getAllByRole('button')
+      .getAllByRole('row')
       .find((candidate) =>
         candidate
           .getAttribute('title')
@@ -371,7 +458,7 @@ describe('TerminalView', () => {
 
   it('WIP transcribe status y un commit sin rama siempre abre acciones', async () => {
     renderTerminal({ repoId: 'gitthul' });
-    const rail = await screen.findByRole('list', { name: 'Referencias' });
+    const rail = await screen.findByRole('grid', { name: 'Referencias' });
     const user = userEvent.setup();
     expect(await within(rail).findByRole('img', { name: 'WIP' })).toBeInTheDocument();
     await user.click(await within(rail).findByText('WIP', { exact: true }));
@@ -385,7 +472,7 @@ describe('TerminalView', () => {
         !refs.branches.some((branch) => branch.tip === item.sha) &&
         !refs.tags.some((tag) => tag.target === item.sha),
     )!;
-    const row = await within(rail).findByRole('button', { name: `Commit ${commit.summary}` });
+    const row = await within(rail).findByRole('row', { name: `Commit ${commit.summary}` });
     expect(within(row).queryByText(commit.sha.slice(0, 7))).not.toBeInTheDocument();
     await user.click(row);
     const menu = await screen.findByRole('menu', { name: 'Referencias' });
@@ -403,9 +490,9 @@ describe('TerminalView', () => {
     const refs = await ports.git.readRefs('gitthul');
     const stash = refs.stashes[0]!;
     renderTerminal({ repoId: 'gitthul' });
-    const rail = await screen.findByRole('list', { name: 'Referencias' });
+    const rail = await screen.findByRole('grid', { name: 'Referencias' });
     const user = userEvent.setup();
-    const row = await within(rail).findByRole('button', { name: `Stash ${stash.message}` });
+    const row = await within(rail).findByRole('row', { name: `Stash ${stash.message}` });
     expect(within(row).getByRole('img', { name: 'Stash' })).toBeInTheDocument();
     await user.click(row);
     let menu = await screen.findByRole('menu', { name: 'Referencias' });
@@ -444,7 +531,7 @@ describe('TerminalView', () => {
       },
     };
     const { unmount } = renderTerminal({ repoId: 'gitthul' });
-    const rail = await screen.findByRole('list', { name: 'Referencias' });
+    const rail = await screen.findByRole('grid', { name: 'Referencias' });
     expect(await within(rail).findByText('WIP')).toBeInTheDocument();
     const reads = readCommits.mock.calls.length;
     clean = true;

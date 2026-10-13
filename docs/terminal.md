@@ -15,6 +15,12 @@ historial, y al cargar más commits cuando te acercas al final. Puedes escribir
 y ejecutar comandos mientras se prepara el grafo. Si la lectura falla, el panel
 muestra el error y ofrece **Reintentar** sin cerrar la terminal.
 
+Las cabeceras **Grafo** y **Mensaje** permanecen visibles al desplazarte por el
+historial. Arrastra el separador entre ellas para repartir el ancho del panel;
+también puedes enfocarlo con Tab y ajustarlo con las flechas izquierda y derecha.
+GitThul recuerda ese ajuste. El grafo no muestra una barra horizontal: amplía su
+columna para ver más ramas.
+
 En el grafo lateral, los commits se representan con anillos huecos, el WIP con
 un círculo sólido y los stashes con cuadrados sólidos. Las ramas se distinguen
 por sus colores; cambiar de rama no cambia la forma de los commits. Las conexiones
