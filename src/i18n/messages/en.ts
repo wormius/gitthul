@@ -244,20 +244,12 @@ export const en: Messages = {
   'repositories.menu.removeFromSpace': 'Remove from {space}',
   'repositories.menu.removeSelectedFromSpace': 'Remove {count} repositories from {space}',
   'repositories.menu.removeFromSpaceChoose': 'Remove from a space',
-  'repositories.menu.removeFromAllSpaces': 'Remove from all spaces',
-  'repositories.menu.removeSelectedFromAllSpaces': 'Remove {count} repositories from all spaces',
   'repositories.menu.removeOneFromSpace': 'Remove {repo} from {space}',
-  'repositories.menu.removeOneFromAllSpaces': 'Remove {repo} from all spaces',
   'repositories.status.removedManyFromSpace': 'Repositories removed from {space}: {count}.',
-  'repositories.status.removedManyFromAllSpaces': 'Repositories removed from all spaces: {count}.',
   'repositories.status.removeManyFromSpaceFailed':
     'Could not remove repositories from {space} ({count}).',
-  'repositories.status.removeManyFromAllSpacesFailed':
-    'Could not remove repositories from all spaces ({count}).',
   'repositories.status.removeManyFromSpaceCancelled':
     'Removing repositories from {space} was cancelled ({count}).',
-  'repositories.status.removeManyFromAllSpacesCancelled':
-    'Removing repositories from all spaces was cancelled ({count}).',
   'repositories.status.removedFromSpace': 'Removed {repo} from {space}.',
   'repositories.status.movedToSpace': 'Moved {repo} from {from} to {to}.',
   'repositories.sort.label': 'List order',

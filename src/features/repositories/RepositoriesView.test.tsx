@@ -554,9 +554,7 @@ describe('RepositoriesView con biblioteca real', () => {
     expect(
       await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de Uno' }),
     ).toBeVisible();
-    expect(
-      screen.getByRole('menuitem', { name: 'Quitar 2 repositorios de todos los espacios' }),
-    ).toBeVisible();
+    expect(screen.queryByRole('menuitem', { name: /todos los espacios/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /Quitar 3 repositorios/ })).toBeNull();
     await user.click(screen.getByRole('menuitem', { name: 'Quitar 2 repositorios de Uno' }));
 
@@ -594,6 +592,8 @@ describe('RepositoriesView con biblioteca real', () => {
     list.focus();
     fireEvent.keyDown(list, { key: 'F10', shiftKey: true });
 
+    expect(await screen.findByRole('menuitem', { name: 'Quitar de un espacio' })).toBeVisible();
+    expect(screen.queryByRole('menuitem', { name: /todos los espacios/ })).toBeNull();
     await user.hover(await screen.findByRole('menuitem', { name: 'Quitar de un espacio' }));
     expect(
       await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de Uno' }),
@@ -610,7 +610,7 @@ describe('RepositoriesView con biblioteca real', () => {
     expect(within(list).getAllByRole('option', { selected: true })).toHaveLength(2);
   });
 
-  it('quitar de todos los espacios conserva el catálogo y las pestañas y permite abrir y volver a agregar', async () => {
+  it('quita de cada espacio por separado y conserva el catálogo, las pestañas y el arrastre', async () => {
     const user = userEvent.setup();
     const ports = makePorts();
     await ports.library.createSpace('Uno');
@@ -628,9 +628,21 @@ describe('RepositoriesView con biblioteca real', () => {
     await waitFor(() => expect(openedRepositoryIds()).toEqual(['gitthul']));
     clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
     fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
-    await user.click(
-      await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de todos los espacios' }),
+    await user.hover(await screen.findByRole('menuitem', { name: 'Quitar de un espacio' }));
+    expect(screen.queryByRole('menuitem', { name: /todos los espacios/ })).toBeNull();
+    await user.click(await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de Uno' }));
+
+    await waitFor(async () => {
+      const spaces = (await ports.library.read()).spaces;
+      expect(spaces[0]?.repos).toEqual([]);
+      expect(spaces[1]?.repos).toEqual(['gitthul', 'dotfiles']);
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('listbox', { name: 'Repositorios conocidos' })).toHaveFocus(),
     );
+    fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
+    await user.hover(await screen.findByRole('menuitem', { name: 'Quitar de un espacio' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Quitar gitthul de Dos' }));
 
     await waitFor(async () => {
       const spaces = (await ports.library.read()).spaces;
@@ -695,14 +707,13 @@ describe('RepositoriesView con biblioteca real', () => {
     clickRow(gitthul);
     clickRow(rowAt(rows, '/home/example/projects/bitacora'), { ctrlKey: true });
     fireEvent.contextMenu(within(gitthul).getByText('/home/example/projects/gitthul'));
-    await user.click(
-      await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de todos los espacios' }),
-    );
+    await user.hover(await screen.findByRole('menuitem', { name: 'Quitar de un espacio' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Quitar 2 repositorios de Uno' }));
 
     const alert = await screen.findByRole('alert');
     expect(within(alert).getByRole('heading', { name: 'La operación de Git falló' })).toBeVisible();
     await waitFor(() => expect(useRepositoriesStore.getState().batchBusy).toBe(false));
-    expect(remove).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledExactlyOnceWith(['gitthul', 'bitacora'], ['space-1']);
     expect((await ports.library.read()).spaces[0]?.repos).toEqual(['gitthul', 'bitacora']);
     expect(useShellStore.getState().status?.tone).toBe('warning');
     expect(

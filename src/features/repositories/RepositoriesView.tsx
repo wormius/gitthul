@@ -722,31 +722,17 @@ function removalMenu({
     disabled: busy,
     onSelect: () => actions.removeManyFromSpace(space, repos, afterRemoval),
   });
-  const affected = targets.filter((repo) => spaces.some((space) => space.repos.includes(repo.id)));
-  return [
-    ...(origin === undefined
-      ? [
-          {
-            kind: 'submenu' as const,
-            key: 'remove-from-space',
-            label: t('repositories.menu.removeFromSpaceChoose'),
-            disabled: busy,
-            items: memberships.map(entry),
-          },
-        ]
-      : memberships.filter(({ space }) => space.id === origin).map(entry)),
-    {
-      key: 'remove-from-all-spaces',
-      label:
-        targets.length === 1
-          ? t('repositories.menu.removeFromAllSpaces')
-          : affected.length === 1
-            ? t('repositories.menu.removeOneFromAllSpaces', { repo: affected[0]!.name })
-            : t('repositories.menu.removeSelectedFromAllSpaces', { count: affected.length }),
-      disabled: busy,
-      onSelect: () => actions.removeManyFromSpace(null, affected, afterRemoval),
-    },
-  ];
+  return origin === undefined
+    ? [
+        {
+          kind: 'submenu' as const,
+          key: 'remove-from-space',
+          label: t('repositories.menu.removeFromSpaceChoose'),
+          disabled: busy,
+          items: memberships.map(entry),
+        },
+      ]
+    : memberships.filter(({ space }) => space.id === origin).map(entry);
 }
 
 function panelMenu(gestures: GestureRegistry, removal: readonly MenuEntry[]): readonly MenuEntry[] {

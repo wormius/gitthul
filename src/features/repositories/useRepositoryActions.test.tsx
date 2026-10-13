@@ -436,7 +436,7 @@ describe('removing repository memberships', () => {
     });
   });
 
-  it('removes from every space once and counts repositories rather than repeated memberships', async () => {
+  it('removes memberships from separate spaces only through separate requests', async () => {
     const ports = makePorts();
     const [first, second, unrelated] = await ports.git.listRepositories();
     await ports.library.createSpaceAndAddMany('Uno', [first!.id, second!.id]);
@@ -444,10 +444,21 @@ describe('removing repository memberships', () => {
     const actions = await loadedActions(ports);
     useRepositoriesStore.getState().selectMany(new Set([first!.id, second!.id]), 'space:space-2');
     const remove = vi.spyOn(ports.library, 'removeManyFromSpaces');
+    const [one, two] = useRepositoriesStore.getState().library!.spaces;
 
-    act(() => actions.removeManyFromSpace(null, [first!, second!, first!]));
+    act(() => actions.removeManyFromSpace(one!, [first!, second!, first!]));
     await batchFinished();
-    expect(remove).toHaveBeenCalledExactlyOnceWith([first!.id, second!.id], undefined);
+    expect(remove).toHaveBeenCalledExactlyOnceWith([first!.id, second!.id], ['space-1']);
+    expect((await ports.library.read()).spaces).toEqual([
+      { id: 'space-1', name: 'Uno', repos: [] },
+      { id: 'space-2', name: 'Dos', repos: [first!.id, second!.id, unrelated!.id] },
+    ]);
+    expect(useRepositoriesStore.getState().selectedFrom).toBe('space:space-2');
+
+    act(() => actions.removeManyFromSpace(two!, [first!, second!]));
+    await batchFinished();
+    expect(remove).toHaveBeenCalledTimes(2);
+    expect(remove).toHaveBeenLastCalledWith([first!.id, second!.id], ['space-2']);
     expect((await ports.library.read()).spaces).toEqual([
       { id: 'space-1', name: 'Uno', repos: [] },
       { id: 'space-2', name: 'Dos', repos: [unrelated!.id] },
@@ -455,8 +466,8 @@ describe('removing repository memberships', () => {
     expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
     expect(useRepositoriesStore.getState().selectedFrom).toBe('all');
     expect(useShellStore.getState().status).toMatchObject({
-      key: 'repositories.status.removedManyFromAllSpaces',
-      params: { count: 2 },
+      key: 'repositories.status.removedManyFromSpace',
+      params: { count: 2, space: 'Dos' },
     });
   });
 
@@ -539,7 +550,7 @@ describe('removing repository memberships', () => {
 
     act(() => {
       actions.removeManyFromSpace(target, [first!, second!]);
-      actions.removeManyFromSpace(null, [first!]);
+      actions.removeManyFromSpace(target, [first!]);
       actions.forgetMany([second!]);
       useRepositoriesStore.getState().select(unrelated!, 'recent');
     });

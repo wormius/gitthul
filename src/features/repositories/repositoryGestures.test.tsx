@@ -95,32 +95,23 @@ describe('repository space removal gestures', () => {
       });
       expect(registry.run('repos.removeFromSpace')).toBe(false);
       expect(removeManyFromSpace).not.toHaveBeenCalled();
-      expect(registry.run('repos.removeFromAllSpaces')).toBe(true);
-      expect(removeManyFromSpace).toHaveBeenCalledWith(null, [REPOSITORIES[1]]);
+      expect(registry.get('repos.removeFromAllSpaces')).toBeUndefined();
+      expect(() => registry.run('repos.removeFromAllSpaces')).toThrow(
+        'Gesto desconocido: repos.removeFromAllSpaces',
+      );
+      expect(removeManyFromSpace).not.toHaveBeenCalled();
     },
   );
 
-  it('el gesto de todos los espacios excluye repositorios sin membresías y cuenta IDs únicos', () => {
-    useRepositoriesStore.getState().selectMany(new Set(['alpha', 'beta', 'gamma', 'free']), 'all');
-    const registry = createGestureRegistry(definitions(), 'linux');
-    const gesture = registry.get('repos.removeFromAllSpaces');
-
-    expect(gesture?.label).toBe('Quitar 3 repositorios de todos los espacios');
-    expect(gesture?.triggers).toEqual(['menu', 'search']);
-    expect(gesture?.hiddenInSearch).toBe(false);
-    expect(registry.run('repos.removeFromAllSpaces')).toBe(true);
-    expect(removeManyFromSpace).toHaveBeenCalledWith(null, REPOSITORIES.slice(0, 3));
-  });
-
-  it('todos los espacios nombra el único afectado de una selección múltiple', () => {
-    useRepositoriesStore.getState().selectMany(new Set(['beta', 'free']), 'all');
+  it('una selección múltiple de un espacio no ofrece retirar de todos los espacios', () => {
+    useRepositoriesStore.getState().selectMany(new Set(['alpha', 'beta', 'gamma']), 'space:a');
     const registry = createGestureRegistry(definitions(), 'linux');
 
-    expect(registry.get('repos.removeFromAllSpaces')?.label).toBe(
-      'Quitar beta de todos los espacios',
+    expect(registry.get('repos.removeFromAllSpaces')).toBeUndefined();
+    expect(() => registry.run('repos.removeFromAllSpaces')).toThrow(
+      'Gesto desconocido: repos.removeFromAllSpaces',
     );
-    expect(registry.run('repos.removeFromAllSpaces')).toBe(true);
-    expect(removeManyFromSpace).toHaveBeenCalledWith(null, [REPOSITORIES[1]]);
+    expect(removeManyFromSpace).not.toHaveBeenCalled();
   });
 
   it('un espacio de origen eliminado no redirige el gesto a otro espacio', () => {
@@ -159,10 +150,15 @@ describe('repository space removal gestures', () => {
       }
       const registry = createGestureRegistry(definitions(), 'linux');
 
-      for (const id of ['repos.removeFromSpace', 'repos.removeFromAllSpaces']) {
-        expect(registry.get(id)).toMatchObject({ disabled: true, hiddenInSearch: true });
-        expect(registry.run(id)).toBe(false);
-      }
+      expect(registry.get('repos.removeFromSpace')).toMatchObject({
+        disabled: true,
+        hiddenInSearch: true,
+      });
+      expect(registry.run('repos.removeFromSpace')).toBe(false);
+      expect(registry.get('repos.removeFromAllSpaces')).toBeUndefined();
+      expect(() => registry.run('repos.removeFromAllSpaces')).toThrow(
+        'Gesto desconocido: repos.removeFromAllSpaces',
+      );
       expect(removeManyFromSpace).not.toHaveBeenCalled();
     },
   );

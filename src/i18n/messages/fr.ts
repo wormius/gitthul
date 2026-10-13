@@ -246,20 +246,12 @@ export const fr: Messages = {
   'repositories.menu.removeFromSpace': 'Retirer de {space}',
   'repositories.menu.removeSelectedFromSpace': 'Retirer {count} dépôts de {space}',
   'repositories.menu.removeFromSpaceChoose': 'Retirer d’un espace',
-  'repositories.menu.removeFromAllSpaces': 'Retirer de tous les espaces',
-  'repositories.menu.removeSelectedFromAllSpaces': 'Retirer {count} dépôts de tous les espaces',
   'repositories.menu.removeOneFromSpace': 'Retirer {repo} de {space}',
-  'repositories.menu.removeOneFromAllSpaces': 'Retirer {repo} de tous les espaces',
   'repositories.status.removedManyFromSpace': 'Dépôts retirés de {space} : {count}.',
-  'repositories.status.removedManyFromAllSpaces': 'Dépôts retirés de tous les espaces : {count}.',
   'repositories.status.removeManyFromSpaceFailed':
     'Impossible de retirer les dépôts de {space} ({count}).',
-  'repositories.status.removeManyFromAllSpacesFailed':
-    'Impossible de retirer les dépôts de tous les espaces ({count}).',
   'repositories.status.removeManyFromSpaceCancelled':
     'Le retrait des dépôts de {space} a été annulé ({count}).',
-  'repositories.status.removeManyFromAllSpacesCancelled':
-    'Le retrait des dépôts de tous les espaces a été annulé ({count}).',
   'repositories.status.removedFromSpace': '{repo} a été retiré de {space}.',
   'repositories.status.movedToSpace': '{repo} a été déplacé de {from} vers {to}.',
   'repositories.sort.label': 'Ordre de la liste',

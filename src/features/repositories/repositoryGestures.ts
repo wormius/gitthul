@@ -55,11 +55,7 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
     const removableFromSpace = selectedSpace
       ? chosen.filter((candidate) => selectedSpace.repos.includes(candidate.id))
       : [];
-    const removableFromAllSpaces = chosen.filter((candidate) =>
-      spaces.some((space) => space.repos.includes(candidate.id)),
-    );
     const onlyRemovable = removableFromSpace[0];
-    const onlyRemovableFromAllSpaces = removableFromAllSpaces[0];
 
     return [
       {
@@ -299,25 +295,6 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
         hiddenInSearch: away || !selectedSpace || removableFromSpace.length === 0,
         run: () => {
           if (selectedSpace) actions.removeManyFromSpace(selectedSpace, removableFromSpace);
-        },
-      },
-      {
-        id: 'repos.removeFromAllSpaces',
-        label:
-          removableFromAllSpaces.length > 1
-            ? t('repositories.menu.removeSelectedFromAllSpaces', {
-                count: removableFromAllSpaces.length,
-              })
-            : onlyRemovableFromAllSpaces
-              ? t('repositories.menu.removeOneFromAllSpaces', {
-                  repo: onlyRemovableFromAllSpaces.name,
-                })
-              : t('repositories.menu.removeFromAllSpaces'),
-        triggers: ['menu', 'search'],
-        disabled: away || removableFromAllSpaces.length === 0,
-        hiddenInSearch: away || removableFromAllSpaces.length === 0,
-        run: () => {
-          actions.removeManyFromSpace(null, removableFromAllSpaces);
         },
       },
     ];

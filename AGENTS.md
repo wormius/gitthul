@@ -93,7 +93,8 @@ El arrastre guarda una copia de los repositorios seleccionados al comenzar.
 Los lotes se agregan sin retirar membresías anteriores; el arrastre singular
 desde una tarjeta conserva su traslado. Agregar o crear un espacio con un lote
 persiste miembros y navegación en una sola escritura de LibraryPort.
-Quitar de un espacio o de todos elimina solamente membresías, en una escritura.
+Quitar repositorios recibe un espacio concreto y elimina solamente sus membresías,
+en una escritura. Cada acción afecta a un espacio a la vez.
 Los menús de tarjetas reciben el ID de su espacio; no deducir ese destino de
 library.view, que puede apuntar a otra zona. El catálogo y las pestañas se conservan.
 

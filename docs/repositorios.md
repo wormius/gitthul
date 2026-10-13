@@ -37,11 +37,11 @@ Para sacar un repositorio de un espacio, abre el menú contextual de su tarjeta
 y elige **Quitar de [nombre del espacio]**. Desde las listas Recientes y Todos,
 elige **Quitar de un espacio** y luego el espacio concreto.
 
-**Quitar de todos los espacios** deja el repositorio sin membresías. Estas
-acciones también funcionan con selecciones múltiples: el menú indica los
+Estas acciones también funcionan con selecciones múltiples: el menú indica los
 repositorios afectados por cada espacio. Los repositorios siguen disponibles
 en Todos, con sus pestañas, carpetas e historial de Git conservados. Puedes
-volver a agregarlos a un espacio mediante el arrastre.
+volver a agregarlos a un espacio mediante el arrastre. Si un repositorio pertenece
+a varios espacios, quítalo de cada uno por separado.
 
 Si alguna apertura o acción de Olvidar falla, las demás se completan. Al volver a
 Repositorios puedes revisar el error de cada entrada fallida y reintentarlas.
