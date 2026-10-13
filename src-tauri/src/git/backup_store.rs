@@ -2293,6 +2293,12 @@ fn verify_repositories(
     if repositories.is_empty() {
         return Err(BackupError::Corrupt);
     }
+    // A real, empty directory also works with Windows verbatim paths. Device
+    // names such as NUL are not ordinary directories and cannot safely disable hooks.
+    let hooks = tempfile::Builder::new()
+        .prefix(".gitthul-verify-hooks-")
+        .tempdir_in(destination)?;
+    let hooks_setting = format!("core.hooksPath={}", hooks.path().to_string_lossy());
     for repository in repositories {
         git(
             &repository,
@@ -2300,11 +2306,7 @@ fn verify_repositories(
                 "-c",
                 "core.fsmonitor=false",
                 "-c",
-                if cfg!(windows) {
-                    "core.hooksPath=NUL"
-                } else {
-                    "core.hooksPath=/dev/null"
-                },
+                &hooks_setting,
                 "fsck",
                 if full {
                     "--full"
@@ -2561,6 +2563,17 @@ fn validate_entries(entries: &[Entry]) -> Result<(), BackupError> {
     Ok(())
 }
 fn encode_path(path: &Path) -> Vec<u8> {
+    // Absolute paths identify the source repository and retain their native
+    // representation, including Windows verbatim prefixes. Relative entries use
+    // one separator so filesystem paths and synthetic .git paths share a key.
+    #[cfg(windows)]
+    if !path.is_absolute() {
+        let normalized: PathBuf = path.components().collect();
+        return encode_os(normalized.as_os_str())
+            .into_iter()
+            .map(|byte| if byte == b'\\' { b'/' } else { byte })
+            .collect();
+    }
     encode_os(path.as_os_str())
 }
 fn encode_os(value: &OsStr) -> Vec<u8> {
@@ -2816,7 +2829,7 @@ mod tests {
             .env("GIT_CONFIG_NOSYSTEM", "1")
             .env(
                 "GIT_CONFIG_GLOBAL",
-                if cfg!(windows) { "NUL" } else { "/dev/null" },
+                repository.join("fixture-global-config"),
             )
             .output()
             .unwrap();
@@ -2827,6 +2840,64 @@ mod tests {
         );
         String::from_utf8(output.stdout).unwrap()
     }
+
+    #[test]
+    fn synthetic_and_walked_metadata_paths_share_one_manifest_key() {
+        for suffix in ["objects/pack", "objects/info", "refs/worktree", "logs/HEAD"] {
+            let synthetic = Path::new(".git").join(suffix);
+            let walked = suffix
+                .split('/')
+                .fold(PathBuf::from(".git"), |path, name| path.join(name));
+            assert_eq!(encode_path(&synthetic), encode_path(&walked));
+            assert_eq!(encode_path(&synthetic), format!(".git/{suffix}").as_bytes());
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn relative_path_keys_do_not_change_absolute_verbatim_paths_or_symlink_targets() {
+        let absolute = Path::new(r"\\?\C:\Users\runneradmin\repository\.git");
+        assert_eq!(encode_path(absolute), encode_os(absolute.as_os_str()));
+        let target = OsStr::new(r"..\directory\file.txt");
+        assert_eq!(decode_os(&encode_os(target)).unwrap(), target);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_manifest_with_duplicate_windows_path_spellings_is_still_rejected() {
+        let entries = [br".git\objects\pack".as_slice(), b".git/objects/pack"].map(|path| Entry {
+            source_stamp: String::new(),
+            path: path.to_vec(),
+            mode: 0o700,
+            content: Content::Directory,
+        });
+        assert_eq!(validate_entries(&entries), Err(BackupError::Corrupt));
+    }
+
+    #[test]
+    fn collected_metadata_has_one_entry_for_each_decoded_path() {
+        let (_root, repository, _store) = fixture();
+        let sources = collect_repository(&repository, &AtomicBool::new(false)).unwrap();
+        let paths: HashSet<_> = sources
+            .keys()
+            .map(|path| decode_path(path).unwrap())
+            .collect();
+        assert_eq!(paths.len(), sources.len());
+        assert_eq!(
+            sources
+                .keys()
+                .filter(|path| decode_path(path).unwrap() == Path::new(".git/objects/pack"))
+                .count(),
+            1
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_literal_backslash_in_a_unix_filename_is_not_changed_into_a_separator() {
+        assert_eq!(encode_path(Path::new(r"literal\name")), br"literal\name");
+    }
+
     fn fixture() -> (tempfile::TempDir, PathBuf, BackupStore) {
         let root = tempfile::tempdir().unwrap();
         let repository = root.path().join("original");

@@ -156,6 +156,12 @@ normalizados a repositorios independientes, objetos alternativos locales,
 submódulos inicializados y objetos LFS necesarios. No presentar como completo
 un repositorio bare, clone superficial/parcial, submódulo ausente, LFS incompleto o configuración
 externa no cubierta. Preservar symlinks como enlaces, sin recorrer sus destinos.
+En Windows, codificar las claves relativas del inventario y manifiesto con /
+para que rutas recorridas y sintéticas representen una sola entrada. Conservar
+la representación nativa de rutas absolutas y destinos de symlinks. La validación
+sigue rechazando entradas equivalentes duplicadas. Desactivar hooks al verificar
+mediante una carpeta vacía real, nunca un dispositivo NUL. Los fixtures Git usan
+un archivo global inexistente de su carpeta en lugar de dispositivos del sistema.
 Validar Git y contenido antes de publicar; restaurar exclusivamente en una carpeta
 nueva, con rutas de manifiesto verificadas y sin reemplazar destinos existentes.
 Una captura no debe ejecutar hooks, contactar al remoto ni mantener un bloqueo de

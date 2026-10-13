@@ -9,7 +9,7 @@ fn git(repository: &Path, arguments: &[&str]) -> String {
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env(
             "GIT_CONFIG_GLOBAL",
-            if cfg!(windows) { "NUL" } else { "/dev/null" },
+            repository.join("fixture-global-config"),
         )
         .output()
         .unwrap();
