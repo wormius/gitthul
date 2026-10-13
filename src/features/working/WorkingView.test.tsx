@@ -3021,6 +3021,100 @@ describe('WorkingView', () => {
     expect(within(details).queryByRole('checkbox', { name: 'Todos los archivos' })).toBeNull();
   });
 
+  it.each([false, true])(
+    'reabrir el historial desde Ver todos conserva el filtro y los toggles de carpetas (todo expandido: %s)',
+    async (treeExpanded) => {
+      const ports = makePorts();
+      const readCommit = ports.git.readCommit;
+      vi.spyOn(ports.git, 'readCommit').mockImplementation(async (...args) => {
+        const details = await readCommit(...args);
+        return {
+          ...details,
+          files: details.files.filter((file) => file.path !== 'docs/inventario.md'),
+        };
+      });
+      const pendingTrees: Array<(tree: Awaited<ReturnType<AppPorts['git']['readTree']>>) => void> =
+        [];
+      const readTree = vi.spyOn(ports.git, 'readTree').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            pendingTrees.push(resolve);
+          }),
+      );
+      const readHistory = vi.spyOn(ports.git, 'readFileHistory');
+      const user = userEvent.setup();
+      renderApp(ports);
+      await openRepo(user, GITTHUL_PATH);
+      const grid = await screen.findByRole('grid', { name: 'Commits de gitthul' });
+      const row = within(grid).getAllByRole('row').slice(4)[0];
+      if (!row) throw new Error('La tabla no montó ninguna fila de commit');
+      await act(async () => {
+        useWorkingStore.getState().setFileTreeExpanded(treeExpanded);
+        fireEvent.mouseDown(row, { button: 0 });
+        await Promise.resolve();
+      });
+
+      for (let cycle = 0; cycle < 3; cycle += 1) {
+        const details = await screen.findByRole('region', { name: /^Detalles del commit / });
+        if (cycle === 0) await user.click(within(details).getByRole('radio', { name: 'Árbol' }));
+        const filter = within(details).getByRole('searchbox', {
+          name: 'Filtrar los archivos por ruta',
+        });
+        expect(filter).toHaveValue(cycle === 0 ? '' : 'inventario.md');
+        const showAll = within(details).getByRole('checkbox', { name: 'Todos los archivos' });
+        expect(showAll).not.toBeChecked();
+        await user.click(showAll);
+        if (cycle === 0) await user.type(filter, 'inventario.md');
+        expect(within(details).queryByText('inventario.md')).not.toBeInTheDocument();
+        expect(readTree).toHaveBeenCalledTimes(cycle + 1);
+        const resolveTree = pendingTrees.shift();
+        if (!resolveTree) throw new Error('No se inició la lectura del árbol');
+        await act(async () => {
+          resolveTree([{ path: 'docs/inventario.md', kind: 'file' }]);
+          await Promise.resolve();
+        });
+
+        const folder = await within(details).findByRole('treeitem', { name: /^docs/ });
+        expect(folder).toHaveAttribute('aria-expanded', String(treeExpanded));
+        const arrow = folder.firstElementChild;
+        if (!arrow) throw new Error('La carpeta no tiene flecha');
+        // Primero abre el historial. Los toggles se prueban al volver, cuando
+        // el panel se monta otra vez con el filtro que ya estaba escrito.
+        if (cycle === 0) {
+          if (!treeExpanded) await user.click(arrow);
+        } else {
+          if (treeExpanded) await user.click(within(folder).getByText('docs'));
+          expect(folder).toHaveAttribute('aria-expanded', 'false');
+          expect(within(details).queryByText('inventario.md')).not.toBeInTheDocument();
+          await user.click(arrow);
+          expect(folder).toHaveAttribute('aria-expanded', 'true');
+          expect(within(details).getByText('inventario.md')).toBeVisible();
+          await user.click(within(folder).getByText('docs'));
+          expect(folder).toHaveAttribute('aria-expanded', 'false');
+          await user.click(within(folder).getByText('docs'));
+        }
+        expect(folder).toHaveAttribute('aria-expanded', 'true');
+        expect(within(details).getByText('inventario.md')).toBeVisible();
+        expect(useWorkingStore.getState().fileTreeExpanded).toBe(treeExpanded);
+
+        fireEvent.contextMenu(within(details).getByText('inventario.md'));
+        await user.click(await screen.findByRole('menuitem', { name: 'Ver el historial' }));
+        const history = await screen.findByRole('region', {
+          name: 'Historial de docs/inventario.md',
+        });
+        await waitFor(() => expect(readHistory).toHaveBeenCalledTimes(cycle + 1));
+        expect((await within(history).findAllByRole('listitem')).length).toBeGreaterThan(0);
+        await user.click(
+          within(history).getByRole('button', {
+            name: 'Cerrar el historial de docs/inventario.md',
+          }),
+        );
+        expect(history).not.toBeInTheDocument();
+        expect(useWorkingStore.getState().fileFilter).toBe('inventario.md');
+      }
+    },
+  );
+
   it('las listas de cambios y staging no ofrecen Ver todos en modo árbol', async () => {
     const ports = makePorts();
     const readTree = vi.spyOn(ports.git, 'readTree');
