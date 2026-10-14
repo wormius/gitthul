@@ -592,6 +592,7 @@ mod tests {
                 else {
                     panic!("expected auto-stash conflict: {error:?}");
                 };
+                let captured_diagnostic = serde_json::to_value(&diagnostic).unwrap();
                 let evidence = serde_json::to_value(super::super::map_integration_error(
                     IntegrationError::Stash(stash::StashError::AutoConflict {
                         count: 1,
@@ -601,11 +602,28 @@ mod tests {
                 .unwrap();
                 assert_eq!(evidence["code"], "stash.autoConflict");
                 assert_eq!(evidence["params"]["count"], 1);
+                assert_eq!(evidence["diagnostic"], captured_diagnostic);
+                assert_eq!(evidence["diagnostic"]["kind"], "gitCommand");
+                assert_eq!(evidence["diagnostic"]["stage"], "integration.execute");
+                assert_eq!(evidence["diagnostic"]["command"]["program"], "git");
+                assert_eq!(
+                    evidence["diagnostic"]["command"]["args"],
+                    if kind == "merge" {
+                        serde_json::json!(["merge", "--no-edit", expected.source_oid])
+                    } else {
+                        serde_json::json!(["rebase", expected.source_oid])
+                    }
+                );
                 assert_eq!(evidence["diagnostic"]["exitCode"], 0);
+                // Git's explanation changed in 2.55; keep its evidence without
+                // requiring one version's human-facing advice.
                 assert!(evidence["diagnostic"]["stderr"]
                     .as_str()
                     .unwrap()
-                    .contains("Applying autostash resulted in conflicts"));
+                    .contains("conflicts"));
+                let unmerged = git(path, &["ls-files", "-u"]);
+                assert_eq!(unmerged.lines().count(), 3);
+                assert!(unmerged.lines().all(|line| line.ends_with("\tbase.txt")));
                 assert!(matches!(
                     repository::discover(path).unwrap().operation(),
                     RepoOperation::None

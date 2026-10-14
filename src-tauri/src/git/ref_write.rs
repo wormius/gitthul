@@ -827,6 +827,11 @@ mod tests {
     #[test]
     fn checkout_rechazado_no_deja_una_rama_parcial() {
         let temporary = repository();
+        // The refusal is actionable even when Git's optional advice is disabled.
+        git(
+            temporary.path(),
+            &["config", "advice.commitBeforeMerge", "false"],
+        );
         git(temporary.path(), &["branch", "origen"]);
         fs::write(temporary.path().join("README.md"), "principal\n").unwrap();
         git(temporary.path(), &["add", "README.md"]);
@@ -852,15 +857,18 @@ mod tests {
         .unwrap_err();
 
         assert_checkout_blocked(&error, "Your local changes");
+        let WriteRefError::WithDiagnostic(_, diagnostic) = &error else {
+            unreachable!("assert_checkout_blocked requires the original diagnostic")
+        };
+        let captured_output = diagnostic.to_string();
+        let captured_diagnostic = serde_json::to_value(diagnostic).unwrap();
         let ipc =
             serde_json::to_value(super::super::map_create_branch_error(error, "nueva")).unwrap();
         assert_eq!(ipc["code"], "branch.checkoutBlocked");
         assert_eq!(ipc["params"], serde_json::json!({ "branch": "nueva" }));
+        assert_eq!(ipc["diagnostic"], captured_diagnostic);
         assert_eq!(ipc["diagnostic"]["exitCode"], 1);
-        assert!(ipc["output"]
-            .as_str()
-            .unwrap()
-            .contains("Please commit your changes or stash them"));
+        assert_eq!(ipc["output"], captured_output);
         assert_eq!(git(temporary.path(), &["branch", "--show-current"]), "main");
         assert_eq!(git(temporary.path(), &["show-ref"]), refs_before);
         assert_eq!(
