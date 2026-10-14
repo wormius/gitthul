@@ -1904,9 +1904,26 @@ mod tests {
             &["stash", "push", "--quiet", "-m", "PRIVATE_STASH_MESSAGE"],
         )
         .unwrap();
+        assert!(!output.status.success());
+        let exit_code = output
+            .status
+            .code()
+            .expect("Git lock refusal exits normally");
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
         let value = serde_json::to_value(output.diagnostic).unwrap();
-        assert_eq!(value["exitCode"], 1);
+        assert_eq!(value["kind"], "gitCommand");
+        assert_eq!(value["stage"], "stash.execute");
+        assert_eq!(value["command"]["program"], "git");
+        assert_eq!(
+            value["command"]["args"],
+            serde_json::json!(["stash", "push", "--quiet", "-m", "[redacted argument]"])
+        );
+        // Git versions/platforms use different refusal codes; preserve the
+        // exact native status rather than assuming one fixed nonzero value.
+        assert_eq!(value["exitCode"], exit_code);
+        assert_eq!(value["stderr"], stderr);
         assert!(value["stderr"].as_str().unwrap().contains("index.lock"));
+        assert_eq!(fs::read(root.join(".git/index.lock")).unwrap(), b"held");
         assert!(!value.to_string().contains("PRIVATE_STASH_MESSAGE"));
         assert!(!value.to_string().contains("PRIVATE_FILE_CONTENT"));
         assert!(value.get("stdout").is_none());
