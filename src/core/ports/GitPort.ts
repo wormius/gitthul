@@ -493,7 +493,9 @@ export interface GitPort {
    * Cierra o tira lo que quedó a medias.
    *
    * Las dos devuelven el repositorio porque lo que cambia es su `operation`, y
-   * es esa marca la que decide si la vista Resolver sigue tomando el control.
+   * esa marca y WorkingStatus.recoveryOperation deciden si Resolver sigue activo.
+   * En autoStash la integración ya terminó: abortar conserva HEAD actualizado y
+   * el stash original; continuar tras resolver termina la reaplicación y retira ese stash.
    */
   continueOperation: (id: RepoId, query?: GitQuery) => Promise<Repository>;
   abortOperation: (id: RepoId, query?: GitQuery) => Promise<Repository>;

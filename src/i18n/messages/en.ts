@@ -1198,6 +1198,10 @@ export const en: Messages = {
   'working.operationBanner.kind.revert': 'revert',
   'working.operationBanner.kind.pop': 'stash pop',
   'working.operationBanner.kind.stashApply': 'stash apply',
+  'working.operationBanner.kind.autoStash': 'auto-stash restoration',
+  'working.operationBanner.autoStashConflicts': 'Conflicts while restoring the auto-stash',
+  'working.operationBanner.abortAutoStash': 'Abort restoration',
+  'resolve.stash.finishAutoStash': 'Finish restoration',
   'working.operationBanner.resolve': 'Resolve',
 
   // GitActionBar alternative — F2.8
@@ -1491,11 +1495,16 @@ export const en: Messages = {
   'resolve.operation.title': 'Resolving {source} into {target}',
   'resolve.standalone.title': 'There are unresolved conflicts on {target}',
   'resolve.standalone.source': 'the applied changes',
+  'resolve.standalone.detail':
+    'These conflicts have no abortable Git operation or recorded recovery point. You can resolve them here or recover the state you need from the terminal.',
   'resolve.stash.popTitle': 'Resolving stash pop conflicts on {target}',
   'resolve.stash.applyTitle': 'Resolving stash apply conflicts on {target}',
   'resolve.stash.finishPop': 'Keep changes and finish stash pop',
   'resolve.stash.finishApply': 'Keep the applied changes',
   'resolve.stash.cancel': 'Cancel and return to the previous state',
+  'resolve.stash.autoStashTitle': 'Resolving auto-stash conflicts on {target}',
+  'resolve.stash.autoStashDetail':
+    'The branch is already updated. Aborting keeps your local changes saved in the stash.',
   'resolve.focus.one': 'Conflict in 1 file — resolve it to continue',
   'resolve.focus.many': 'Conflict in {count} files — resolve them to continue',
   'resolve.focus.detail':
@@ -1666,6 +1675,10 @@ export const en: Messages = {
   'error.tag.identityMissing.cause':
     'An annotated tag needs the name and email of its creator, and they are not configured yet.',
   'error.stash.nothingToStash.title': 'There are no changes to stash',
+  'error.stash.autoConflict.title':
+    'The branch was updated, but auto-stash restoration left {count} files in conflict',
+  'error.stash.autoConflict.cause':
+    'Resolve the conflicts or abort the restoration. The updated branch stays in place; aborting keeps your local changes in the stash.',
   'error.stash.nothingToStash.cause':
     'The working tree is clean. A stash requires uncommitted changes.',
   'error.stash.conflict.title': 'Applying {stash} on {branch} left {count} files in conflict',
@@ -1775,6 +1788,7 @@ export const en: Messages = {
   'errorFix.abortRebase': 'Abort the rebase and leave {source} as it was',
   'errorFix.continueOperation': 'Continue the operation',
   'errorFix.abortOperation': 'Abort the operation and leave the repository as it was',
+  'errorFix.abortStashRestore': 'Abort restoration and keep local changes in the stash',
   'errorFix.openWorktree': 'Open the worktree in {path}',
   'errorFix.stashAndSwitch': 'Stash the changes and switch to {branch}',
   'errorFix.discardChanges': 'Discard the changes in {count} files and switch to {branch}',

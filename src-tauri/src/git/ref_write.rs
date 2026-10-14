@@ -7,7 +7,7 @@ use super::diagnostics::Diagnostic;
 
 use serde::Deserialize;
 
-use super::{history, status};
+use super::{history, stash, status};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -416,29 +416,17 @@ fn checkout_inner(
         }
     };
     if output.status.success() {
-        if stashed.is_some() {
-            let restore = command(repository, &["stash", "pop", "--quiet", "--index"])?;
-            if !restore.status.success() {
-                return Err(restore_failed(repository, &restore));
-            }
+        if let Some(stashed) = &stashed {
+            stash::apply_autostash(repository, stashed)
+                .map_err(|error| restore_failed(repository, error, None))?;
         }
         return Ok(());
     }
 
     let checkout_error = output.diagnostic.to_string();
-    if stashed.is_some() {
-        let restore = command(repository, &["stash", "pop", "--quiet", "--index"])?;
-        if !restore.status.success() {
-            let restore_error = restore.diagnostic.to_string();
-            return Err(WriteRefError::RestoreFailed {
-                output: format!(
-                    "{checkout_error}\nNo se pudo restaurar el guardado automático: {restore_error}"
-                ),
-                count: status::read(repository)
-                    .map(|current| current.conflicted_count())
-                    .unwrap_or(0),
-            });
-        }
+    if let Some(stashed) = &stashed {
+        stash::apply_autostash(repository, stashed)
+            .map_err(|error| restore_failed(repository, error, Some(&checkout_error)))?;
     }
     if checkout_would_overwrite(&output.stderr) {
         return Err(WriteRefError::CheckoutBlocked.with_diagnostic(output.diagnostic));
@@ -631,13 +619,23 @@ fn update_ref_delete(
     }
 }
 
-fn restore_failed(repository: &Path, output: &CommandOutput) -> WriteRefError {
+fn restore_failed(
+    repository: &Path,
+    error: stash::StashError,
+    checkout_error: Option<&str>,
+) -> WriteRefError {
+    let diagnostic = stash::diagnostic(error, "checkout.restoreAutostash");
+    let restore_error = diagnostic.to_string();
     WriteRefError::RestoreFailed {
-        output: output.diagnostic.to_string(),
+        output: checkout_error.map_or_else(
+            || restore_error.clone(),
+            |checkout_error| format!("{checkout_error}\n{restore_error}"),
+        ),
         count: status::read(repository)
             .map(|current| current.conflicted_count())
             .unwrap_or(0),
     }
+    .with_diagnostic(diagnostic)
 }
 
 fn validate_branch_name(repository: &Path, name: &str) -> Result<(), WriteRefError> {
@@ -1648,14 +1646,97 @@ mod tests {
         );
 
         assert!(matches!(
-            result,
+            result.map_err(WriteRefError::into_classification),
             Err(WriteRefError::RestoreFailed { count: 1, .. })
         ));
+        assert_eq!(
+            stash::recovery_kind(temporary.path()),
+            Some(stash::StashRecoveryKind::AutoStash)
+        );
         assert_eq!(git(temporary.path(), &["branch", "--show-current"]), "dev");
         assert_eq!(git(temporary.path(), &["stash", "list"]).lines().count(), 1);
         assert!(fs::read_to_string(temporary.path().join("README.md"))
             .unwrap()
             .contains("<<<<<<<"));
+    }
+
+    #[test]
+    fn checkout_autostash_can_abort_or_finish_without_changing_destination_head() {
+        for abort in [true, false] {
+            let temporary = repository();
+            let path = temporary.path();
+            fs::write(path.join("README.md"), "previous saved WIP\n").unwrap();
+            git(path, &["stash", "push", "-qm", "previous entry"]);
+            let other_stash = git(path, &["rev-parse", "refs/stash"]);
+            git(path, &["branch", "dev"]);
+            let destination = git(path, &["rev-parse", "dev"]);
+            fs::write(path.join("README.md"), "principal\n").unwrap();
+            git(path, &["commit", "-qam", "principal"]);
+            fs::write(path.join("README.md"), "staged WIP\n").unwrap();
+            git(path, &["add", "README.md"]);
+            fs::write(path.join("README.md"), "unstaged WIP\n").unwrap();
+            fs::write(path.join("untracked.txt"), "keep untracked\n").unwrap();
+
+            let result = checkout(
+                path,
+                &RefTarget::Branch { name: "dev".into() },
+                &CheckoutOptions {
+                    auto_stash: Some(true),
+                    ..CheckoutOptions::default()
+                },
+            );
+            let WriteRefError::WithDiagnostic(error, diagnostic) = result.unwrap_err() else {
+                panic!("restore failure must retain its original diagnostic")
+            };
+            assert!(matches!(
+                *error,
+                WriteRefError::RestoreFailed { count: 1, .. }
+            ));
+            assert_eq!(serde_json::to_value(diagnostic).unwrap()["exitCode"], 1);
+            let target = git(path, &["rev-parse", "refs/stash"]);
+            assert_eq!(
+                git(path, &["show", &format!("{target}^2:README.md")]),
+                "staged WIP"
+            );
+            assert_eq!(
+                git(path, &["show", &format!("{target}:README.md")]),
+                "unstaged WIP"
+            );
+            assert_eq!(
+                serde_json::to_value(status::read(path).unwrap()).unwrap()["recoveryOperation"],
+                "autoStash"
+            );
+            // Native metadata is empty; the recovery remains available on a fresh read.
+            assert!(matches!(
+                crate::git::repository::discover(path).unwrap().operation(),
+                crate::git::repository::RepoOperation::None
+            ));
+            if abort {
+                crate::git::operation::abort_operation(path).unwrap();
+                assert_eq!(git(path, &["rev-parse", "refs/stash"]), target);
+                assert!(git(path, &["diff", "--name-only", "--diff-filter=U"]).is_empty());
+                assert!(git(path, &["diff", "HEAD"]).is_empty());
+            } else {
+                // A subsequent stash entry must survive finishing this exact target.
+                git(
+                    path,
+                    &["stash", "store", "-m", "another entry", &other_stash],
+                );
+                fs::write(path.join("README.md"), "resolved WIP\n").unwrap();
+                git(path, &["add", "README.md"]);
+                crate::git::operation::continue_operation(path).unwrap();
+                assert_eq!(git(path, &["stash", "list"]).lines().count(), 2);
+                assert!(git(path, &["stash", "list"]).contains("another entry"));
+                assert_eq!(git(path, &["show", ":README.md"]), "resolved WIP");
+            }
+            assert_eq!(git(path, &["rev-parse", "HEAD"]), destination);
+            assert_eq!(git(path, &["branch", "--show-current"]), "dev");
+            assert_eq!(
+                fs::read_to_string(path.join("untracked.txt")).unwrap(),
+                "keep untracked\n"
+            );
+            assert!(stash::recovery_kind(path).is_none());
+        }
     }
 
     #[test]

@@ -1403,8 +1403,15 @@ describe('guardados', () => {
 
   it('descartar un guardado renumera los de debajo', async () => {
     const before = await git.readRefs('gitthul');
+    const historyBefore = await git.readCommits('gitthul', { limit: 1000 });
     const refs = await git.dropStash('gitthul', 0);
 
+    expect((await git.readCommits('gitthul', { limit: 1000 })).commits).toEqual(
+      historyBefore.commits,
+    );
+    expect((await git.readCommit('gitthul', before.stashes[0]!.sha)).commit.sha).toBe(
+      before.stashes[0]!.sha,
+    );
     expect(refs.stashes.map((stash) => stash.index)).toEqual([0]);
     expect(refs.stashes[0]?.sha).toBe(before.stashes[1]?.sha);
     expect(await git.dropStash('gitthul', 7)).toBe(refs);
@@ -1699,6 +1706,70 @@ describe('restablecer', () => {
     expect(status.staged).toEqual([]);
     expect(status.unstaged.every((change) => change.change === 'untracked')).toBe(true);
   });
+});
+
+describe('recuperación del auto-stash', () => {
+  it('abortar repone el auto-stash retirado externamente y conserva los otros guardados', async () => {
+    const initial = await git.readStatus('gitthul');
+    git = createMockGitPort({ latency: NO_LATENCY, autoStashConflicts: [initial.staged[0]!.path] });
+    await expect(
+      git.checkout('gitthul', { kind: 'branch', name: 'dev' }, { autoStash: true }),
+    ).rejects.toMatchObject({ code: 'checkout.restoreFailed' });
+    const changed = await git.readRefs('gitthul');
+    const target = changed.stashes[0]!;
+    const original = await git.readCommit('gitthul', target.sha);
+    const remaining = await git.dropStash('gitthul', target.index, { expectedStash: target.sha });
+    expect(remaining.stashes.some((stash) => stash.sha === target.sha)).toBe(false);
+    await git.abortOperation('gitthul');
+    const restored = await git.readRefs('gitthul');
+    expect(restored.head).toEqual(changed.head);
+    expect(restored.stashes).toEqual(
+      [target, ...remaining.stashes].map((stash, index) => ({ ...stash, index })),
+    );
+    expect(await git.readCommit('gitthul', target.sha)).toEqual(original);
+    expect((await git.readStatus('gitthul')).conflicted).toEqual([]);
+    expect((await git.readStatus('gitthul')).recoveryOperation).toBeUndefined();
+  });
+
+  it.each(['abort', 'continue', 'quit'] as const)(
+    '%s conserva HEAD y solo cierra la reaplicación del stash',
+    async (exit) => {
+      const initial = await git.readStatus('gitthul');
+      const path = initial.staged[0]!.path;
+      git = createMockGitPort({ latency: NO_LATENCY, autoStashConflicts: [path] });
+      const before = await git.readRefs('gitthul');
+      await expect(
+        git.checkout('gitthul', { kind: 'branch', name: 'dev' }, { autoStash: true }),
+      ).rejects.toMatchObject({
+        code: 'checkout.restoreFailed',
+        params: { branch: 'dev', count: 1 },
+      });
+      const changed = await git.readRefs('gitthul');
+      expect(changed.head.branch).toBe('dev');
+      expect(changed.stashes).toHaveLength(before.stashes.length + 1);
+      expect((await git.readStatus('gitthul')).recoveryOperation).toBe('autoStash');
+      await expect(git.continueOperation('gitthul')).rejects.toMatchObject({
+        code: 'resolve.stillConflicted',
+      });
+      if (exit === 'abort') await git.abortOperation('gitthul');
+      else {
+        await git.markConflictsResolved('gitthul', [path]);
+        expect((await git.readStatus('gitthul')).recoveryOperation).toBe('autoStash');
+        if (exit === 'continue') await git.continueOperation('gitthul');
+        else await git.quitOperation('gitthul');
+      }
+      const after = await git.readRefs('gitthul');
+      expect(after.head).toEqual(changed.head);
+      expect(after.stashes).toHaveLength(before.stashes.length + (exit === 'abort' ? 1 : 0));
+      expect(
+        (await git.readCommits('gitthul', { limit: 1000 })).commits.map((commit) => commit.sha),
+      ).not.toContain(changed.stashes[0]!.sha);
+      if (exit !== 'abort')
+        expect(after.stashes.some((stash) => stash.sha === changed.stashes[0]!.sha)).toBe(false);
+      expect((await git.readStatus('gitthul')).conflicted).toEqual([]);
+      expect((await git.readStatus('gitthul')).recoveryOperation).toBeUndefined();
+    },
+  );
 });
 
 describe('continuar y abortar', () => {

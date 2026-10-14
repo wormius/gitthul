@@ -34,7 +34,7 @@ type ConflictListsProps = ConflictListsBaseProps &
       }
     | {
         kind: 'stash';
-        operation: 'apply' | 'pop';
+        operation: 'apply' | 'pop' | 'autoStash';
         onApply: () => void;
       }
     | { kind: 'standalone' }
@@ -160,7 +160,11 @@ export function ConflictLists(props: ConflictListsProps) {
             ? t('resolve.operation.title', { source: theirs, target: ours })
             : props.kind === 'stash'
               ? t(
-                  props.operation === 'pop' ? 'resolve.stash.popTitle' : 'resolve.stash.applyTitle',
+                  props.operation === 'autoStash'
+                    ? 'resolve.stash.autoStashTitle'
+                    : props.operation === 'pop'
+                      ? 'resolve.stash.popTitle'
+                      : 'resolve.stash.applyTitle',
                   { target: ours },
                 )
               : t('resolve.standalone.title', { target: ours })}
@@ -205,17 +209,21 @@ export function ConflictLists(props: ConflictListsProps) {
             disabled={status.conflicted.length > 0}
             onClick={props.onApply}
           >
-            {t('resolve.close.finishKind', {
-              operation: t(
-                `working.operationBanner.kind.${
-                  props.kind === 'stash'
-                    ? props.operation === 'pop'
-                      ? 'pop'
-                      : 'stashApply'
-                    : props.operation
-                }` as const,
-              ),
-            })}
+            {props.kind === 'stash' && props.operation === 'autoStash'
+              ? t('resolve.stash.finishAutoStash')
+              : t('resolve.close.finishKind', {
+                  operation: t(
+                    `working.operationBanner.kind.${
+                      props.kind === 'stash'
+                        ? props.operation === 'autoStash'
+                          ? 'autoStash'
+                          : props.operation === 'pop'
+                            ? 'pop'
+                            : 'stashApply'
+                        : props.operation
+                    }` as const,
+                  ),
+                })}
           </Button>
           {(props.kind === 'operation' || props.kind === 'stash') && (
             <Button

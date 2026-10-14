@@ -31,6 +31,21 @@ describe('logOperation diagnostics', () => {
     ]);
     expect(entries[0]?.message).toContain('crea un stash o haz commit');
   });
+  it('registra el auto-stash conflictivo como condición conocida y permite recuperar', async () => {
+    const log = createMockLogPort();
+    const error = new GitOperationError('stash.autoConflict', { count: 2 });
+    await expect(
+      logOperation(log, 'git.write', 'continueOperation', 'continuar', {}, () =>
+        Promise.reject(error),
+      ),
+    ).rejects.toBe(error);
+    const entries = await log.read();
+    expect(entries[0]).toMatchObject({
+      level: 'warn',
+      context: { errorCode: 'stash.autoConflict', recovery: 'openResolve, abortStashRestore' },
+    });
+    expect(entries[0]?.message).toContain('reaplicación del auto-stash dejó conflictos');
+  });
   it('no reemplaza el resultado ni el rechazo aunque el destino o el resumen fallen', async () => {
     const log = createMockLogPort();
     vi.spyOn(log, 'write').mockImplementation(() => {

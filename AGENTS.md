@@ -134,6 +134,18 @@ capturas de alcance limitado para operaciones predecibles y completas para termi
 integraciones, hooks, auto-stash y otras escrituras cuyo alcance no se conoce antes.
 Cubrir colisiones con ignorados, flags del índice y los tres padres de un stash.
 
+Una integración puede terminar antes de que la reaplicación de su auto-stash
+genere conflictos. WorkingStatus.recoveryOperation = autoStash identifica esa
+recuperación independiente, también tras reabrir el repositorio. Abortar cancela
+la reaplicación, conserva el HEAD ya actualizado y mantiene el stash original;
+terminar retira únicamente ese stash después de resolver todos los conflictos.
+Registrar solo un auto-stash cuyo origen e identidad se hayan comprobado; los
+conflictos externos sin recuperación conocida no autorizan un reset ni un aborto
+ficticio. Conservar el diagnóstico Git aunque el comando haya devuelto exitCode 0.
+Las refs de recuperación automática pertenecen al gitdir canónico de cada
+worktree; publicarlas y retirarlas mediante transacciones con OIDs esperados,
+sin seguir referencias simbólicas hacia ramas del usuario.
+
 src-tauri/src/git/recovery_store.rs guarda las copias bajo
 app_local_data_dir()/recovery, separadas por gitdir e identidad de instancia.
 Resolver gitdir y common-dir mediante Git: un worktree puede tener un archivo .git

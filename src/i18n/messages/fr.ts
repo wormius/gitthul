@@ -1213,6 +1213,10 @@ export const fr: Messages = {
   'working.operationBanner.kind.revert': 'revert',
   'working.operationBanner.kind.pop': 'stash pop',
   'working.operationBanner.kind.stashApply': 'stash apply',
+  'working.operationBanner.kind.autoStash': 'la réapplication de l’auto-stash',
+  'working.operationBanner.autoStashConflicts': 'Conflits lors de la restauration de l’auto-stash',
+  'working.operationBanner.abortAutoStash': 'Abandonner la restauration',
+  'resolve.stash.finishAutoStash': 'Terminer la restauration',
   'working.operationBanner.resolve': 'Résoudre',
 
   // GitActionBar alternative — F2.8
@@ -1512,11 +1516,16 @@ export const fr: Messages = {
   'resolve.operation.title': 'Résolution de {source} dans {target}',
   'resolve.standalone.title': 'Il reste des conflits non résolus dans {target}',
   'resolve.standalone.source': 'les modifications appliquées',
+  'resolve.standalone.detail':
+    'Ces conflits n’ont ni opération Git à abandonner ni point de récupération enregistré. Vous pouvez les résoudre ici ou récupérer l’état souhaité depuis le terminal.',
   'resolve.stash.popTitle': 'Résolution des conflits de stash pop sur {target}',
   'resolve.stash.applyTitle': 'Résolution des conflits de stash apply sur {target}',
   'resolve.stash.finishPop': 'Conserver les modifications et terminer stash pop',
   'resolve.stash.finishApply': 'Conserver les modifications appliquées',
   'resolve.stash.cancel': 'Annuler et revenir à l’état précédent',
+  'resolve.stash.autoStashTitle': 'Résolution des conflits de l’auto-stash sur {target}',
+  'resolve.stash.autoStashDetail':
+    'La branche est déjà mise à jour. En cas d’abandon, vos modifications locales restent enregistrées dans le stash.',
   'resolve.focus.one': 'Conflit dans 1 fichier — résolvez-le pour continuer',
   'resolve.focus.many': 'Conflit dans {count} fichiers — résolvez-les pour continuer',
   'resolve.focus.detail':
@@ -1693,6 +1702,10 @@ export const fr: Messages = {
   'error.tag.identityMissing.cause':
     'Un tag annoté nécessite le nom et l’adresse e-mail de son auteur, qui ne sont pas encore configurés.',
   'error.stash.nothingToStash.title': 'Aucune modification pour créer un stash',
+  'error.stash.autoConflict.title':
+    'La branche a été mise à jour, mais la réapplication de l’auto-stash a laissé {count} fichiers en conflit',
+  'error.stash.autoConflict.cause':
+    'Résolvez les conflits ou abandonnez la réapplication. La branche mise à jour est conservée et, en cas d’abandon, vos modifications locales restent dans le stash.',
   'error.stash.nothingToStash.cause':
     'L’arbre de travail est propre. Un stash nécessite des modifications en attente de commit.',
   'error.stash.conflict.title':
@@ -1803,6 +1816,8 @@ export const fr: Messages = {
   'errorFix.abortRebase': 'Abandonner le rebase et restaurer {source}',
   'errorFix.continueOperation': 'Continuer l’opération',
   'errorFix.abortOperation': 'Abandonner l’opération et restaurer le dépôt',
+  'errorFix.abortStashRestore':
+    'Abandonner la réapplication et conserver les modifications locales dans le stash',
   'errorFix.openWorktree': 'Ouvrir le worktree de {path}',
   'errorFix.stashAndSwitch': 'Créer un stash avec les modifications et passer à {branch}',
   'errorFix.discardChanges':

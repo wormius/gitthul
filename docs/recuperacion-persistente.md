@@ -15,6 +15,20 @@ manualmente el espacio ocupado por archivos temporales que ya no se necesitan.
 Conserva los datos de operaciones activas o sin finalizar y los respaldos de
 emergencia. La limpieza no modifica tus repositorios.
 
+## Conflictos al restaurar un stash automático
+
+Un cambio de rama, pull, merge o rebase puede terminar correctamente y luego
+encontrar conflictos al volver a aplicar tus cambios locales guardados en un
+stash automático. Resolver permite cancelar esa reaplicación: la rama permanece
+en su estado actualizado y tus cambios originales siguen disponibles en el stash.
+
+Si prefieres resolver los conflictos, completa la resolución y pulsa **Terminar**.
+GitThul retira el stash utilizado únicamente después de terminar. La recuperación
+permanece disponible si cierras y vuelves a abrir el repositorio.
+
+Los conflictos creados fuera de GitThul pueden no tener una recuperación registrada.
+En ese caso, Resolver permite resolverlos y explica por qué no ofrece Abortar.
+
 ## Cuándo se guarda un respaldo
 
 Los respaldos automáticos están activados por defecto. Al abrir un repositorio,

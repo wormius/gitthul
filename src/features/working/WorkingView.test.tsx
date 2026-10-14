@@ -3029,6 +3029,146 @@ describe('WorkingView', () => {
     },
   );
 
+  it.each(['abort', 'finish'] as const)(
+    'el auto-stash abre recuperación sin watcher y permite %s sin deshacer la rama actualizada',
+    async (exit) => {
+      const user = userEvent.setup();
+      const originalPorts = makePorts();
+      const beforeStatus = await originalPorts.git.readStatus('gitthul');
+      const path = beforeStatus.staged[0]!.path;
+      const ports = {
+        ...originalPorts,
+        git: createMockGitPort({ latency: NO_LATENCY, autoStashConflicts: [path] }),
+      };
+      const before = await ports.git.readRefs('gitthul');
+      const checkout = vi.spyOn(ports.git, 'checkout');
+      const abort = vi.spyOn(ports.git, 'abortOperation');
+      const finish = vi.spyOn(ports.git, 'continueOperation');
+      vi.spyOn(ports.git, 'watchRepository').mockResolvedValue(() => undefined);
+      vi.spyOn(ports.git, 'autoResolve').mockImplementation(async (id) => ({
+        resolved: [],
+        status: await ports.git.readStatus(id),
+      }));
+      renderApp(ports);
+      await openRepo(user, GITTHUL_PATH);
+      const panel = await screen.findByRole('region', { name: 'Referencias de gitthul' });
+      const locals = within(panel).getByRole('group', { name: 'Ramas locales' });
+      await user.dblClick(within(locals).getByText('dev'));
+      await screen.findByText('Resolviendo los conflictos del auto-stash en dev');
+      await waitFor(() => expect(useWorkingStore.getState().pendingWrites).toBe(0));
+      expect(checkout).toHaveBeenCalledOnce();
+      expect(screen.getByText(/La rama ya está actualizada/)).toBeVisible();
+      const conflicted = await ports.git.readRefs('gitthul');
+      expect(conflicted.head.branch).toBe('dev');
+      expect(conflicted.stashes).toHaveLength(before.stashes.length + 1);
+      expect(screen.getByRole('button', { name: 'Terminar restauración' })).toBeDisabled();
+
+      if (exit === 'abort') {
+        await user.click(screen.getByRole('button', { name: 'Abortar restauración' }));
+        await waitFor(() => expect(abort).toHaveBeenCalledOnce());
+      } else {
+        await user.click(screen.getByRole('button', { name: 'Marcar todo como resuelto' }));
+        await waitFor(() =>
+          expect(screen.getByRole('button', { name: 'Terminar restauración' })).toBeEnabled(),
+        );
+        await user.click(screen.getByRole('button', { name: 'Terminar restauración' }));
+        await waitFor(() => expect(finish).toHaveBeenCalledOnce());
+      }
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Abortar restauración' }),
+        ).not.toBeInTheDocument(),
+      );
+      await waitFor(() => expect(useWorkingStore.getState().pendingWrites).toBe(0));
+      const after = await ports.git.readRefs('gitthul');
+      expect(after.head).toEqual(conflicted.head);
+      expect(after.stashes).toHaveLength(before.stashes.length + (exit === 'abort' ? 1 : 0));
+      if (exit === 'finish') {
+        expect(screen.queryByText(conflicted.stashes[0]!.message)).not.toBeInTheDocument();
+      }
+      expect((await ports.git.readStatus('gitthul')).recoveryOperation).toBeUndefined();
+      expect((await ports.git.readStatus('gitthul')).conflicted).toEqual([]);
+      expect(
+        screen.getByRole('grid', { name: 'Commits de gitthul' }).closest('[inert]'),
+      ).toBeNull();
+    },
+  );
+
+  it.each(['continue', 'abort'] as const)(
+    '%s refresca la operación al entrar en un conflicto de auto-stash y conserva su aviso',
+    async (action) => {
+      const user = userEvent.setup();
+      const ports = makePorts();
+      const initial = await ports.git.readStatus('bitacora');
+      const conflict: WorkingStatus = {
+        ...initial,
+        recoveryOperation: 'autoStash',
+        conflicted: initial.conflicted.slice(0, 1),
+      };
+      let recovering = false;
+      const readStatus = ports.git.readStatus.bind(ports.git);
+      const readRepository = ports.git.readRepository.bind(ports.git);
+      vi.spyOn(ports.git, 'readStatus').mockImplementation((id, query) =>
+        recovering ? Promise.resolve(conflict) : readStatus(id, query),
+      );
+      vi.spyOn(ports.git, 'readRepository').mockImplementation(async (id, query) => {
+        const repository = await readRepository(id, query);
+        return recovering ? { ...repository, operation: { kind: 'none' as const } } : repository;
+      });
+      vi.spyOn(ports.git, 'watchRepository').mockResolvedValue(() => undefined);
+      vi.spyOn(ports.git, 'autoResolve').mockImplementation(async (id) => ({
+        resolved: [],
+        status: await ports.git.readStatus(id),
+      }));
+      vi.spyOn(
+        ports.git,
+        action === 'continue' ? 'continueOperation' : 'abortOperation',
+      ).mockImplementation(() => {
+        recovering = true;
+        return Promise.reject(new GitOperationError('stash.autoConflict', { count: 1 }));
+      });
+      renderApp(ports);
+      await openRepo(user, BITACORA_PATH);
+      await screen.findByRole('button', { name: 'Abortar merge' });
+      if (action === 'continue') {
+        await user.click(screen.getByRole('button', { name: 'Marcar todo como resuelto' }));
+        await waitFor(() =>
+          expect(screen.getByRole('button', { name: 'Terminar merge' })).toBeEnabled(),
+        );
+        await user.click(screen.getByRole('button', { name: 'Terminar merge' }));
+      } else {
+        await user.click(screen.getByRole('button', { name: 'Abortar merge' }));
+      }
+      expect(await screen.findByRole('button', { name: 'Abortar restauración' })).toBeEnabled();
+      expect(screen.queryByRole('button', { name: 'Abortar merge' })).not.toBeInTheDocument();
+      expect(
+        await screen.findByText(
+          'La rama se actualizó, pero el auto-stash dejó 1 archivos en conflicto',
+        ),
+      ).toBeVisible();
+    },
+  );
+
+  it('explica los conflictos externos sin ofrecer un aborto sin recuperación registrada', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const readRepository = ports.git.readRepository.bind(ports.git);
+    vi.spyOn(ports.git, 'readRepository').mockImplementation(async (id, query) => ({
+      ...(await readRepository(id, query)),
+      operation: { kind: 'none' },
+    }));
+    const abort = vi.spyOn(ports.git, 'abortOperation');
+    renderApp(ports);
+    await openRepo(user, BITACORA_PATH);
+    await screen.findByRole('region', { name: 'En conflicto' });
+    expect(
+      screen.getByText(/Estos conflictos no tienen una operación Git abortable/),
+    ).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Abortar/ })).not.toBeInTheDocument();
+    expect(abort).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Marcar todo como resuelto' })).toBeEnabled();
+  });
+
   it('un Pop conflictivo abre Resolver sin esperar al watcher y solo se ejecuta una vez', async () => {
     const user = userEvent.setup();
     const ports = makePorts();

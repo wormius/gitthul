@@ -61,6 +61,8 @@ function condition(code: string): string {
     'repo.locked': 'otra operación mantiene bloqueado el repositorio',
     'undo.snapshotUnavailable': 'no se pudo preparar la copia de recuperación',
     'checkout.restoreFailed': 'no se pudieron restaurar los cambios después del checkout',
+    'stash.autoConflict':
+      'la rama se actualizó, pero la reaplicación del auto-stash dejó conflictos',
     'branch.checkoutBlocked':
       'Git protegió archivos locales; crea un stash o haz commit antes de reintentar',
     'resolve.writeFailed': 'no se pudo escribir la resolución en disco',

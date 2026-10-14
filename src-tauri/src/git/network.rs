@@ -18,6 +18,7 @@ use tauri::ipc::Channel;
 use crate::auth::CommandConfig;
 
 use super::diagnostics::Diagnostic;
+use super::stash;
 
 #[derive(Clone, Default)]
 pub struct NetworkProcesses {
@@ -137,6 +138,7 @@ pub enum NetworkError {
         sha: String,
         count: u64,
     },
+    Stash(stash::StashError),
     Cancelled,
     Diagnostic(Diagnostic),
     WithDiagnostic(Box<NetworkError>, Diagnostic),
@@ -463,6 +465,8 @@ pub fn pull_configured(
     command.arg(&upstream);
     let args = diagnostic_args(&command);
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let autostash =
+        stash::AutostashObservation::capture(repository).map_err(NetworkError::Stash)?;
     let mut child = command
         .current_dir(repository)
         .env("GIT_EDITOR", "true")
@@ -504,10 +508,32 @@ pub fn pull_configured(
         }
         captured.finish()
     });
-    let (status, stderr) = wait_transfer(&child, reader, processes, operation_id, &args)?;
+    let completed = wait_transfer(&child, reader, processes, operation_id, &args);
+    let recovery = autostash.recover_if_conflicted(repository);
+    // Preserve cancellation and transfer failures even if registering recovery
+    // also fails. The attempt still runs before returning the transfer result.
+    let (status, stderr) = completed?;
+    let auto_conflicted = recovery.map_err(NetworkError::Stash)?;
+    let stderr = String::from_utf8_lossy(&stderr);
+    let diagnostic = Diagnostic::command_stderr("network.execute", &args, status, &stderr);
+    if auto_conflicted {
+        let count = super::status::read(repository)
+            .map_err(|error| match error {
+                super::status::ReadStatusError::Diagnostic(diagnostic) => {
+                    NetworkError::Diagnostic(diagnostic)
+                }
+                error => NetworkError::Diagnostic(Diagnostic::new(
+                    "pull.autostashStatus",
+                    format!("{error:?}"),
+                )),
+            })?
+            .conflicted_count();
+        return Err(NetworkError::Stash(stash::StashError::AutoConflict {
+            count,
+            diagnostic,
+        }));
+    }
     if !status.success() {
-        let stderr = String::from_utf8_lossy(&stderr);
-        let diagnostic = Diagnostic::command_stderr("network.execute", &args, status, &stderr);
         let output = stderr.to_ascii_lowercase();
         if output.contains("authentication failed")
             || output.contains("could not read username")
@@ -1066,6 +1092,7 @@ fn parse_transfer_progress(line: &str) -> Option<TransferProgress> {
 
 #[cfg(test)]
 mod tests {
+    use super::stash;
     use std::fs;
     use std::path::Path;
     use std::process::Command;
@@ -1383,6 +1410,125 @@ mod tests {
     }
 
     #[test]
+    fn pull_con_conflicto_al_reaplicar_autostash_conserva_integracion_y_recuperacion() {
+        for (strategy, local_commit) in [
+            (PullStrategy::Auto, false),
+            (PullStrategy::Auto, true),
+            (PullStrategy::Merge, true),
+            (PullStrategy::Rebase, true),
+        ] {
+            for abort in [true, false] {
+                let (_temporary, source, local) = fixture();
+                git(&local, &["config", "core.autocrlf", "false"]);
+                fs::write(local.join("README.md"), "older stash\n").unwrap();
+                git(&local, &["stash", "push", "-m", "previous stash"]);
+                let previous = git(&local, &["rev-parse", "refs/stash"]);
+                if local_commit {
+                    fs::write(local.join("local.txt"), "local\n").unwrap();
+                    git(&local, &["add", "local.txt"]);
+                    git(&local, &["commit", "-m", "local"]);
+                }
+                let original_head = git(&local, &["rev-parse", "HEAD"]);
+                fs::write(source.join("README.md"), "incoming\n").unwrap();
+                git(&source, &["add", "README.md"]);
+                git(&source, &["commit", "-m", "remote"]);
+                git(&source, &["push", "origin", "main"]);
+                let incoming = git(&source, &["rev-parse", "HEAD"]);
+                fs::write(local.join("README.md"), "staged work\n").unwrap();
+                git(&local, &["add", "README.md"]);
+                fs::write(local.join("README.md"), "unstaged work\n").unwrap();
+                fs::write(local.join("untracked.txt"), "keep me\n").unwrap();
+                git(&local, &["config", "pull.autostash", "true"]);
+
+                let error = pull(
+                    &local,
+                    &PullOptions {
+                        strategy: Some(strategy),
+                    },
+                    "pull-autostash",
+                    Channel::new(|_| Ok(())),
+                    &NetworkProcesses::default(),
+                )
+                .unwrap_err();
+
+                let NetworkError::Stash(stash::StashError::AutoConflict {
+                    count: 1,
+                    diagnostic,
+                }) = error
+                else {
+                    panic!("expected auto-stash conflict: {error:?}");
+                };
+                let evidence = serde_json::to_value(super::super::map_network_error(
+                    NetworkError::Stash(stash::StashError::AutoConflict {
+                        count: 1,
+                        diagnostic,
+                    }),
+                ))
+                .unwrap();
+                assert_eq!(evidence["code"], "stash.autoConflict");
+                assert_eq!(evidence["params"]["count"], 1);
+                assert_eq!(evidence["diagnostic"]["exitCode"], 0);
+                assert!(evidence["diagnostic"]["stderr"]
+                    .as_str()
+                    .unwrap()
+                    .contains("Applying autostash resulted in conflicts"));
+                assert!(matches!(
+                    super::super::repository::discover(&local)
+                        .unwrap()
+                        .operation(),
+                    super::super::repository::RepoOperation::None
+                ));
+                assert_eq!(
+                    stash::recovery_kind(&local),
+                    Some(stash::StashRecoveryKind::AutoStash)
+                );
+                let integrated_head = git(&local, &["rev-parse", "HEAD"]);
+                assert_ne!(integrated_head, original_head);
+                assert_eq!(
+                    git(&local, &["merge-base", "HEAD", "origin/main"]),
+                    incoming
+                );
+                let auto = git(&local, &["rev-parse", "refs/stash"]);
+                assert_ne!(auto, previous);
+                assert_eq!(
+                    git(&local, &["show", "stash@{0}:README.md"]),
+                    "unstaged work"
+                );
+                assert_eq!(
+                    git(&local, &["show", "stash@{0}^2:README.md"]),
+                    "staged work"
+                );
+                assert_eq!(git(&local, &["rev-parse", "stash@{1}"]), previous);
+
+                if abort {
+                    stash::abort_recovery(&local).unwrap();
+                    assert_eq!(git(&local, &["rev-parse", "refs/stash"]), auto);
+                    assert_eq!(
+                        fs::read_to_string(local.join("README.md")).unwrap(),
+                        "incoming\n"
+                    );
+                } else {
+                    fs::write(local.join("README.md"), "resolved work\n").unwrap();
+                    git(&local, &["add", "README.md"]);
+                    stash::finish_recovery(&local).unwrap();
+                    assert_eq!(git(&local, &["rev-parse", "refs/stash"]), previous);
+                    assert_eq!(
+                        fs::read_to_string(local.join("README.md")).unwrap(),
+                        "resolved work\n"
+                    );
+                }
+                assert_eq!(git(&local, &["rev-parse", "HEAD"]), integrated_head);
+                assert!(git(&local, &["ls-files", "-u"]).is_empty());
+                assert_eq!(
+                    fs::read_to_string(local.join("untracked.txt")).unwrap(),
+                    "keep me\n"
+                );
+                assert_eq!(stash::recovery_kind(&local), None);
+            }
+        }
+    }
+
+    #[test]
     fn pull_respeta_merge_explicito_aunque_lo_local_no_este_publicado() {
         let (_temporary, source, local) = fixture();
         fs::write(local.join("local.txt"), "local\n").unwrap();
@@ -1456,6 +1602,13 @@ mod tests {
             git(&local, &["diff", "--name-only", "--diff-filter=U"]),
             "README.md"
         );
+        assert_eq!(stash::recovery_kind(&local), None);
+        assert!(matches!(
+            super::super::repository::discover(&local)
+                .unwrap()
+                .operation(),
+            super::super::repository::RepoOperation::Rebase { .. }
+        ));
     }
 
     #[test]

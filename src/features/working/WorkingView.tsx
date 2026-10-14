@@ -222,6 +222,10 @@ export function WorkingView({ base }: WorkingViewProps) {
     setPatch({});
   }
 
+  const applyRepository = useCallback((repository: Repository) => {
+    setPatch((previous) => ({ ...previous, repository }));
+  }, []);
+
   const applyRefs = useCallback((refs: RefsSnapshot) => {
     setPatch((previous) => ({ ...previous, refs }));
   }, []);
@@ -318,6 +322,7 @@ export function WorkingView({ base }: WorkingViewProps) {
   const actions = useWorkingActions({
     repoId: base.repoId,
     repoPath: base.repoPath,
+    applyRepository,
     applyRefs,
     applyStatus,
     applyUndoStack,
@@ -876,6 +881,12 @@ export function WorkingView({ base }: WorkingViewProps) {
     repository.operation.kind !== 'none' &&
     repository.operation.kind !== 'bisect';
   const stashRecovery = operationInProgress ? undefined : status?.recoveryOperation;
+  const recoveryKindKey =
+    stashRecovery === 'autoStash'
+      ? 'working.operationBanner.kind.autoStash'
+      : stashRecovery === 'pop'
+        ? 'working.operationBanner.kind.pop'
+        : 'working.operationBanner.kind.stashApply';
   const hasConflicts = (status?.conflicted.length ?? 0) > 0;
   const standaloneConflict = !operationInProgress && stashRecovery === undefined && hasConflicts;
   const resolving =
@@ -1082,19 +1093,25 @@ export function WorkingView({ base }: WorkingViewProps) {
         status !== null && (
           <div className={styles.conflictBanner}>
             <Banner
+              layout="stacked"
               variant="warning"
               title={
-                status.recoveryOperation
-                  ? t('working.operationBanner.conflictGenerated', {
-                      operation: t(
-                        status.recoveryOperation === 'pop'
-                          ? 'working.operationBanner.kind.pop'
-                          : 'working.operationBanner.kind.stashApply',
-                      ),
-                    })
-                  : t(status.conflicted.length === 1 ? 'resolve.focus.one' : 'resolve.focus.many', {
-                      count: status.conflicted.length,
-                    })
+                status.conflicted.length === 0
+                  ? t('resolve.lists.allResolved')
+                  : status.recoveryOperation === 'autoStash'
+                    ? t('working.operationBanner.autoStashConflicts')
+                    : status.recoveryOperation
+                      ? t('working.operationBanner.conflictGenerated', {
+                          operation: t(recoveryKindKey),
+                        })
+                      : t(
+                          status.conflicted.length === 1
+                            ? 'resolve.focus.one'
+                            : 'resolve.focus.many',
+                          {
+                            count: status.conflicted.length,
+                          },
+                        )
               }
               actions={
                 <div className={styles.conflictActions}>
@@ -1105,13 +1122,11 @@ export function WorkingView({ base }: WorkingViewProps) {
                       className={styles.dangerAction}
                       onClick={actions.abortOperation}
                     >
-                      {t('working.operationBanner.abortKind', {
-                        operation: t(
-                          status.recoveryOperation === 'pop'
-                            ? 'working.operationBanner.kind.pop'
-                            : 'working.operationBanner.kind.stashApply',
-                        ),
-                      })}
+                      {status.recoveryOperation === 'autoStash'
+                        ? t('working.operationBanner.abortAutoStash')
+                        : t('working.operationBanner.abortKind', {
+                            operation: t(recoveryKindKey),
+                          })}
                     </Button>
                   )}
                   <Button
@@ -1126,7 +1141,13 @@ export function WorkingView({ base }: WorkingViewProps) {
                 </div>
               }
             >
-              {t('resolve.focus.detail')}
+              {t(
+                status.recoveryOperation === 'autoStash'
+                  ? 'resolve.stash.autoStashDetail'
+                  : status.recoveryOperation
+                    ? 'resolve.focus.detail'
+                    : 'resolve.standalone.detail',
+              )}
             </Banner>
           </div>
         )}
@@ -1205,7 +1226,7 @@ export function WorkingView({ base }: WorkingViewProps) {
    * invariante 5 no admite un rótulo genérico: si no hay nombres, se usa el de
    * la rama activa a los dos lados antes que decir «esta rama».
    */
-  const operation = loaded?.repository.operation ?? { kind: 'none' as const };
+  const operation = repository?.operation ?? { kind: 'none' as const };
   const operationSides =
     operation.kind !== 'none' && operation.kind !== 'bisect'
       ? { ours: operation.target, theirs: operation.source }

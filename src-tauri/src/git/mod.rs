@@ -1897,6 +1897,7 @@ fn map_integration_error(error: integration::IntegrationError) -> GitCommandErro
                 json!({ "sha": sha, "parent": parent, "count": count }),
             )
         }
+        integration::IntegrationError::Stash(error) => map_stash_error(error),
         integration::IntegrationError::Diagnostic(diagnostic) => {
             GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
         }
@@ -1913,6 +1914,10 @@ fn map_stash_error(error: stash::StashError) -> GitCommandError {
         }
         stash::StashError::NothingToStash => {
             GitCommandError::new("stash.nothingToStash", json!({}))
+        }
+        stash::StashError::AutoConflict { count, diagnostic } => {
+            GitCommandError::new("stash.autoConflict", json!({ "count": count }))
+                .with_diagnostic(diagnostic)
         }
         stash::StashError::Conflict {
             stash,
@@ -2167,6 +2172,7 @@ fn map_network_error(error: network::NetworkError) -> GitCommandError {
             "rebase.conflict",
             json!({ "source": source, "target": target, "sha": sha, "count": count }),
         ),
+        network::NetworkError::Stash(error) => map_stash_error(error),
         network::NetworkError::Diagnostic(diagnostic) => {
             GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
         }

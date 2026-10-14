@@ -1240,6 +1240,10 @@ export const esMX = {
   'working.operationBanner.kind.revert': 'revert',
   'working.operationBanner.kind.pop': 'stash pop',
   'working.operationBanner.kind.stashApply': 'stash apply',
+  'working.operationBanner.kind.autoStash': 'la reaplicación del auto-stash',
+  'working.operationBanner.autoStashConflicts': 'Conflictos al restaurar el stash automático',
+  'working.operationBanner.abortAutoStash': 'Abortar restauración',
+  'resolve.stash.finishAutoStash': 'Terminar restauración',
   'working.operationBanner.resolve': 'Resolver',
 
   // GitActionBar alternativa — F2.8
@@ -1549,11 +1553,16 @@ export const esMX = {
   'resolve.operation.title': 'Resolviendo {source} dentro de {target}',
   'resolve.standalone.title': 'Hay conflictos sin resolver en {target}',
   'resolve.standalone.source': 'los cambios aplicados',
+  'resolve.standalone.detail':
+    'Estos conflictos no tienen una operación Git abortable ni un punto de recuperación registrado. Puedes resolverlos aquí o recuperar el estado que necesites desde la terminal.',
   'resolve.stash.popTitle': 'Resolviendo los conflictos de stash pop en {target}',
   'resolve.stash.applyTitle': 'Resolviendo los conflictos de stash apply en {target}',
   'resolve.stash.finishPop': 'Conservar los cambios y terminar stash pop',
   'resolve.stash.finishApply': 'Conservar los cambios aplicados',
   'resolve.stash.cancel': 'Cancelar y volver al estado anterior',
+  'resolve.stash.autoStashTitle': 'Resolviendo los conflictos del auto-stash en {target}',
+  'resolve.stash.autoStashDetail':
+    'La rama ya está actualizada. Al abortar, tus cambios locales quedan guardados en el stash.',
   'resolve.focus.one': 'Conflicto en 1 archivo — resuélvelo para continuar',
   'resolve.focus.many': 'Conflicto en {count} archivos — resuélvelos para continuar',
   'resolve.focus.detail':
@@ -1726,6 +1735,10 @@ export const esMX = {
   'error.tag.identityMissing.cause':
     'Un tag anotado necesita el nombre y correo de quien lo crea, y todavía no están configurados.',
   'error.stash.nothingToStash.title': 'No hay cambios para crear un stash',
+  'error.stash.autoConflict.title':
+    'La rama se actualizó, pero el auto-stash dejó {count} archivos en conflicto',
+  'error.stash.autoConflict.cause':
+    'Resuelve los conflictos o aborta la reaplicación. La rama actualizada se conserva y, al abortar, tus cambios locales quedan guardados en el stash.',
   'error.stash.nothingToStash.cause':
     'El árbol de trabajo está limpio. Un stash requiere cambios pendientes de commit.',
   'error.stash.conflict.title': 'Aplicar {stash} sobre {branch} dejó {count} archivos en conflicto',
@@ -1834,6 +1847,8 @@ export const esMX = {
   'errorFix.abortRebase': 'Abortar el rebase y dejar {source} como estaba',
   'errorFix.continueOperation': 'Continuar la operación',
   'errorFix.abortOperation': 'Abortar la operación y dejar el repositorio como estaba',
+  'errorFix.abortStashRestore':
+    'Abortar la reaplicación y conservar los cambios locales en el stash',
   'errorFix.openWorktree': 'Abrir el worktree de {path}',
   'errorFix.stashAndSwitch': 'Crear un stash con los cambios y cambiar a {branch}',
   'errorFix.discardChanges': 'Descartar los cambios de {count} archivos y cambiar a {branch}',

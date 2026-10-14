@@ -36,6 +36,7 @@ function setup() {
       useWorkingActions({
         repoId: 'gitthul',
         repoPath: '/repo',
+        applyRepository: vi.fn(),
         applyRefs,
         applyStatus: vi.fn(),
         applyUndoStack: vi.fn(),

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use super::diagnostics::Diagnostic;
 use super::history;
 use super::repository::{self, RepoOperation, Repository};
-use super::status;
+use super::{stash, status};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,6 +73,7 @@ pub enum IntegrationError {
         parent: usize,
         count: usize,
     },
+    Stash(stash::StashError),
     Diagnostic(Diagnostic),
     WithDiagnostic(Box<IntegrationError>, Diagnostic),
 }
@@ -111,11 +112,22 @@ pub fn merge(
         args.push("--no-ff");
     }
     args.push(&precondition.source_oid);
+    let autostash =
+        stash::AutostashObservation::capture(repository).map_err(IntegrationError::Stash)?;
     let output = command(repository, &args)?;
+    let diagnostic = Diagnostic::command("integration.execute", &args, &output);
+    if autostash
+        .recover_if_conflicted(repository)
+        .map_err(IntegrationError::Stash)?
+    {
+        return Err(IntegrationError::Stash(stash::StashError::AutoConflict {
+            count: conflict_count(repository)?,
+            diagnostic,
+        }));
+    }
     if output.status.success() {
         return rediscover(repository);
     }
-    let diagnostic = Diagnostic::command("integration.execute", &args, &output);
     let count = conflict_count(repository).map_err(|error| {
         IntegrationError::Diagnostic(
             diagnostic
@@ -141,11 +153,22 @@ pub fn rebase(
 ) -> Result<Repository, IntegrationError> {
     verify(repository, onto, precondition)?;
     let args = ["rebase", &precondition.source_oid];
+    let autostash =
+        stash::AutostashObservation::capture(repository).map_err(IntegrationError::Stash)?;
     let output = command(repository, &args)?;
+    let diagnostic = Diagnostic::command("integration.execute", &args, &output);
+    if autostash
+        .recover_if_conflicted(repository)
+        .map_err(IntegrationError::Stash)?
+    {
+        return Err(IntegrationError::Stash(stash::StashError::AutoConflict {
+            count: conflict_count(repository)?,
+            diagnostic,
+        }));
+    }
     if output.status.success() {
         return rediscover(repository);
     }
-    let diagnostic = Diagnostic::command("integration.execute", &args, &output);
     let count = conflict_count(repository).map_err(|error| {
         IntegrationError::Diagnostic(
             diagnostic
@@ -534,6 +557,135 @@ mod tests {
     }
 
     #[test]
+    fn autostash_conflictivo_permite_abortar_o_terminar_sin_revertir_la_integracion() {
+        for kind in ["merge", "rebase"] {
+            for abort in [true, false] {
+                let temporary = repository();
+                let path = temporary.path();
+                git(path, &["config", "core.autocrlf", "false"]);
+                fs::write(path.join("base.txt"), "older stash\n").unwrap();
+                git(path, &["stash", "push", "-m", "previous stash"]);
+                let previous = git(path, &["rev-parse", "refs/stash"]);
+                git(path, &["switch", "-c", "feature"]);
+                let incoming = commit(path, "base.txt", "incoming\n");
+                git(path, &["switch", "main"]);
+                commit(path, "local.txt", "local commit\n");
+                let original_head = git(path, &["rev-parse", "HEAD"]);
+                fs::write(path.join("base.txt"), "staged work\n").unwrap();
+                git(path, &["add", "base.txt"]);
+                fs::write(path.join("base.txt"), "unstaged work\n").unwrap();
+                fs::write(path.join("untracked.txt"), "keep me\n").unwrap();
+                git(path, &["config", &format!("{kind}.autostash"), "true"]);
+                let expected = precondition(path, "feature", "main");
+
+                let error = if kind == "merge" {
+                    merge(path, "feature", &MergeOptions::default(), &expected)
+                } else {
+                    rebase(path, "feature", &expected)
+                }
+                .unwrap_err();
+
+                let IntegrationError::Stash(stash::StashError::AutoConflict {
+                    count: 1,
+                    diagnostic,
+                }) = error
+                else {
+                    panic!("expected auto-stash conflict: {error:?}");
+                };
+                let evidence = serde_json::to_value(super::super::map_integration_error(
+                    IntegrationError::Stash(stash::StashError::AutoConflict {
+                        count: 1,
+                        diagnostic,
+                    }),
+                ))
+                .unwrap();
+                assert_eq!(evidence["code"], "stash.autoConflict");
+                assert_eq!(evidence["params"]["count"], 1);
+                assert_eq!(evidence["diagnostic"]["exitCode"], 0);
+                assert!(evidence["diagnostic"]["stderr"]
+                    .as_str()
+                    .unwrap()
+                    .contains("Applying autostash resulted in conflicts"));
+                assert!(matches!(
+                    repository::discover(path).unwrap().operation(),
+                    RepoOperation::None
+                ));
+                assert_eq!(
+                    stash::recovery_kind(path),
+                    Some(stash::StashRecoveryKind::AutoStash)
+                );
+                let integrated_head = git(path, &["rev-parse", "HEAD"]);
+                assert_ne!(integrated_head, original_head);
+                assert_eq!(git(path, &["merge-base", "HEAD", "feature"]), incoming);
+                let auto = git(path, &["rev-parse", "refs/stash"]);
+                assert_ne!(auto, previous);
+                assert_eq!(git(path, &["show", "stash@{0}:base.txt"]), "unstaged work");
+                assert_eq!(git(path, &["show", "stash@{0}^2:base.txt"]), "staged work");
+                assert_eq!(git(path, &["rev-parse", "stash@{1}"]), previous);
+
+                if abort {
+                    stash::abort_recovery(path).unwrap();
+                    assert_eq!(git(path, &["rev-parse", "refs/stash"]), auto);
+                    assert_eq!(
+                        fs::read_to_string(path.join("base.txt")).unwrap(),
+                        "incoming\n"
+                    );
+                } else {
+                    fs::write(path.join("base.txt"), "resolved work\n").unwrap();
+                    git(path, &["add", "base.txt"]);
+                    stash::finish_recovery(path).unwrap();
+                    assert_eq!(git(path, &["rev-parse", "refs/stash"]), previous);
+                    assert_eq!(
+                        fs::read_to_string(path.join("base.txt")).unwrap(),
+                        "resolved work\n"
+                    );
+                }
+                assert_eq!(git(path, &["rev-parse", "HEAD"]), integrated_head);
+                assert!(git(path, &["ls-files", "-u"]).is_empty());
+                assert_eq!(
+                    fs::read_to_string(path.join("untracked.txt")).unwrap(),
+                    "keep me\n"
+                );
+                assert_eq!(stash::recovery_kind(path), None);
+            }
+        }
+    }
+
+    #[test]
+    fn autostash_compatible_no_adopta_un_stash_anterior_ni_crea_recuperacion() {
+        for kind in ["merge", "rebase"] {
+            let temporary = repository();
+            let path = temporary.path();
+            commit(path, "work.txt", "base work\n");
+            fs::write(path.join("work.txt"), "previous work\n").unwrap();
+            git(path, &["stash", "push", "-m", "autostash"]);
+            let previous = git(path, &["rev-parse", "refs/stash"]);
+            git(path, &["switch", "-c", "feature"]);
+            commit(path, "incoming.txt", "incoming\n");
+            git(path, &["switch", "main"]);
+            commit(path, "local.txt", "local\n");
+            fs::write(path.join("work.txt"), "compatible WIP\n").unwrap();
+            git(path, &["config", &format!("{kind}.autostash"), "true"]);
+            let expected = precondition(path, "feature", "main");
+
+            if kind == "merge" {
+                merge(path, "feature", &MergeOptions::default(), &expected)
+            } else {
+                rebase(path, "feature", &expected)
+            }
+            .unwrap();
+
+            assert_eq!(git(path, &["rev-parse", "refs/stash"]), previous);
+            assert_eq!(stash::recovery_kind(path), None);
+            assert_eq!(
+                fs::read_to_string(path.join("work.txt")).unwrap(),
+                "compatible WIP\n"
+            );
+            assert!(git(path, &["ls-files", "-u"]).is_empty());
+        }
+    }
+
+    #[test]
     fn conserva_conflictos_reales_para_resolver() {
         for kind in ["merge", "rebase"] {
             let temporary = repository();
@@ -560,6 +712,12 @@ mod tests {
                     | Some(IntegrationError::RebaseConflict { count: 1, .. })
             ));
             assert_eq!(conflict_count(path).unwrap(), 1);
+            assert_eq!(stash::recovery_kind(path), None);
+            let current = repository::discover(path).unwrap();
+            assert!(matches!(
+                (kind, current.operation()),
+                ("merge", RepoOperation::Merge { .. }) | ("rebase", RepoOperation::Rebase { .. })
+            ));
         }
     }
 

@@ -61,6 +61,8 @@ export type GitErrorParams = {
   'stash.nothingToStash': Record<string, never>;
   /** Lo guardado y lo que hay ahora tocan las mismas líneas. */
   'stash.conflict': { stash: string; branch: string; count: number };
+  /** La actualización terminó, pero la reaplicación del auto-stash dejó conflictos. */
+  'stash.autoConflict': { count: number };
   /** Git se negó antes de aplicar porque el WIP actual sería sobrescrito. */
   'stash.dirtyTree': { stash: string; branch: string; count: number };
   'worktree.removeFailed': { path: string };
@@ -147,6 +149,7 @@ export type GitFixId =
    */
   | 'continueOperation'
   | 'abortOperation'
+  | 'abortStashRestore'
   | 'chooseMainline'
   | 'openWorktree'
   | 'stashAndSwitch'
@@ -249,6 +252,7 @@ export const GIT_ERRORS: { [C in GitErrorCode]: GitErrorEntry<C> } = {
     params: ['stash', 'branch', 'count'],
     fixes: ['openResolve', 'abortOperation'],
   },
+  'stash.autoConflict': { params: ['count'], fixes: ['openResolve', 'abortStashRestore'] },
   'stash.dirtyTree': {
     params: ['stash', 'branch', 'count'],
     fixes: ['retry'],

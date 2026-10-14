@@ -5,7 +5,12 @@ import { useShellStore } from '@app/shellStore';
 import type { CommitRequest, CommitSequencePrecondition, Sha } from '@core/domain/commit';
 import { shortSha } from '@core/domain/commit';
 import type { DiffPrecondition, DiffSource } from '@core/domain/diff';
-import { describeError, isCancelled, toGitOperationError } from '@core/domain/errors';
+import {
+  describeError,
+  isCancelled,
+  isGitOperationError,
+  toGitOperationError,
+} from '@core/domain/errors';
 import type {
   Branch,
   IntegrationPrecondition,
@@ -16,7 +21,7 @@ import type {
   Stash,
   Worktree,
 } from '@core/domain/refs';
-import type { RepoId, TransferProgress, UndoEntry } from '@core/domain/repository';
+import type { RepoId, Repository, TransferProgress, UndoEntry } from '@core/domain/repository';
 import { stashName } from '@core/domain/refs';
 import type { ReflogEntry } from '@core/domain/repository';
 import type { ResetPrecondition, WorkingStatus } from '@core/domain/status';
@@ -140,6 +145,7 @@ export interface WorkingActionsOptions {
   repoId: RepoId;
   repoPath: string;
   /** Toda escritura devuelve el estado que cambió; esto es quien lo recoge. */
+  applyRepository: (repository: Repository) => void;
   applyRefs: (refs: RefsSnapshot) => void;
   applyStatus: (status: WorkingStatus) => void;
   applyUndoStack: (stack: { undo: readonly UndoEntry[]; redo: readonly UndoEntry[] }) => void;
@@ -166,8 +172,15 @@ export interface WorkingActionsOptions {
  */
 export function useWorkingActions(options: WorkingActionsOptions): WorkingActions {
   const { git, system } = usePorts();
-  const { repoId, repoPath, applyRefs, applyStatus, applyUndoStack, setAllSectionsCollapsed } =
-    options;
+  const {
+    repoId,
+    repoPath,
+    applyRepository,
+    applyRefs,
+    applyStatus,
+    applyUndoStack,
+    setAllSectionsCollapsed,
+  } = options;
   const { setNodeForm, setWipName: persistWipName } = options;
   const networkAbort = useRef<AbortController | null>(null);
   const recoveryPending = useRef(false);
@@ -219,6 +232,13 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
           applyUndoStack(await git.readUndoStack(repoId));
         })
         .catch(async (error: unknown) => {
+          if (
+            isGitOperationError(error) &&
+            (error.code === 'stash.autoConflict' || error.code === 'checkout.restoreFailed')
+          ) {
+            await refreshOperationState();
+            store().bumpHistory();
+          }
           report(error);
           // A multi-file write may have succeeded partly; expose its recovery step too.
           try {
@@ -232,6 +252,30 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
             pendingWrites: Math.max(0, state.pendingWrites - 1),
           }));
         });
+    };
+
+    const refreshOperationState = async () => {
+      const refreshed = await Promise.allSettled([
+        git.readRepository(repoId),
+        git.readRefs(repoId),
+        git.readStatus(repoId),
+      ]);
+      if (refreshed[0].status === 'fulfilled') applyRepository(refreshed[0].value);
+      if (refreshed[1].status === 'fulfilled') applyRefs(refreshed[1].value);
+      if (refreshed[2].status === 'fulfilled') applyStatus(refreshed[2].value);
+    };
+
+    // A rejected integration can still have updated HEAD and started stash recovery.
+    // The write wrapper refreshes that transition before reporting the original error.
+    const closeOperation = async (run: () => Promise<Repository>) => {
+      try {
+        applyRepository(await run());
+        const [refs, status] = await Promise.all([git.readRefs(repoId), git.readStatus(repoId)]);
+        applyRefs(refs);
+        applyStatus(status);
+      } finally {
+        store().bumpHistory();
+      }
     };
 
     const recover = (run: () => Promise<void>) => {
@@ -1099,10 +1143,7 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
 
       continueOperation: () => {
         write(async () => {
-          await git.continueOperation(repoId);
-          applyRefs(await git.readRefs(repoId));
-          applyStatus(await git.readStatus(repoId));
-          store().bumpHistory();
+          await closeOperation(() => git.continueOperation(repoId));
           shell().setStatus({
             tone: 'success',
             key: 'working.status.operationContinued',
@@ -1113,10 +1154,7 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
 
       abortOperation: () => {
         write(async () => {
-          await git.abortOperation(repoId);
-          applyRefs(await git.readRefs(repoId));
-          applyStatus(await git.readStatus(repoId));
-          store().bumpHistory();
+          await closeOperation(() => git.abortOperation(repoId));
           shell().setStatus({
             tone: 'success',
             key: 'working.status.operationAborted',
@@ -1256,6 +1294,7 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
       },
     };
   }, [
+    applyRepository,
     applyRefs,
     applyStatus,
     applyUndoStack,
