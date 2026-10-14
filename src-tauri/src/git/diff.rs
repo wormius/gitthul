@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use super::encoding;
+use super::{diagnostics::Diagnostic, encoding};
 
 const DEFAULT_CONTEXT: u32 = 3;
 const MAX_CONTEXT: u32 = 1_000;
@@ -24,8 +24,9 @@ const MAX_CHANGED_LINES: u64 = 50_000;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ReadDiffError {
+    Diagnostic(Diagnostic),
+    WithDiagnostic(Box<Self>, Diagnostic),
     Cancelled,
-    GitFailed,
     InvalidPath,
     InvalidPathEncoding,
     UnsupportedEncoding(String),
@@ -252,10 +253,13 @@ pub fn read_files_cancellable(
     ]);
     let borrowed = args.iter().map(String::as_str).collect::<Vec<_>>();
     let output = git_output_cancellable(repository, &borrowed, false, cancelled)?;
-    let stats = parse_file_stats(&output.stdout)?;
+    let stats = parse_file_stats(&output.stdout)
+        .map_err(|error| parse_error("diff.parseFileStatistics", error))?;
     let mut files = Vec::new();
     let mut seen = HashSet::new();
-    for (path, entry) in collect_raw_entries(&raw.stdout)? {
+    for (path, entry) in collect_raw_entries(&raw.stdout)
+        .map_err(|error| parse_error("diff.parseFileChanges", error))?
+    {
         ensure_not_cancelled(cancelled)?;
         if !seen.insert(path.clone()) {
             continue;
@@ -334,17 +338,25 @@ pub fn read_files_cancellable(
                 continue;
             }
             let absolute = repository.join(&path);
-            let metadata = fs::symlink_metadata(&absolute).map_err(|_| ReadDiffError::GitFailed)?;
+            let metadata = fs::symlink_metadata(&absolute).map_err(|error| {
+                ReadDiffError::Diagnostic(Diagnostic::io("diff.inspectWorktreePath", &error))
+            })?;
             let content = if metadata.file_type().is_symlink() {
-                let target = fs::read_link(&absolute).map_err(|_| ReadDiffError::GitFailed)?;
+                let target = fs::read_link(&absolute).map_err(|error| {
+                    ReadDiffError::Diagnostic(Diagnostic::io("diff.readSymlink", &error))
+                })?;
                 path_bytes(&target)?.to_vec()
             } else {
                 let mut content = Vec::new();
                 fs::File::open(&absolute)
-                    .map_err(|_| ReadDiffError::GitFailed)?
+                    .map_err(|error| {
+                        ReadDiffError::Diagnostic(Diagnostic::io("diff.openWorktreeFile", &error))
+                    })?
                     .take(MAX_TEXT_BYTES + 1)
                     .read_to_end(&mut content)
-                    .map_err(|_| ReadDiffError::GitFailed)?;
+                    .map_err(|error| {
+                        ReadDiffError::Diagnostic(Diagnostic::io("diff.readWorktreeFile", &error))
+                    })?;
                 content
             };
             let binary = encoding::is_binary(&content);
@@ -382,7 +394,8 @@ pub fn read_cancellable(
     let path = request.path.as_bytes();
     let raw = raw_diff_for_path(repository, &resolved, &request.path, cancelled)?;
     ensure_not_cancelled(cancelled)?;
-    let mut entry = parse_raw_entry(&raw.stdout, path)?;
+    let mut entry = parse_raw_entry(&raw.stdout, path)
+        .map_err(|error| parse_error("diff.parseFileIdentity", error))?;
     if !matches!(resolved, ResolvedSource::Stash { .. })
         && entry
             .as_ref()
@@ -390,7 +403,9 @@ pub fn read_cancellable(
     {
         let identity = raw_diff_with_identity(repository, &resolved, cancelled)?;
         ensure_not_cancelled(cancelled)?;
-        if let Some(candidate) = parse_raw_entry(&identity.stdout, path)? {
+        if let Some(candidate) = parse_raw_entry(&identity.stdout, path)
+            .map_err(|error| parse_error("diff.parseRenamedIdentity", error))?
+        {
             if matches!(candidate.change, ChangeType::Renamed | ChangeType::Copied) {
                 entry = Some(candidate);
             }
@@ -566,7 +581,8 @@ pub fn read_cancellable(
             };
             let text = String::from_utf8(patch).map_err(|_| ReadDiffError::MalformedOutput)?;
             DiffContent::Text {
-                hunks: parse_hunks(&text)?,
+                hunks: parse_hunks(&text)
+                    .map_err(|error| parse_error("diff.parsePatchHunks", error))?,
                 truncated: false,
                 encoding: shown.encoding,
                 detected_encoding: shown.detected,
@@ -602,9 +618,13 @@ fn side_bytes(
         if snapshot.mode == GitFileMode::SymbolicLink {
             return fs::read_link(repository.join(path))
                 .map(|path| path.to_string_lossy().as_bytes().to_vec())
-                .map_err(|_| ReadDiffError::GitFailed);
+                .map_err(|error| {
+                    ReadDiffError::Diagnostic(Diagnostic::io("diff.readSymlink", &error))
+                });
         }
-        return fs::read(repository.join(path)).map_err(|_| ReadDiffError::GitFailed);
+        return fs::read(repository.join(path)).map_err(|error| {
+            ReadDiffError::Diagnostic(Diagnostic::io("diff.readWorktreeFile", &error))
+        });
     }
     Ok(git_output_cancellable(
         repository,
@@ -622,11 +642,17 @@ fn decoded_patch(
     after: &str,
     cancelled: &AtomicBool,
 ) -> Result<Vec<u8>, ReadDiffError> {
-    let temporary = tempfile::TempDir::new().map_err(|_| ReadDiffError::GitFailed)?;
+    let temporary = tempfile::TempDir::new().map_err(|error| {
+        ReadDiffError::Diagnostic(Diagnostic::io("diff.createTemporaryDirectory", &error))
+    })?;
     let old = temporary.path().join("before.txt");
     let new = temporary.path().join("after.txt");
-    fs::write(&old, before).map_err(|_| ReadDiffError::GitFailed)?;
-    fs::write(&new, after).map_err(|_| ReadDiffError::GitFailed)?;
+    fs::write(&old, before).map_err(|error| {
+        ReadDiffError::Diagnostic(Diagnostic::io("diff.writeTemporaryBefore", &error))
+    })?;
+    fs::write(&new, after).map_err(|error| {
+        ReadDiffError::Diagnostic(Diagnostic::io("diff.writeTemporaryAfter", &error))
+    })?;
     let context = format!(
         "--unified={}",
         request.context.unwrap_or(DEFAULT_CONTEXT).min(MAX_CONTEXT)
@@ -645,8 +671,8 @@ fn decoded_patch(
     }
     args.extend([
         "--",
-        old.to_str().ok_or(ReadDiffError::GitFailed)?,
-        new.to_str().ok_or(ReadDiffError::GitFailed)?,
+        old.to_str().ok_or(ReadDiffError::InvalidPathEncoding)?,
+        new.to_str().ok_or(ReadDiffError::InvalidPathEncoding)?,
     ]);
     Ok(git_output_cancellable(repository, &args, true, cancelled)?.stdout)
 }
@@ -686,14 +712,24 @@ fn resolve_source(repository: &Path, source: &DiffSource) -> Result<ResolvedSour
             if matches!(source, DiffSource::Stash { .. }) {
                 return Ok(ResolvedSource::Stash { after });
             }
-            let repo = gix::open(repository).map_err(|_| ReadDiffError::GitFailed)?;
-            let id = gix::ObjectId::from_hex(after.as_bytes())
-                .map_err(|_| ReadDiffError::RevisionNotFound(sha.clone()))?;
+            let repo = gix::open(repository).map_err(|error| {
+                ReadDiffError::Diagnostic(Diagnostic::cause("diff.openRepository", &error))
+            })?;
+            let id = gix::ObjectId::from_hex(after.as_bytes()).map_err(|error| {
+                ReadDiffError::Diagnostic(Diagnostic::new("diff.parseCommitId", error))
+            })?;
             let before = repo
                 .find_commit(id)
-                .map_err(|_| ReadDiffError::RevisionNotFound(sha.clone()))?
+                .map_err(|error| {
+                    ReadDiffError::WithDiagnostic(
+                        Box::new(ReadDiffError::RevisionNotFound(sha.clone())),
+                        Diagnostic::cause("diff.findCommit", &error),
+                    )
+                })?
                 .decode()
-                .map_err(|_| ReadDiffError::GitFailed)?
+                .map_err(|error| {
+                    ReadDiffError::Diagnostic(Diagnostic::cause("diff.decodeCommit", &error))
+                })?
                 .parents()
                 .next()
                 .map(|parent| parent.to_string());
@@ -725,9 +761,17 @@ fn is_worktree_source(source: &ResolvedSource) -> bool {
 
 fn resolve_commit(repository: &Path, revision: &str) -> Result<String, ReadDiffError> {
     let commit = format!("{revision}^{{commit}}");
-    let output = git_output(repository, &["rev-parse", "--verify", &commit], false)
-        .map_err(|_| ReadDiffError::RevisionNotFound(revision.to_owned()))?;
-    output_text(&output).map_err(|_| ReadDiffError::RevisionNotFound(revision.to_owned()))
+    let output =
+        git_output(repository, &["rev-parse", "--verify", &commit], false).map_err(|error| {
+            match error {
+                ReadDiffError::Diagnostic(diagnostic) => ReadDiffError::WithDiagnostic(
+                    Box::new(ReadDiffError::RevisionNotFound(revision.to_owned())),
+                    diagnostic,
+                ),
+                error => error,
+            }
+        })?;
+    output_text(&output)
 }
 
 pub(super) fn validate_path(path: &str) -> Result<(), ReadDiffError> {
@@ -873,7 +917,7 @@ fn numstat(
             changed_lines: stats.insertions + stats.deletions,
         });
     }
-    parse_numstat(&output.stdout)
+    parse_numstat(&output.stdout).map_err(|error| parse_error("diff.parseNumstat", error))
 }
 
 fn diff_args(source: &ResolvedSource, format: &str) -> Vec<String> {
@@ -922,11 +966,17 @@ fn git_output(
     let output = git_command(repository)
         .args(args)
         .output()
-        .map_err(|_| ReadDiffError::GitFailed)?;
+        .map_err(|error| {
+            ReadDiffError::Diagnostic(Diagnostic::command_io("diff.command", args, &error))
+        })?;
     if output.status.success() || (one_is_success && output.status.code() == Some(1)) {
         Ok(output)
     } else {
-        Err(ReadDiffError::GitFailed)
+        Err(ReadDiffError::Diagnostic(Diagnostic::command(
+            "diff.command",
+            args,
+            &output,
+        )))
     }
 }
 
@@ -942,11 +992,23 @@ fn git_output_cancellable(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|_| ReadDiffError::GitFailed)?;
-    let stdout = child.stdout.take().ok_or(ReadDiffError::GitFailed)?;
-    let stderr = child.stderr.take().ok_or(ReadDiffError::GitFailed)?;
-    let stdout_reader = thread::spawn(move || read_all(stdout));
-    let stderr_reader = thread::spawn(move || read_all(stderr));
+        .map_err(|error| {
+            ReadDiffError::Diagnostic(Diagnostic::command_io("diff.command", args, &error))
+        })?;
+    let stdout = child.stdout.take().ok_or_else(|| {
+        ReadDiffError::Diagnostic(Diagnostic::new(
+            "diff.stdoutPipe",
+            "Git stdout pipe was unavailable",
+        ))
+    })?;
+    let stderr = child.stderr.take().ok_or_else(|| {
+        ReadDiffError::Diagnostic(Diagnostic::new(
+            "diff.stderrPipe",
+            "Git stderr pipe was unavailable",
+        ))
+    })?;
+    let stdout_reader = thread::spawn(move || read_all(stdout, "diff.readStdout"));
+    let stderr_reader = thread::spawn(move || read_all(stderr, "diff.readStderr"));
 
     let status = loop {
         if cancelled.load(Ordering::Relaxed) {
@@ -956,18 +1018,26 @@ fn git_output_cancellable(
             let _ = stderr_reader.join();
             return Err(ReadDiffError::Cancelled);
         }
-        match child.try_wait().map_err(|_| ReadDiffError::GitFailed)? {
+        match child.try_wait().map_err(|error| {
+            ReadDiffError::Diagnostic(Diagnostic::command_io("diff.waitCommand", args, &error))
+        })? {
             Some(status) => break status,
             None => thread::sleep(Duration::from_millis(5)),
         }
     };
 
-    let stdout = stdout_reader
-        .join()
-        .map_err(|_| ReadDiffError::GitFailed)??;
-    let stderr = stderr_reader
-        .join()
-        .map_err(|_| ReadDiffError::GitFailed)??;
+    let stdout = stdout_reader.join().map_err(|_| {
+        ReadDiffError::Diagnostic(Diagnostic::new(
+            "diff.joinOutputReader",
+            "Git output reader terminated unexpectedly",
+        ))
+    })??;
+    let stderr = stderr_reader.join().map_err(|_| {
+        ReadDiffError::Diagnostic(Diagnostic::new(
+            "diff.joinOutputReader",
+            "Git output reader terminated unexpectedly",
+        ))
+    })??;
     let output = Output {
         status,
         stdout,
@@ -976,15 +1046,19 @@ fn git_output_cancellable(
     if output.status.success() || (one_is_success && output.status.code() == Some(1)) {
         Ok(output)
     } else {
-        Err(ReadDiffError::GitFailed)
+        Err(ReadDiffError::Diagnostic(Diagnostic::command(
+            "diff.command",
+            args,
+            &output,
+        )))
     }
 }
 
-fn read_all(mut reader: impl Read) -> Result<Vec<u8>, ReadDiffError> {
+fn read_all(mut reader: impl Read, stage: &str) -> Result<Vec<u8>, ReadDiffError> {
     let mut bytes = Vec::new();
     reader
         .read_to_end(&mut bytes)
-        .map_err(|_| ReadDiffError::GitFailed)?;
+        .map_err(|error| ReadDiffError::Diagnostic(Diagnostic::io(stage, &error)))?;
     Ok(bytes)
 }
 
@@ -998,6 +1072,16 @@ fn git_command(repository: &Path) -> Command {
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C");
     command
+}
+
+fn parse_error(stage: &str, error: ReadDiffError) -> ReadDiffError {
+    match error {
+        ReadDiffError::MalformedOutput => ReadDiffError::WithDiagnostic(
+            Box::new(ReadDiffError::MalformedOutput),
+            Diagnostic::new(stage, "Git returned malformed structured output"),
+        ),
+        error => error,
+    }
 }
 
 fn parse_raw_entry(bytes: &[u8], wanted: &[u8]) -> Result<Option<RawEntry>, ReadDiffError> {
@@ -1123,7 +1207,9 @@ fn worktree_snapshot(
         .unwrap_or_else(|| mode_of(&metadata));
     let oid = match mode {
         GitFileMode::SymbolicLink => {
-            let target = fs::read_link(&absolute).map_err(|_| ReadDiffError::GitFailed)?;
+            let target = fs::read_link(&absolute).map_err(|error| {
+                ReadDiffError::Diagnostic(Diagnostic::io("diff.readSymlink", &error))
+            })?;
             hash_bytes(repository, path_bytes(&target)?)?
         }
         GitFileMode::GitLink => {
@@ -1175,23 +1261,44 @@ fn path_bytes(path: &Path) -> Result<&[u8], ReadDiffError> {
 }
 
 fn hash_bytes(repository: &Path, bytes: &[u8]) -> Result<String, ReadDiffError> {
+    let args = ["hash-object", "--stdin"];
     let mut child = git_command(repository)
-        .args(["hash-object", "--stdin"])
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
-        .map_err(|_| ReadDiffError::GitFailed)?;
-    child
+        .map_err(|error| {
+            ReadDiffError::Diagnostic(Diagnostic::command_io("diff.hashObject", &args, &error))
+        })?;
+    let write = child
         .stdin
         .take()
-        .ok_or(ReadDiffError::GitFailed)?
-        .write_all(bytes)
-        .map_err(|_| ReadDiffError::GitFailed)?;
-    let output = child
-        .wait_with_output()
-        .map_err(|_| ReadDiffError::GitFailed)?;
+        .ok_or_else(|| {
+            ReadDiffError::Diagnostic(Diagnostic::new(
+                "diff.hashObjectStdin",
+                "Git stdin pipe was unavailable",
+            ))
+        })?
+        .write_all(bytes);
+    if let Err(error) = write {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(ReadDiffError::Diagnostic(Diagnostic::command_io(
+            "diff.writeHashInput",
+            &args,
+            &error,
+        )));
+    }
+    let output = child.wait_with_output().map_err(|error| {
+        ReadDiffError::Diagnostic(Diagnostic::command_io("diff.waitHashObject", &args, &error))
+    })?;
     if !output.status.success() {
-        return Err(ReadDiffError::GitFailed);
+        return Err(ReadDiffError::Diagnostic(Diagnostic::command(
+            "diff.hashObject",
+            &args,
+            &output,
+        )));
     }
     output_text(&output)
 }
@@ -1199,9 +1306,20 @@ fn hash_bytes(repository: &Path, bytes: &[u8]) -> Result<String, ReadDiffError> 
 fn output_text(output: &Output) -> Result<String, ReadDiffError> {
     let value = std::str::from_utf8(&output.stdout)
         .map(str::trim)
-        .map_err(|_| ReadDiffError::MalformedOutput)?;
+        .map_err(|error| {
+            ReadDiffError::WithDiagnostic(
+                Box::new(ReadDiffError::MalformedOutput),
+                Diagnostic::new("diff.parseOutput", error),
+            )
+        })?;
     if value.is_empty() {
-        Err(ReadDiffError::MalformedOutput)
+        Err(ReadDiffError::WithDiagnostic(
+            Box::new(ReadDiffError::MalformedOutput),
+            Diagnostic::new(
+                "diff.parseOutput",
+                "Git returned an empty object identifier",
+            ),
+        ))
     } else {
         Ok(value.to_owned())
     }
@@ -1235,7 +1353,9 @@ fn worktree_size(
     }
     fs::symlink_metadata(repository.join(path))
         .map(|metadata| Some(metadata.len()))
-        .map_err(|_| ReadDiffError::GitFailed)
+        .map_err(|error| {
+            ReadDiffError::Diagnostic(Diagnostic::io("diff.inspectWorktreeSize", &error))
+        })
 }
 
 fn parse_numstat(bytes: &[u8]) -> Result<NumStat, ReadDiffError> {
@@ -1946,7 +2066,7 @@ mod tests {
             Err(ReadDiffError::Cancelled)
         ));
         assert!(
-            matches!(read_files_cancellable(temporary.path(), &DiffSource::Range { from: Some("missing".into()), to: "missing".into() }, &AtomicBool::new(false)), Err(ReadDiffError::RevisionNotFound(revision)) if revision == "missing")
+            matches!(read_files_cancellable(temporary.path(), &DiffSource::Range { from: Some("missing".into()), to: "missing".into() }, &AtomicBool::new(false)), Err(ReadDiffError::WithDiagnostic(error, _)) if *error == ReadDiffError::RevisionNotFound("missing".into()))
         );
     }
 
@@ -2508,7 +2628,7 @@ mod tests {
         };
         assert!(hunks.is_empty());
 
-        assert_eq!(
+        assert!(matches!(
             read(
                 path,
                 request(
@@ -2519,7 +2639,7 @@ mod tests {
                 ),
             )
             .unwrap_err(),
-            ReadDiffError::RevisionNotFound("no-existe".to_owned())
-        );
+            ReadDiffError::WithDiagnostic(error, _) if *error == ReadDiffError::RevisionNotFound("no-existe".to_owned())
+        ));
     }
 }

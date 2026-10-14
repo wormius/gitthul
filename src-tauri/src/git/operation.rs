@@ -3,13 +3,14 @@
 use std::path::Path;
 use std::process::Command;
 
+use super::diagnostics::Diagnostic;
 use super::repository::{self, RepoOperation, Repository};
 use super::stash::{self, StashError};
 use super::status;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum OperationError {
-    GitFailed,
+    Diagnostic(Diagnostic),
     NoOperation,
     StillConflicted(usize),
     Stash(StashError),
@@ -17,12 +18,17 @@ pub enum OperationError {
 
 pub fn continue_operation(repository: &Path) -> Result<Repository, OperationError> {
     let conflicts = status::read(repository)
-        .map_err(|_| OperationError::GitFailed)?
+        .map_err(|error| {
+            OperationError::Diagnostic(match error {
+                status::ReadStatusError::Diagnostic(diagnostic) => diagnostic,
+                error => Diagnostic::new("operation.readStatus", format!("{error:?}")),
+            })
+        })?
         .conflicted_count();
     if conflicts > 0 {
         return Err(OperationError::StillConflicted(conflicts));
     }
-    let current = repository::discover(repository).map_err(|_| OperationError::GitFailed)?;
+    let current = repository::discover(repository).map_err(OperationError::Diagnostic)?;
     let Some(args) = continue_args(current.operation()) else {
         if stash::recovery_kind(repository).is_some() {
             stash::finish_recovery(repository).map_err(OperationError::Stash)?;
@@ -30,12 +36,12 @@ pub fn continue_operation(repository: &Path) -> Result<Repository, OperationErro
         }
         return Err(OperationError::NoOperation);
     };
-    run(repository, args)?;
+    run_with_autostash_recovery(repository, args)?;
     rediscover(repository)
 }
 
 pub fn abort_operation(repository: &Path) -> Result<Repository, OperationError> {
-    let current = repository::discover(repository).map_err(|_| OperationError::GitFailed)?;
+    let current = repository::discover(repository).map_err(OperationError::Diagnostic)?;
     let Some(args) = abort_args(current.operation()) else {
         if stash::recovery_kind(repository).is_some() {
             stash::abort_recovery(repository).map_err(OperationError::Stash)?;
@@ -43,19 +49,24 @@ pub fn abort_operation(repository: &Path) -> Result<Repository, OperationError> 
         }
         return Err(OperationError::NoOperation);
     };
-    run(repository, args)?;
+    run_with_autostash_recovery(repository, args)?;
     rediscover(repository)
 }
 
 /// Olvida la integración sin crear commits ni restaurar el índice o el árbol.
 pub fn quit_operation(repository: &Path) -> Result<Repository, OperationError> {
     let conflicts = status::read(repository)
-        .map_err(|_| OperationError::GitFailed)?
+        .map_err(|error| {
+            OperationError::Diagnostic(match error {
+                status::ReadStatusError::Diagnostic(diagnostic) => diagnostic,
+                error => Diagnostic::new("operation.readStatus", format!("{error:?}")),
+            })
+        })?
         .conflicted_count();
     if conflicts > 0 {
         return Err(OperationError::StillConflicted(conflicts));
     }
-    let current = repository::discover(repository).map_err(|_| OperationError::GitFailed)?;
+    let current = repository::discover(repository).map_err(OperationError::Diagnostic)?;
     let args: &[&str] = match current.operation() {
         RepoOperation::Merge { .. } => &["merge", "--quit"],
         RepoOperation::Rebase { .. } => &["rebase", "--quit"],
@@ -93,18 +104,51 @@ fn abort_args(operation: &RepoOperation) -> Option<&'static [&'static str]> {
 }
 
 fn rediscover(repository: &Path) -> Result<Repository, OperationError> {
-    repository::discover(repository).map_err(|_| OperationError::GitFailed)
+    repository::discover(repository).map_err(OperationError::Diagnostic)
 }
 
-fn run(repository: &Path, args: &[&str]) -> Result<(), OperationError> {
+/// Git may finish an integration before restoring its saved local changes.
+/// A failed restoration then has conflicts but no native operation to abort.
+fn run_with_autostash_recovery(repository: &Path, args: &[&str]) -> Result<(), OperationError> {
+    let observation =
+        stash::AutostashObservation::capture(repository).map_err(OperationError::Stash)?;
+    let result = run(repository, args);
+    if observation
+        .recover_if_conflicted(repository)
+        .map_err(OperationError::Stash)?
+    {
+        let diagnostic = match result {
+            Ok(diagnostic) | Err(OperationError::Diagnostic(diagnostic)) => diagnostic,
+            Err(error) => return Err(error),
+        };
+        let count = status::read(repository)
+            .map_err(|error| {
+                OperationError::Diagnostic(match error {
+                    status::ReadStatusError::Diagnostic(diagnostic) => diagnostic,
+                    error => Diagnostic::new("operation.readStatus", format!("{error:?}")),
+                })
+            })?
+            .conflicted_count();
+        return Err(OperationError::Stash(StashError::AutoConflict {
+            count,
+            diagnostic,
+        }));
+    }
+    result.map(|_| ())
+}
+
+fn run(repository: &Path, args: &[&str]) -> Result<Diagnostic, OperationError> {
     let output = git_command(repository)
         .args(args)
         .output()
-        .map_err(|_| OperationError::GitFailed)?;
+        .map_err(|error| {
+            OperationError::Diagnostic(Diagnostic::command_io("operation.spawn", args, &error))
+        })?;
+    let diagnostic = Diagnostic::command("operation.execute", args, &output);
     if output.status.success() {
-        Ok(())
+        Ok(diagnostic)
     } else {
-        Err(OperationError::GitFailed)
+        Err(OperationError::Diagnostic(diagnostic))
     }
 }
 
@@ -134,6 +178,7 @@ mod tests {
         OperationError,
     };
     use crate::git::repository::RepoOperation;
+    use crate::git::stash::{self, StashError, StashRecoveryKind};
 
     fn git(repository: &Path, args: &[&str]) -> bool {
         Command::new("git")
@@ -298,6 +343,63 @@ mod tests {
             assert_eq!(
                 fs::read_to_string(repository.join("file.txt")).expect("archivo restaurado"),
                 "main\n"
+            );
+        }
+    }
+
+    #[test]
+    fn continuar_integracion_permite_cancelar_la_restauracion_del_autostash() {
+        for kind in ["merge", "rebase"] {
+            let temporary = conflicted(kind);
+            let repository = temporary.path();
+            assert!(git(repository, &[kind, "--abort"]));
+            fs::write(repository.join("file.txt"), "cambios locales\n").unwrap();
+            assert!(!git(repository, &[kind, "--autostash", "topic"]));
+            fs::write(repository.join("file.txt"), "integración resuelta\n").unwrap();
+            assert!(git(repository, &["add", "file.txt"]));
+
+            let error = continue_operation(repository).expect_err("auto-stash conflictivo");
+            let OperationError::Stash(StashError::AutoConflict { count, diagnostic }) = error
+            else {
+                panic!("se esperaba diagnóstico de auto-stash: {error:?}");
+            };
+            assert_eq!(count, 1);
+            assert_eq!(serde_json::to_value(&diagnostic).unwrap()["exitCode"], 0);
+            assert_eq!(
+                stash::recovery_kind(repository),
+                Some(StashRecoveryKind::AutoStash)
+            );
+            assert!(matches!(
+                crate::git::repository::discover(repository)
+                    .unwrap()
+                    .operation(),
+                RepoOperation::None
+            ));
+            let read = |args: &[&str]| {
+                let output = Command::new("git")
+                    .args(args)
+                    .current_dir(repository)
+                    .output()
+                    .unwrap();
+                assert!(output.status.success());
+                output.stdout
+            };
+            let updated_head = read(&["rev-parse", "HEAD"]);
+            let saved_stash = read(&["rev-parse", "refs/stash"]);
+
+            let restored = abort_operation(repository).expect("cancelar solo la restauración");
+            assert!(matches!(restored.operation(), RepoOperation::None));
+            assert_eq!(read(&["rev-parse", "HEAD"]), updated_head);
+            assert_eq!(read(&["rev-parse", "refs/stash"]), saved_stash);
+            assert!(read(&["status", "--porcelain=v2"]).is_empty());
+            assert_eq!(stash::recovery_kind(repository), None);
+            assert_eq!(
+                fs::read_to_string(repository.join("file.txt")).unwrap(),
+                "integración resuelta\n"
+            );
+            assert_eq!(
+                read(&["show", "refs/stash:file.txt"]),
+                "cambios locales\n".as_bytes()
             );
         }
     }

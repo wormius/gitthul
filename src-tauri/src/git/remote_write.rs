@@ -5,6 +5,8 @@ use std::process::Output;
 
 use serde::Deserialize;
 
+use super::diagnostics::Diagnostic;
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteInput {
@@ -27,7 +29,7 @@ pub enum WriteRemoteError {
     Exists,
     NotFound,
     Stale,
-    GitFailed,
+    Diagnostic(Diagnostic),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -52,7 +54,11 @@ pub fn add(repository: &Path, remote: &RemoteInput) -> Result<(), WriteRemoteErr
         return if observe(repository, &remote.name)?.is_some() {
             Err(WriteRemoteError::Exists)
         } else {
-            Err(WriteRemoteError::GitFailed)
+            Err(WriteRemoteError::Diagnostic(Diagnostic::command(
+                "remoteWrite.add",
+                &["remote", "add"],
+                &output,
+            )))
         };
     }
     if remote.push_url != remote.fetch_url {
@@ -69,7 +75,11 @@ pub fn add(repository: &Path, remote: &RemoteInput) -> Result<(), WriteRemoteErr
         )?;
         if !output.status.success() {
             let _ = command(repository, &["remote", "remove", "--", &remote.name]);
-            return Err(WriteRemoteError::GitFailed);
+            return Err(WriteRemoteError::Diagnostic(Diagnostic::command(
+                "remoteWrite.setPushUrl",
+                &["remote", "set-url", "--push"],
+                &output,
+            )));
         }
     }
     Ok(())
@@ -137,12 +147,17 @@ fn ensure_current(
 }
 
 fn observe(repository: &Path, name: &str) -> Result<Option<ObservedRemote>, WriteRemoteError> {
-    let repo = gix::open(repository).map_err(|_| WriteRemoteError::GitFailed)?;
+    let repo = gix::open(repository).map_err(|error| {
+        WriteRemoteError::Diagnostic(Diagnostic::cause("remoteWrite.open", &error))
+    })?;
     let Ok(remote) = repo.find_remote(name) else {
         return Ok(None);
     };
     let Some(fetch) = remote.url(gix::remote::Direction::Fetch) else {
-        return Err(WriteRemoteError::GitFailed);
+        return Err(WriteRemoteError::Diagnostic(Diagnostic::new(
+            "remoteWrite.readUrl",
+            "Remote has no fetch URL",
+        )));
     };
     let fetch_url = fetch.to_string();
     let push_url = remote
@@ -181,7 +196,11 @@ fn successful(repository: &Path, args: &[&str]) -> Result<(), WriteRemoteError> 
     if output.status.success() {
         Ok(())
     } else {
-        Err(WriteRemoteError::GitFailed)
+        Err(WriteRemoteError::Diagnostic(Diagnostic::command(
+            "remoteWrite.execute",
+            args,
+            &output,
+        )))
     }
 }
 
@@ -193,7 +212,9 @@ fn command(repository: &Path, args: &[&str]) -> Result<Output, WriteRemoteError>
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C")
         .output()
-        .map_err(|_| WriteRemoteError::GitFailed)
+        .map_err(|error| {
+            WriteRemoteError::Diagnostic(Diagnostic::command_io("remoteWrite.spawn", args, &error))
+        })
 }
 
 #[cfg(test)]

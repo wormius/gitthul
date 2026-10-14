@@ -34,13 +34,26 @@ export function RemoteBranchAheadDialog({
       open
       onClose={onCancel}
       size="sm"
-      title={t('working.dialog.remoteBranchAhead.title', { branch: local.name })}
-      description={t('working.dialog.remoteBranchAhead.description', {
-        local: local.name,
-        remote: remote.name,
-        ahead: local.ahead,
-        behind: local.behind,
-      })}
+      title={t(
+        local.upstreamMissing
+          ? 'working.dialog.remoteBranchAhead.titleUnknown'
+          : 'working.dialog.remoteBranchAhead.title',
+        { branch: local.name },
+      )}
+      description={
+        local.upstreamMissing
+          ? t('working.dialog.remoteBranchAhead.descriptionUnknown', {
+              local: local.name,
+              remote: remote.name,
+              upstream: local.upstream ?? '',
+            })
+          : t('working.dialog.remoteBranchAhead.description', {
+              local: local.name,
+              remote: remote.name,
+              ahead: local.ahead,
+              behind: local.behind,
+            })
+      }
       closeLabel={t('working.dialog.close')}
       footer={
         <>

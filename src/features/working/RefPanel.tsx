@@ -265,8 +265,13 @@ export function RefPanel({
                     kind={branch.isHead ? 'activeBranch' : 'local'}
                     label={row.label}
                     nestedInTree
-                    ahead={branch.upstream ? branch.ahead : undefined}
-                    behind={branch.upstream ? branch.behind : undefined}
+                    title={
+                      branch.upstreamMissing && branch.upstream !== undefined
+                        ? t('working.upstreamMissing', { upstream: branch.upstream })
+                        : undefined
+                    }
+                    ahead={branch.upstream && !branch.upstreamMissing ? branch.ahead : undefined}
+                    behind={branch.upstream && !branch.upstreamMissing ? branch.behind : undefined}
                     menu={localBranchMenu(menuContext, branch)}
                     menuLabel={t('working.menu.branch.label', { branch: branch.name })}
                     drag={{ kind: 'branch', name: branch.name, ref: branch.id }}

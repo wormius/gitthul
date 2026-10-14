@@ -18,6 +18,7 @@ import {
   type RefsSnapshot,
   type RefTarget,
   type ResetMode,
+  type Stash,
   type Worktree,
 } from '@core/domain/refs';
 import type {
@@ -69,6 +70,8 @@ export interface MockGitPortOptions {
   seed?: number;
   /** Las pruebas pasan `NO_LATENCY`; el desarrollo se queda con la de verdad. */
   latency?: LatencyRange;
+  /** Fixture explícito para un choque al reaplicar WIP después del cambio de rama. */
+  autoStashConflicts?: readonly string[];
 }
 
 /** Las operaciones a las que se les puede encargar un fallo. */
@@ -173,6 +176,7 @@ interface MockRegistry {
 export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort {
   const seed = options.seed ?? DEFAULT_SEED;
   const latency = options.latency ?? DEFAULT_LATENCY;
+  const autoStashConflicts = options.autoStashConflicts ?? [];
   const random = createRandom(seed ^ 0x5f5f);
   const programmed = new Map<MockGitOperation, GitOperationError[]>();
 
@@ -266,6 +270,9 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
    * usa desde F0.9.
    */
   const store = (repo: MockRepo): MockRepo => {
+    if (repo.stashRecovery && repo.status.recoveryOperation !== repo.stashRecovery.kind) {
+      repo = { ...repo, status: { ...repo.status, recoveryOperation: repo.stashRecovery.kind } };
+    }
     if (repo !== load().repos.get(repo.repository.id)) load().repos.set(repo.repository.id, repo);
 
     return repo;
@@ -1143,17 +1150,26 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
             )
           : repo;
       const switched = checkoutIn(stashed, target, options?.remoteMode);
-      const restored =
+      const autoStash =
         stashed.refs.stashes.length > repo.refs.stashes.length
-          ? applyStashIn(switched, 0, true)
-          : switched;
-
-      return store(
+          ? stashed.refs.stashes[0]
+          : undefined;
+      const restored = autoStash
+        ? restoreAutoStashIn(switched, autoStash, autoStashConflicts)
+        : switched;
+      const saved = store(
         remember(repo, restored, 'undo.checkout', {
           branch: labelOf(target),
           from: headName(repo),
         }),
-      ).refs;
+      );
+      if (saved.status.recoveryOperation === 'autoStash') {
+        throw new GitOperationError('checkout.restoreFailed', {
+          branch: labelOf(target),
+          count: saved.status.conflicted.length,
+        });
+      }
+      return saved.refs;
     },
 
     createStash: async (id, message, options, query) => {
@@ -1344,8 +1360,14 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
         : {};
 
       // El punto conserva el estado resuelto que precedía a Continuar.
-      return store(remember(repo, next, `undo.${named ? operation.kind : 'merge'}`, params))
-        .repository;
+      return store(
+        remember(
+          repo,
+          next,
+          repo.stashRecovery ? 'undo.applyStash' : `undo.${named ? operation.kind : 'merge'}`,
+          params,
+        ),
+      ).repository;
     },
 
     abortOperation: async (id, query) => {
@@ -1363,6 +1385,9 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
         throw new GitOperationError('resolve.stillConflicted', {
           count: repo.status.conflicted.length,
         });
+      }
+      if (repo.stashRecovery) {
+        return store(remember(repo, finishStashRecoveryIn(repo), 'undo.quit', {})).repository;
       }
       const { recoveryOperation: _recovery, ...status } = repo.status;
       return store(
@@ -2733,7 +2758,10 @@ function moveHead(refs: RefsSnapshot, sha: Sha): RefsSnapshot {
         ? {
             ...candidate,
             tip: sha,
-            ahead: candidate.upstream === undefined ? 0 : candidate.ahead + 1,
+            ahead:
+              candidate.upstream === undefined || candidate.upstreamMissing === true
+                ? 0
+                : candidate.ahead + 1,
           }
         : candidate,
     ),
@@ -2905,13 +2933,13 @@ function checkoutIn(
         ...repo.refs,
         branches: repo.refs.branches.map((branch) =>
           branch.kind === 'local' && branch.name === localName
-            ? {
+            ? withoutMissingUpstream({
                 ...branch,
                 tip: remote!.tip,
                 upstream: remote!.name,
                 ahead: 0,
                 behind: 0,
-              }
+              })
             : branch,
         ),
       });
@@ -2984,6 +3012,7 @@ function upstreamIn(repo: MockRepo, local: Branch, upstream: string | null): Ref
       : repo.refs.branches.find((branch) => branch.kind === 'remote' && branch.name === upstream);
 
   const next: Branch = { ...local, ahead: 0, behind: 0 };
+  delete next.upstreamMissing;
 
   if (upstream === null) delete next.upstream;
   else {
@@ -2992,7 +3021,7 @@ function upstreamIn(repo: MockRepo, local: Branch, upstream: string | null): Ref
     if (remote) {
       next.ahead = countAhead(repo.history.byShaLookup, local.tip, remote.tip);
       next.behind = countAhead(repo.history.byShaLookup, remote.tip, local.tip);
-    }
+    } else next.upstreamMissing = true;
   }
 
   return {
@@ -3116,16 +3145,65 @@ function applyStashIn(repo: MockRepo, index: number, drop: boolean): MockRepo {
   return drop ? dropStashIn(next, index) : next;
 }
 
+/** Reapply WIP after switching HEAD; abort only returns to that destination state. */
+function restoreAutoStashIn(repo: MockRepo, stash: Stash, paths: readonly string[]): MockRepo {
+  const saved = new Set(filesOf(repo.history, stash.sha).map((file) => file.path));
+  const found: Clash[] = [...new Set(paths)]
+    .filter((path) => saved.has(path))
+    .map((path) => ({ path, kind: 'bothModified' }));
+  if (found.length === 0) return applyStashIn(repo, stash.index, true);
+  const restored = applyStashIn(repo, stash.index, false);
+  return {
+    ...stopWith(restored, { kind: 'none' }, found, headName(repo), 'stash'),
+    stashRecovery: { kind: 'autoStash', target: stash.sha, before: repo },
+  };
+}
+
+function finishStashRecoveryIn(repo: MockRepo): MockRepo {
+  if (repo.status.conflicted.length > 0) {
+    throw new GitOperationError('resolve.stillConflicted', {
+      count: repo.status.conflicted.length,
+    });
+  }
+  const { stashRecovery, ...rest } = repo;
+  const { recoveryOperation: _operation, ...status } = repo.status;
+  let next: MockRepo = { ...rest, status, beforeOperation: null };
+  if (stashRecovery && stashRecovery.kind !== 'apply') {
+    const target = repo.refs.stashes.find((stash) => stash.sha === stashRecovery.target);
+    if (target) next = dropStashIn(next, target.index);
+  }
+  return next;
+}
+
 function dropStashIn(repo: MockRepo, index: number): MockRepo {
   const stashes = repo.refs.stashes.filter((stash) => stash.index !== index);
 
   if (stashes.length === repo.refs.stashes.length) return repo;
 
-  return withRefs(repo, {
-    ...repo.refs,
-    // `stash@{0}` es siempre el más reciente: quitar uno renumera los de debajo.
-    stashes: stashes.map((stash, position) => ({ ...stash, index: position })),
-  });
+  const dropped = repo.refs.stashes.find((stash) => stash.index === index)!;
+  const tips = [
+    repo.refs.head.sha,
+    ...repo.refs.branches.map((branch) => branch.tip),
+    ...repo.refs.tags.map((tag) => tag.target),
+  ];
+  const retained = tips.some((tip) =>
+    reachableFrom(repo, tip).some((commit) => commit.sha === dropped.sha),
+  );
+  return {
+    ...withRefs(repo, {
+      ...repo.refs,
+      // `stash@{0}` es siempre el más reciente: quitar uno renumera los de debajo.
+      stashes: stashes.map((stash, position) => ({ ...stash, index: position })),
+    }),
+    // The object stays readable by SHA, but an unreachable dropped stash is no
+    // longer an ordinary graph commit. A branch created from it still retains it.
+    history: retained
+      ? repo.history
+      : {
+          ...repo.history,
+          commits: repo.history.commits.filter((commit) => commit.sha !== dropped.sha),
+        },
+  };
 }
 
 /**
@@ -3329,11 +3407,15 @@ function recount(branches: readonly Branch[], history: History, branch: Branch, 
           (candidate) => candidate.kind === 'remote' && candidate.name === branch.upstream,
         );
 
-  if (!remote) return { ...branch, tip, ahead: 0, behind: 0 };
+  const next = withoutMissingUpstream({ ...branch, tip, ahead: 0, behind: 0 });
+
+  if (!remote) {
+    if (branch.upstream !== undefined) next.upstreamMissing = true;
+    return next;
+  }
 
   return {
-    ...branch,
-    tip,
+    ...next,
     ahead: countAhead(history.byShaLookup, tip, remote.tip),
     behind: countAhead(history.byShaLookup, remote.tip, tip),
   };
@@ -3669,6 +3751,7 @@ function untracked(change: FileChange): boolean {
 function continueIn(repo: MockRepo, sha: Sha, at: number): MockRepo {
   const operation = repo.repository.operation;
 
+  if (repo.stashRecovery) return finishStashRecoveryIn(repo);
   if (operation.kind === 'none' || operation.kind === 'bisect') return repo;
 
   if (repo.status.conflicted.length > 0) {
@@ -3724,6 +3807,22 @@ function continueIn(repo: MockRepo, sha: Sha, at: number): MockRepo {
  * conflictos y la marca, y no fingir un estado anterior que nunca existió.
  */
 function abortIn(repo: MockRepo): MockRepo {
+  if (repo.stashRecovery) {
+    const recovery = repo.stashRecovery;
+    const target = recovery.before.refs.stashes.find((stash) => stash.sha === recovery.target);
+    const stashes =
+      recovery.kind === 'autoStash' &&
+      target &&
+      !repo.refs.stashes.some((stash) => stash.sha === target.sha)
+        ? [target, ...repo.refs.stashes].map((stash, index) => ({ ...stash, index }))
+        : repo.refs.stashes;
+    return {
+      ...recovery.before,
+      refs: { ...recovery.before.refs, stashes },
+      undoStack: repo.undoStack,
+      redoStack: repo.redoStack,
+    };
+  }
   if (repo.repository.operation.kind === 'none') return repo;
 
   const before = repo.beforeOperation;
@@ -3768,7 +3867,7 @@ function redoIn(repo: MockRepo): MockRepo {
 /** Cuántos commits hay al otro lado esperando: es lo que el fetch va a traer. */
 function incoming(repo: MockRepo): number {
   return repo.refs.branches
-    .filter((branch) => branch.kind === 'local')
+    .filter((branch) => branch.kind === 'local' && branch.upstreamMissing !== true)
     .reduce((total, branch) => total + branch.behind, 0);
 }
 
@@ -3851,7 +3950,7 @@ function pushIn(repo: MockRepo, name: string, remote: string): MockRepo {
 
   const branches = repo.refs.branches.map((branch) =>
     branch === local
-      ? { ...branch, upstream, ahead: 0, behind: 0 }
+      ? withoutMissingUpstream({ ...branch, upstream, ahead: 0, behind: 0 })
       : branch === tracked
         ? { ...branch, tip: local.tip }
         : branch,
@@ -3946,6 +4045,7 @@ function removeRemoteIn(repo: MockRepo, name: string): MockRepo {
       if (branch.kind === 'local' && branch.upstream?.startsWith(prefix)) {
         const detached = { ...branch };
         delete detached.upstream;
+        delete detached.upstreamMissing;
         detached.ahead = 0;
         detached.behind = 0;
         return [detached];
@@ -3976,6 +4076,12 @@ function withoutCheckout(branch: Branch): Branch {
 
   delete next.checkedOutIn;
 
+  return next;
+}
+
+function withoutMissingUpstream(branch: Branch): Branch {
+  const next = { ...branch };
+  delete next.upstreamMissing;
   return next;
 }
 

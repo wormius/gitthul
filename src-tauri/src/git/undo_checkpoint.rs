@@ -3750,8 +3750,14 @@ mod tests {
         fs::write(p.join("private"), "local ignored\n").unwrap();
         let mut before = Checkpoint::capture_refs(p).unwrap();
         let mut prepare = |tree: &str, strategy| {
-            Checkpoint::prepare_pull(p, &mut before, tree, strategy)
-                .map_err(|_| crate::git::network::NetworkError::GitFailed)
+            Checkpoint::prepare_pull(p, &mut before, tree, strategy).map_err(|error| {
+                crate::git::network::NetworkError::Diagnostic(
+                    crate::git::diagnostics::Diagnostic::new(
+                        "pull.prepareRecovery",
+                        format!("{error:?}"),
+                    ),
+                )
+            })
         };
         crate::git::network::pull_configured(
             p,

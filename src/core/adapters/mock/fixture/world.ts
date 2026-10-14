@@ -71,6 +71,12 @@ export interface MockRepo {
   refs: RefsSnapshot;
   status: WorkingStatus;
   conflicts: ReadonlyMap<string, ConflictContents>;
+  /** Estado anterior a reaplicar un stash, separado de la integración ya concluida. */
+  stashRecovery?: {
+    kind: NonNullable<WorkingStatus['recoveryOperation']>;
+    target: Sha;
+    before: MockRepo;
+  };
   /** Los patrones que ya están en `.gitignore`: repetir uno no escribe nada. */
   ignored: readonly string[];
   staging: ReadonlyMap<string, StagedPart>;

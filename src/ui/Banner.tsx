@@ -7,6 +7,8 @@ export type BannerVariant = 'info' | 'success' | 'warning' | 'danger';
 
 interface BannerProps {
   variant?: BannerVariant;
+  /** Apila explicación y acciones cuando el aviso vive en un panel estrecho. */
+  layout?: 'inline' | 'stacked';
   /** Frase completa, con las ramas nombradas. */
   title: string;
   /** Acciones del aviso, ya ordenadas. */
@@ -39,6 +41,7 @@ function CloseIcon() {
  */
 export function Banner({
   variant = 'info',
+  layout = 'inline',
   title,
   actions,
   onDismiss,
@@ -47,7 +50,9 @@ export function Banner({
 }: BannerProps) {
   return (
     <div
-      className={[styles.banner, styles[variant]].join(' ')}
+      className={[styles.banner, styles[variant], layout === 'stacked' ? styles.stacked : '']
+        .filter(Boolean)
+        .join(' ')}
       role={variant === 'danger' ? 'alert' : 'status'}
     >
       <div className={styles.content}>

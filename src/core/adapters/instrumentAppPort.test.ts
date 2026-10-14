@@ -60,6 +60,68 @@ describe('instrumentAppPort', () => {
       context: { request: 'sessionId=session' },
     });
   });
+
+  it('redacta secretos repetidos dentro del diagnóstico nativo estructurado', async () => {
+    const log = createMockLogPort();
+    const secret = 'a private keyring value';
+    const error = {
+      message: `keyring failed with ${secret}`,
+      diagnostic: { stage: 'keyring_write', stderr: secret, cause: { secret } },
+    };
+    const source = { set: vi.fn().mockRejectedValueOnce(error) };
+    await expect(instrumentAppPort(source, 'keyring', log).set('reference', secret)).rejects.toBe(
+      error,
+    );
+    const entries = await log.read();
+    expect(entries[0]?.context?.error?.diagnostic).toMatchObject({
+      stage: 'keyring_write',
+      stderr: '[redacted]',
+    });
+    expect(JSON.stringify(entries)).not.toContain(secret);
+  });
+
+  it('la autenticación conserva correlación y tipo sin registrar prompts o nombres de usuario', async () => {
+    const log = createMockLogPort({ debugEnabled: true });
+    let listener: ((event: unknown) => void) | undefined;
+    const source = {
+      subscribe: (callback: (event: unknown) => void) => {
+        listener = callback;
+        return Promise.resolve(() => undefined);
+      },
+    };
+    const onChallenge = vi.fn();
+    await instrumentAppPort(source, 'auth', log).subscribe(onChallenge);
+    const event = {
+      repository: 'repo',
+      operationId: 'native-operation',
+      kind: 'https',
+      url: 'https://name:password@host/repo',
+      prompt: 'private prompt',
+      username: 'private person',
+    };
+    listener?.(event);
+    expect(onChallenge).toHaveBeenCalledWith(event);
+    expect((await log.read()).at(-1)?.context).toMatchObject({
+      repository: 'repo',
+      nativeOperationId: 'native-operation',
+      requestData: { kind: 'https' },
+    });
+    const text = JSON.stringify(await log.read());
+    for (const privateText of ['private prompt', 'private person', 'name:password'])
+      expect(text).not.toContain(privateText);
+  });
+
+  it('una consulta de versiones indica su alcance estable sin parámetros obsoletos', async () => {
+    const log = createMockLogPort({ debugEnabled: true });
+    await instrumentAppPort(
+      { checkRelease: () => Promise.resolve(null) },
+      'link',
+      log,
+    ).checkRelease();
+    const entry = (await log.read())[0];
+    expect(entry?.context?.requestData).toEqual({ releaseKind: 'stable' });
+    expect(JSON.stringify(entry)).not.toContain('undefined');
+  });
 });
 
 it('cerrar deliberadamente el terminal no crea avisos por la señal de salida', async () => {

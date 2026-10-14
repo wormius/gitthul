@@ -23,6 +23,8 @@
  * Va como alias de objeto y no como interfaz a propósito: así cada entrada es
  * asignable a `MessageParams` y se puede pasar tal cual a la traducción.
  */
+import type { LogValue } from './logs';
+
 export type GitErrorParams = {
   /** El remoto tiene commits que aquí no están. El caso más frecuente de todos. */
   'push.rejected': { branch: string; remote: string; count: number };
@@ -43,6 +45,8 @@ export type GitErrorParams = {
   'reset.untrackedCollision': { sha: string; count: number };
   'checkout.dirtyTree': { branch: string; count: number };
   'checkout.restoreFailed': { branch: string; count: number };
+  /** Git protected local changes while creating a branch with checkout enabled. */
+  'branch.checkoutBlocked': { branch: string };
   'branch.exists': { branch: string };
   'branch.current': { branch: string };
   'branch.notMerged': { branch: string; target: string; count: number };
@@ -57,6 +61,8 @@ export type GitErrorParams = {
   'stash.nothingToStash': Record<string, never>;
   /** Lo guardado y lo que hay ahora tocan las mismas líneas. */
   'stash.conflict': { stash: string; branch: string; count: number };
+  /** La actualización terminó, pero la reaplicación del auto-stash dejó conflictos. */
+  'stash.autoConflict': { count: number };
   /** Git se negó antes de aplicar porque el WIP actual sería sobrescrito. */
   'stash.dirtyTree': { stash: string; branch: string; count: number };
   'worktree.removeFailed': { path: string };
@@ -143,6 +149,7 @@ export type GitFixId =
    */
   | 'continueOperation'
   | 'abortOperation'
+  | 'abortStashRestore'
   | 'chooseMainline'
   | 'openWorktree'
   | 'stashAndSwitch'
@@ -221,6 +228,7 @@ export const GIT_ERRORS: { [C in GitErrorCode]: GitErrorEntry<C> } = {
     fixes: ['stashAndSwitch', 'discardChanges'],
   },
   'checkout.restoreFailed': { params: ['branch', 'count'], fixes: ['openResolve', 'retry'] },
+  'branch.checkoutBlocked': { params: ['branch'], fixes: ['retry'] },
   'branch.exists': { params: ['branch'], fixes: ['checkoutBranch', 'chooseAnotherName'] },
   'branch.current': { params: ['branch'], fixes: ['checkoutBranch'] },
   'branch.notMerged': {
@@ -244,6 +252,7 @@ export const GIT_ERRORS: { [C in GitErrorCode]: GitErrorEntry<C> } = {
     params: ['stash', 'branch', 'count'],
     fixes: ['openResolve', 'abortOperation'],
   },
+  'stash.autoConflict': { params: ['count'], fixes: ['openResolve', 'abortStashRestore'] },
   'stash.dirtyTree': {
     params: ['stash', 'branch', 'count'],
     fixes: ['retry'],
@@ -303,6 +312,7 @@ export interface GitErrorOptions {
   /** La salida original de git, tal cual. Nunca es la respuesta, solo la evidencia. */
   output?: string;
   cause?: unknown;
+  diagnostic?: LogValue;
 }
 
 /**
@@ -318,6 +328,7 @@ export class GitOperationError<C extends GitErrorCode = GitErrorCode> extends Er
   readonly code: C;
   readonly params: GitErrorParams[C];
   readonly output?: string;
+  readonly diagnostic?: LogValue;
 
   constructor(code: C, params: GitErrorParams[C], options: GitErrorOptions = {}) {
     super(`${code} ${JSON.stringify(params)}`, { cause: options.cause });
@@ -325,6 +336,7 @@ export class GitOperationError<C extends GitErrorCode = GitErrorCode> extends Er
     this.code = code;
     this.params = params;
     if (options.output !== undefined) this.output = options.output;
+    if (options.diagnostic !== undefined) this.diagnostic = options.diagnostic;
   }
 }
 

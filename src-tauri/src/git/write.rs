@@ -8,6 +8,8 @@ use std::process::{Command, Stdio};
 
 use serde::Deserialize;
 
+use super::diagnostics::Diagnostic;
+
 use super::diff::{
     self, ChangeType, DiffContent, DiffLine, DiffLineKind, DiffPrecondition, DiffSource, FileDiff,
     ReadDiffError,
@@ -17,13 +19,14 @@ use super::diff::{
 pub enum WriteError {
     RecoveryUnavailable,
     GitFailed,
-    GitFailedWithOutput(String),
+    Diagnostic(Diagnostic),
+    WithDiagnostic(Box<WriteError>, Diagnostic),
+    Cancelled,
     InvalidPath,
     InvalidPathEncoding,
     MalformedDiff,
     Stale(String),
     UnsupportedSelection,
-    FileSystemFailed,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Hash)]
@@ -69,11 +72,19 @@ pub fn stage(repository: &Path, paths: &[String]) -> Result<(), WriteError> {
         .args(["ls-files", "--cached", "-z", "--"])
         .args(&paths)
         .output()
-        .map_err(|error| WriteError::GitFailedWithOutput(error.to_string()))?;
+        .map_err(|error| {
+            WriteError::Diagnostic(Diagnostic::command_io(
+                "write.readTracked",
+                &["ls-files", "--cached", "-z", "--"],
+                &error,
+            ))
+        })?;
     if !tracked.status.success() {
-        return Err(WriteError::GitFailedWithOutput(
-            String::from_utf8_lossy(&tracked.stderr).into_owned(),
-        ));
+        return Err(WriteError::Diagnostic(Diagnostic::command(
+            "write.readTracked",
+            &["ls-files", "--cached", "-z", "--"],
+            &tracked,
+        )));
     }
     let tracked: HashSet<&[u8]> = tracked.stdout.split(|byte| *byte == 0).collect();
     let (tracked_paths, new_paths): (Vec<_>, Vec<_>) = paths
@@ -151,7 +162,7 @@ pub fn discard_all(
     {
         return Err(WriteError::Stale("WIP".to_owned()));
     }
-    let repo = super::repository::discover(repository).map_err(|_| WriteError::GitFailed)?;
+    let repo = super::repository::discover(repository).map_err(WriteError::Diagnostic)?;
     if !matches!(repo.operation(), super::repository::RepoOperation::None) {
         return Err(WriteError::UnsupportedSelection);
     }
@@ -167,11 +178,21 @@ pub fn discard_all(
         ]
     };
     let output = git_command(repository)
-        .args(args)
+        .args(&args)
         .output()
-        .map_err(|_| WriteError::GitFailed)?;
+        .map_err(|error| {
+            WriteError::Diagnostic(Diagnostic::command_io(
+                "discardAll.listFiles",
+                &args,
+                &error,
+            ))
+        })?;
     if !output.status.success() {
-        return Err(WriteError::GitFailed);
+        return Err(WriteError::Diagnostic(Diagnostic::command(
+            "discardAll.listFiles",
+            &args,
+            &output,
+        )));
     }
     let paths = output
         .stdout
@@ -210,9 +231,19 @@ pub fn discard_all(
     let tracked = git_command(repository)
         .args(["ls-files", "--cached", "-z"])
         .output()
-        .map_err(|_| WriteError::GitFailed)?;
+        .map_err(|error| {
+            WriteError::Diagnostic(Diagnostic::command_io(
+                "discardAll.readTracked",
+                &["ls-files", "--cached", "-z"],
+                &error,
+            ))
+        })?;
     if !tracked.status.success() {
-        return Err(WriteError::GitFailed);
+        return Err(WriteError::Diagnostic(Diagnostic::command(
+            "discardAll.readTracked",
+            &["ls-files", "--cached", "-z"],
+            &tracked,
+        )));
     }
     let tracked: HashSet<&[u8]> = tracked.stdout.split(|byte| *byte == 0).collect();
     for path in paths {
@@ -552,36 +583,15 @@ fn apply_patch(
     cached: bool,
     ignore_whitespace: bool,
 ) -> Result<(), WriteError> {
-    let mut command = git_command(repository);
-    command.arg("apply");
+    let mut args = vec!["apply"];
     if cached {
-        command.arg("--cached");
+        args.push("--cached");
     }
     if ignore_whitespace {
-        command.arg("--ignore-space-change");
+        args.push("--ignore-space-change");
     }
-    command
-        .args(["-p0", "--recount", "--whitespace=nowarn", "-"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .stdin(Stdio::piped());
-    let mut child = command.spawn().map_err(|_| WriteError::GitFailed)?;
-    child
-        .stdin
-        .take()
-        .ok_or(WriteError::GitFailed)?
-        .write_all(patch)
-        .map_err(|_| WriteError::GitFailed)?;
-    let output = child
-        .wait_with_output()
-        .map_err(|_| WriteError::GitFailed)?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(WriteError::GitFailedWithOutput(
-            String::from_utf8_lossy(&output.stderr).into_owned(),
-        ))
-    }
+    args.extend(["-p0", "--recount", "--whitespace=nowarn", "-"]);
+    run_git(repository, &args, Some(patch))
 }
 
 fn checkout_index(repository: &Path, path: &str) -> Result<(), WriteError> {
@@ -593,34 +603,62 @@ fn remove_untracked(repository: &Path, path: &str) -> Result<(), WriteError> {
     let metadata = match fs::symlink_metadata(&target) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(_) => return Err(WriteError::FileSystemFailed),
+        Err(error) => {
+            return Err(WriteError::Diagnostic(Diagnostic::io(
+                "discard.inspectPath",
+                &error,
+            )))
+        }
     };
     if metadata.is_dir() && !metadata.file_type().is_symlink() {
-        fs::remove_dir(&target).map_err(|_| WriteError::FileSystemFailed)
+        fs::remove_dir(&target).map_err(|error| {
+            WriteError::Diagnostic(Diagnostic::io("discard.removeDirectory", &error))
+        })
     } else {
-        fs::remove_file(&target).map_err(|_| WriteError::FileSystemFailed)
+        fs::remove_file(&target)
+            .map_err(|error| WriteError::Diagnostic(Diagnostic::io("discard.removeFile", &error)))
     }
 }
 
 fn git_success(repository: &Path, args: &[&str]) -> Result<bool, WriteError> {
-    git_command(repository)
+    let output = git_command(repository)
         .args(args)
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|status| status.success())
-        .map_err(|_| WriteError::GitFailed)
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|error| {
+            WriteError::Diagnostic(Diagnostic::command_io("write.probe", args, &error))
+        })?;
+    if output.status.success() {
+        return Ok(true);
+    }
+    // An unborn HEAD is expected. Corrupt configuration, inaccessible metadata
+    // or an invalid repository must not be interpreted as an empty repository.
+    if output.status.code() == Some(128)
+        && String::from_utf8_lossy(&output.stderr).contains("Needed a single revision")
+    {
+        return Ok(false);
+    }
+    Err(WriteError::Diagnostic(Diagnostic::command(
+        "write.probe",
+        args,
+        &output,
+    )))
 }
 
 fn git_has_paths(repository: &Path, args: &[&str]) -> Result<bool, WriteError> {
     let output = git_command(repository)
         .args(args)
         .output()
-        .map_err(|error| WriteError::GitFailedWithOutput(error.to_string()))?;
+        .map_err(|error| {
+            WriteError::Diagnostic(Diagnostic::command_io("write.hasPaths", args, &error))
+        })?;
     if !output.status.success() {
-        return Err(WriteError::GitFailedWithOutput(
-            String::from_utf8_lossy(&output.stderr).into_owned(),
-        ));
+        return Err(WriteError::Diagnostic(Diagnostic::command(
+            "write.hasPaths",
+            args,
+            &output,
+        )));
     }
     Ok(!output.stdout.is_empty())
 }
@@ -634,25 +672,37 @@ fn run_git(repository: &Path, args: &[&str], stdin: Option<&[u8]>) -> Result<(),
     if stdin.is_some() {
         command.stdin(Stdio::piped());
     }
-    let mut child = command.spawn().map_err(|_| WriteError::GitFailed)?;
-    if let Some(input) = stdin {
+    let mut child = command.spawn().map_err(|error| {
+        WriteError::Diagnostic(Diagnostic::command_io("write.spawn", args, &error))
+    })?;
+    let input_result = if let Some(input) = stdin {
         child
             .stdin
             .take()
-            .ok_or(WriteError::GitFailed)?
-            .write_all(input)
-            .map_err(|_| WriteError::GitFailed)?;
-    }
-    let output = child
-        .wait_with_output()
-        .map_err(|error| WriteError::GitFailedWithOutput(error.to_string()))?;
-    if output.status.success() {
-        Ok(())
+            .ok_or_else(|| {
+                WriteError::Diagnostic(Diagnostic::new("write.input", "Git did not open stdin"))
+            })
+            .and_then(|mut pipe| {
+                pipe.write_all(input).map_err(|error| {
+                    WriteError::Diagnostic(Diagnostic::command_io("write.input", args, &error))
+                })
+            })
     } else {
-        Err(WriteError::GitFailedWithOutput(
-            String::from_utf8_lossy(&output.stderr).into_owned(),
-        ))
+        Ok(())
+    };
+    // Always close input and reap Git. Its stderr explains early rejection more
+    // accurately than the BrokenPipe generated while sending the selected patch.
+    let output = child.wait_with_output().map_err(|error| {
+        WriteError::Diagnostic(Diagnostic::command_io("write.wait", args, &error))
+    })?;
+    if !output.status.success() {
+        return Err(WriteError::Diagnostic(Diagnostic::command(
+            "write.execute",
+            args,
+            &output,
+        )));
     }
+    input_result
 }
 
 fn git_command(repository: &Path) -> Command {
@@ -669,13 +719,16 @@ fn git_command(repository: &Path) -> Command {
 
 fn map_diff_error(error: ReadDiffError) -> WriteError {
     match error {
-        ReadDiffError::Cancelled => WriteError::GitFailed,
+        ReadDiffError::Cancelled => WriteError::Cancelled,
         ReadDiffError::InvalidPath => WriteError::InvalidPath,
         ReadDiffError::UnsupportedEncoding(_) => WriteError::UnsupportedSelection,
         ReadDiffError::InvalidPathEncoding => WriteError::InvalidPathEncoding,
         ReadDiffError::RevisionNotFound(_) => WriteError::GitFailed,
         ReadDiffError::MalformedOutput => WriteError::MalformedDiff,
-        ReadDiffError::GitFailed => WriteError::GitFailed,
+        ReadDiffError::Diagnostic(diagnostic) => WriteError::Diagnostic(diagnostic),
+        ReadDiffError::WithDiagnostic(error, diagnostic) => {
+            WriteError::WithDiagnostic(Box::new(map_diff_error(*error)), diagnostic)
+        }
     }
 }
 
@@ -1438,5 +1491,23 @@ mod tests {
             output(temporary.path(), &["show", ":sin-final.txt"]),
             "UNO\ndos"
         );
+    }
+    #[test]
+    fn failed_stage_keeps_index_lock_stderr_and_command() {
+        let temporary = repository();
+        let root = temporary.path();
+        fs::write(root.join("private.txt"), "PRIVATE_FILE_CONTENT\n").unwrap();
+        fs::write(root.join(".git/index.lock"), "held").unwrap();
+        let error = stage(root, &["private.txt".into()]).unwrap_err();
+        let WriteError::Diagnostic(diagnostic) = error else {
+            panic!("Unexpected classification: {error:?}");
+        };
+        let value = serde_json::to_value(diagnostic).unwrap();
+        assert_eq!(value["stage"], "write.execute");
+        assert_eq!(value["exitCode"], 128);
+        assert_eq!(value["command"]["args"][0], "add");
+        assert!(value["stderr"].as_str().unwrap().contains("index.lock"));
+        assert!(!value.to_string().contains("PRIVATE_FILE_CONTENT"));
+        assert!(value.get("stdout").is_none());
     }
 }

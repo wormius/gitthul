@@ -28,10 +28,29 @@ En el visor puedes filtrar por nivel y ámbito, o buscar texto. Cada entrada pue
 mostrar el repositorio, el resultado y la duración; **Datos técnicos** amplía la
 información de la operación y su entorno.
 
+Cada fallo conserva su código, el paso que falló, las causas internas disponibles
+y un identificador que relaciona la operación con su diagnóstico nativo. Cuando
+falla un comando Git, incluye sus argumentos protegidos, el código de salida
+y `stderr`; un fallo de disco puede incluir el tipo de error y el código del
+sistema. Los errores de JavaScript incluyen la traza disponible.
+
+El fallo también incluye hasta 12 pasos anteriores del mismo repositorio y
+operaciones globales, con su resultado y duración. Estos pasos no contienen
+mensajes ni contenido de archivos. Esta información se conserva en modo normal;
+debug añade las lecturas y resultados rutinarios al historial completo.
+
 Los filtros cambian lo que ves, no lo que se registra. Exportar **avisos y
 errores** conserva las incidencias; exportar **todos** incluye también los pasos
 retenidos de los demás niveles. La búsqueda y los filtros del visor no recortan
 la exportación.
+
+El archivo es JSONL: cada línea es un objeto JSON. La primera línea,
+`diagnostic.report`, resume el intervalo de tiempo, los niveles, las sesiones
+y hasta 50 grupos de incidencias, con frecuencia, causa y una operación de
+ejemplo. El entorno incluye versiones de GitThul y Git; en Linux también la
+distribución, glibc y el tipo de sesión gráfica cuando estén disponibles.
+Las líneas siguientes contienen las entradas seleccionadas sin eliminar
+repeticiones. El formato 3 conserva la lectura de entradas antiguas.
 
 ## Reportar un problema
 
@@ -49,6 +68,11 @@ GitThul omite mensajes de commit y stash, contenido de archivos, secretos de
 credenciales, entrada y salida de la terminal, historial de comandos y contenido
 del portapapeles. También elimina patrones conocidos de contraseñas y tokens
 de los diagnósticos.
+La protección se aplica al capturar, guardar y exportar; también protege las
+entradas antiguas durante su lectura. Los argumentos libres que una herramienta
+repita en un error se ocultan cuando GitThul conoce el valor original. Los
+errores de parsers que contienen datos privados conservan su categoría y etapa
+sin copiar esos datos.
 
 Los registros pueden contener rutas locales, nombres de referencias y salida
 de Git. Los hooks y otras herramientas pueden escribir información adicional;
@@ -63,5 +87,8 @@ registros que todavía se conservan.
 Los archivos rotan al alcanzar aproximadamente 2 MiB y se conserva una rotación
 anterior. Por eso las entradas antiguas pueden dejar de estar disponibles. Un
 cierre abrupto o un fallo de disco también pueden impedir guardar evidencia.
+El reporte indica sus límites de conservación; los recortes, registros ilegibles
+y fallos conocidos de almacenamiento se señalan explícitamente. Limpiar registros
+también elimina el contexto de operaciones anteriores en memoria.
 Los registros ayudan al diagnóstico, pero no sustituyen un respaldo del
 repositorio.

@@ -551,6 +551,7 @@ export const fr: Messages = {
   'working.refPanel.emptyWorktrees': 'Aucun autre worktree',
   'working.refRow.tracking':
     '{ahead} commits d’avance et {behind} de retard sur la branche de suivi',
+  'working.upstreamMissing': 'La branche de suivi {upstream} n’existe plus.',
 
   // GitActionBar — actions locales/réseau et accès contextuel au Terminal.
   'working.actionBar.label': 'Barre d’actions de GitWorking',
@@ -807,6 +808,10 @@ export const fr: Messages = {
   'working.dialog.branch.createTitle': 'Créer une branche depuis {from}',
   'working.dialog.remoteBranchAhead.title':
     '{branch} contient des commits locaux absents du dépôt distant',
+  'working.dialog.remoteBranchAhead.titleUnknown':
+    '{branch} et la branche distante ont des pointes différentes',
+  'working.dialog.remoteBranchAhead.descriptionUnknown':
+    'La branche de suivi {upstream} de {local} n’existe plus. Le nombre de commits d’avance ou de retard sur {remote} est donc inconnu. Vous pouvez aligner {local} sur la branche distante, créer une autre branche depuis sa pointe ou ne rien faire.',
   'working.dialog.remoteBranchAhead.description':
     '{local} contient {ahead} commits absents de {remote} et a {behind} commits de retard. Vous pouvez aligner {local} sur la branche distante, créer une autre branche depuis sa pointe ou ne rien faire.',
   'working.dialog.remoteBranchAhead.reset': 'Aligner {branch} sur la branche distante',
@@ -1208,6 +1213,10 @@ export const fr: Messages = {
   'working.operationBanner.kind.revert': 'revert',
   'working.operationBanner.kind.pop': 'stash pop',
   'working.operationBanner.kind.stashApply': 'stash apply',
+  'working.operationBanner.kind.autoStash': 'la réapplication de l’auto-stash',
+  'working.operationBanner.autoStashConflicts': 'Conflits lors de la restauration de l’auto-stash',
+  'working.operationBanner.abortAutoStash': 'Abandonner la restauration',
+  'resolve.stash.finishAutoStash': 'Terminer la restauration',
   'working.operationBanner.resolve': 'Résoudre',
 
   // GitActionBar alternative — F2.8
@@ -1507,11 +1516,16 @@ export const fr: Messages = {
   'resolve.operation.title': 'Résolution de {source} dans {target}',
   'resolve.standalone.title': 'Il reste des conflits non résolus dans {target}',
   'resolve.standalone.source': 'les modifications appliquées',
+  'resolve.standalone.detail':
+    'Ces conflits n’ont ni opération Git à abandonner ni point de récupération enregistré. Vous pouvez les résoudre ici ou récupérer l’état souhaité depuis le terminal.',
   'resolve.stash.popTitle': 'Résolution des conflits de stash pop sur {target}',
   'resolve.stash.applyTitle': 'Résolution des conflits de stash apply sur {target}',
   'resolve.stash.finishPop': 'Conserver les modifications et terminer stash pop',
   'resolve.stash.finishApply': 'Conserver les modifications appliquées',
   'resolve.stash.cancel': 'Annuler et revenir à l’état précédent',
+  'resolve.stash.autoStashTitle': 'Résolution des conflits de l’auto-stash sur {target}',
+  'resolve.stash.autoStashDetail':
+    'La branche est déjà mise à jour. En cas d’abandon, vos modifications locales restent enregistrées dans le stash.',
   'resolve.focus.one': 'Conflit dans 1 fichier — résolvez-le pour continuer',
   'resolve.focus.many': 'Conflit dans {count} fichiers — résolvez-les pour continuer',
   'resolve.focus.detail':
@@ -1660,6 +1674,10 @@ export const fr: Messages = {
     'La branche a changé, mais le stash automatique a été conservé comme sauvegarde car sa restauration a provoqué des conflits.',
   'error.branch.exists.title': 'Une branche nommée {branch} existe déjà',
   'error.branch.exists.cause': 'Deux branches ne peuvent pas partager un nom dans le même dépôt.',
+  'error.branch.checkoutBlocked.title':
+    'Passer à {branch} écraserait des fichiers locaux. Créez d’abord un stash ou un commit avec vos modifications',
+  'error.branch.checkoutBlocked.cause':
+    'Git a arrêté le changement de branche car il écraserait des fichiers ou des modifications locales. Incluez les fichiers non suivis concernés dans le stash, ou ajoutez-les à l’index et créez un commit, puis réessayez.',
   'error.branch.current.title': '{branch} est la branche active',
   'error.branch.current.cause':
     'Git ne peut pas supprimer la branche utilisée. Passez à une autre branche et réessayez.',
@@ -1684,6 +1702,10 @@ export const fr: Messages = {
   'error.tag.identityMissing.cause':
     'Un tag annoté nécessite le nom et l’adresse e-mail de son auteur, qui ne sont pas encore configurés.',
   'error.stash.nothingToStash.title': 'Aucune modification pour créer un stash',
+  'error.stash.autoConflict.title':
+    'La branche a été mise à jour, mais la réapplication de l’auto-stash a laissé {count} fichiers en conflit',
+  'error.stash.autoConflict.cause':
+    'Résolvez les conflits ou abandonnez la réapplication. La branche mise à jour est conservée et, en cas d’abandon, vos modifications locales restent dans le stash.',
   'error.stash.nothingToStash.cause':
     'L’arbre de travail est propre. Un stash nécessite des modifications en attente de commit.',
   'error.stash.conflict.title':
@@ -1794,6 +1816,8 @@ export const fr: Messages = {
   'errorFix.abortRebase': 'Abandonner le rebase et restaurer {source}',
   'errorFix.continueOperation': 'Continuer l’opération',
   'errorFix.abortOperation': 'Abandonner l’opération et restaurer le dépôt',
+  'errorFix.abortStashRestore':
+    'Abandonner la réapplication et conserver les modifications locales dans le stash',
   'errorFix.openWorktree': 'Ouvrir le worktree de {path}',
   'errorFix.stashAndSwitch': 'Créer un stash avec les modifications et passer à {branch}',
   'errorFix.discardChanges':

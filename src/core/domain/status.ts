@@ -81,8 +81,11 @@ export interface WorkingStatus {
   commitPrecondition?: CommitPrecondition;
   /** Permite que Reset rechace una confirmación obsoleta antes de sobrescribir. */
   resetPrecondition?: ResetPrecondition;
-  /** Recuperación privada disponible para terminar o cancelar un stash conflictivo. */
-  recoveryOperation?: 'apply' | 'pop';
+  /**
+   * Recuperación privada de un stash conflictivo. En autoStash, HEAD ya se actualizó:
+   * abortar solo cancela la reaplicación y conserva los cambios originales en el stash.
+   */
+  recoveryOperation?: 'apply' | 'pop' | 'autoStash';
 }
 
 /**

@@ -545,6 +545,7 @@ export const en: Messages = {
   'working.refPanel.emptyStashes': 'No stashes',
   'working.refPanel.emptyWorktrees': 'No worktrees besides this one',
   'working.refRow.tracking': '{ahead} commits ahead and {behind} behind the upstream branch',
+  'working.upstreamMissing': 'Upstream {upstream} no longer exists.',
 
   // GitActionBar — local/network actions and contextual access to Terminal.
   'working.actionBar.label': 'GitWorking action bar',
@@ -800,6 +801,9 @@ export const en: Messages = {
     'The chosen commits are not consecutive: they are applied in history order, oldest first.',
   'working.dialog.branch.createTitle': 'Create a branch from {from}',
   'working.dialog.remoteBranchAhead.title': '{branch} has local commits of its own',
+  'working.dialog.remoteBranchAhead.titleUnknown': '{branch} and the remote have different tips',
+  'working.dialog.remoteBranchAhead.descriptionUnknown':
+    'The upstream {upstream} of {local} no longer exists, so commit counts against {remote} are unavailable. You can align {local} with the remote, create another branch from the remote tip, or do nothing.',
   'working.dialog.remoteBranchAhead.description':
     '{local} has {ahead} commits that are not in {remote} and is {behind} commits behind. You can align {local} with the remote, create another branch from the remote tip, or do nothing.',
   'working.dialog.remoteBranchAhead.reset': 'Align {branch} with remote',
@@ -1194,6 +1198,10 @@ export const en: Messages = {
   'working.operationBanner.kind.revert': 'revert',
   'working.operationBanner.kind.pop': 'stash pop',
   'working.operationBanner.kind.stashApply': 'stash apply',
+  'working.operationBanner.kind.autoStash': 'auto-stash restoration',
+  'working.operationBanner.autoStashConflicts': 'Conflicts while restoring the auto-stash',
+  'working.operationBanner.abortAutoStash': 'Abort restoration',
+  'resolve.stash.finishAutoStash': 'Finish restoration',
   'working.operationBanner.resolve': 'Resolve',
 
   // GitActionBar alternative — F2.8
@@ -1487,11 +1495,16 @@ export const en: Messages = {
   'resolve.operation.title': 'Resolving {source} into {target}',
   'resolve.standalone.title': 'There are unresolved conflicts on {target}',
   'resolve.standalone.source': 'the applied changes',
+  'resolve.standalone.detail':
+    'These conflicts have no abortable Git operation or recorded recovery point. You can resolve them here or recover the state you need from the terminal.',
   'resolve.stash.popTitle': 'Resolving stash pop conflicts on {target}',
   'resolve.stash.applyTitle': 'Resolving stash apply conflicts on {target}',
   'resolve.stash.finishPop': 'Keep changes and finish stash pop',
   'resolve.stash.finishApply': 'Keep the applied changes',
   'resolve.stash.cancel': 'Cancel and return to the previous state',
+  'resolve.stash.autoStashTitle': 'Resolving auto-stash conflicts on {target}',
+  'resolve.stash.autoStashDetail':
+    'The branch is already updated. Aborting keeps your local changes saved in the stash.',
   'resolve.focus.one': 'Conflict in 1 file — resolve it to continue',
   'resolve.focus.many': 'Conflict in {count} files — resolve them to continue',
   'resolve.focus.detail':
@@ -1636,6 +1649,10 @@ export const en: Messages = {
     'The branch changed, but the automatic stash was kept as a backup because restoring it caused conflicts.',
   'error.branch.exists.title': 'A branch called {branch} already exists',
   'error.branch.exists.cause': 'Two branches cannot share a name inside the same repository.',
+  'error.branch.checkoutBlocked.title':
+    'Switching to {branch} would overwrite local files. Stash your changes or commit them first',
+  'error.branch.checkoutBlocked.cause':
+    'Git stopped the branch switch because it would overwrite local files or changes. Include the affected untracked files in the stash, or stage and commit them, then try again.',
   'error.branch.current.title': '{branch} is the current branch',
   'error.branch.current.cause':
     'Git cannot delete the branch that is in use. Switch to another branch and try again.',
@@ -1658,6 +1675,10 @@ export const en: Messages = {
   'error.tag.identityMissing.cause':
     'An annotated tag needs the name and email of its creator, and they are not configured yet.',
   'error.stash.nothingToStash.title': 'There are no changes to stash',
+  'error.stash.autoConflict.title':
+    'The branch was updated, but auto-stash restoration left {count} files in conflict',
+  'error.stash.autoConflict.cause':
+    'Resolve the conflicts or abort the restoration. The updated branch stays in place; aborting keeps your local changes in the stash.',
   'error.stash.nothingToStash.cause':
     'The working tree is clean. A stash requires uncommitted changes.',
   'error.stash.conflict.title': 'Applying {stash} on {branch} left {count} files in conflict',
@@ -1767,6 +1788,7 @@ export const en: Messages = {
   'errorFix.abortRebase': 'Abort the rebase and leave {source} as it was',
   'errorFix.continueOperation': 'Continue the operation',
   'errorFix.abortOperation': 'Abort the operation and leave the repository as it was',
+  'errorFix.abortStashRestore': 'Abort restoration and keep local changes in the stash',
   'errorFix.openWorktree': 'Open the worktree in {path}',
   'errorFix.stashAndSwitch': 'Stash the changes and switch to {branch}',
   'errorFix.discardChanges': 'Discard the changes in {count} files and switch to {branch}',

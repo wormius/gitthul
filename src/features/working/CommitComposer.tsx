@@ -250,7 +250,8 @@ export function CommitComposer({
     submit();
   }, [clearRequest, request, submit, toggleAmend]);
 
-  const published = head !== null && head.ahead === 0 && head.upstream !== undefined;
+  const published =
+    head !== null && !head.upstreamMissing && head.ahead === 0 && head.upstream !== undefined;
 
   return (
     <section

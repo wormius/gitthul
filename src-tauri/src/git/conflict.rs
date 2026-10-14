@@ -5,17 +5,17 @@ use std::process::Output;
 
 use serde::Serialize;
 
-use super::{encoding, repository};
+use super::{diagnostics::Diagnostic, encoding, repository};
 
 const MAX_BYTES: usize = 5 * 1024 * 1024;
 const MAX_LINES: usize = 50_000;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ReadConflictError {
+    Diagnostic(Diagnostic),
     UnsupportedEncoding(String),
     NotConflicted,
     InvalidPathEncoding,
-    GitFailed,
     MalformedOutput,
 }
 
@@ -166,12 +166,21 @@ fn read_stages(
         repository,
         &["ls-files", "--unmerged", "-z", "--", requested_path],
     )?;
+    parse_stages(&output.stdout, requested_path).map_err(|error| match error {
+        ReadConflictError::MalformedOutput => ReadConflictError::Diagnostic(Diagnostic::new(
+            "conflict.parseIndexStages",
+            "Git returned malformed unmerged index records",
+        )),
+        error => error,
+    })
+}
+
+fn parse_stages(
+    bytes: &[u8],
+    requested_path: &str,
+) -> Result<[Option<String>; 4], ReadConflictError> {
     let mut stages: [Option<String>; 4] = Default::default();
-    for record in output
-        .stdout
-        .split(|byte| *byte == 0)
-        .filter(|row| !row.is_empty())
-    {
+    for record in bytes.split(|byte| *byte == 0).filter(|row| !row.is_empty()) {
         let separator = record
             .iter()
             .position(|byte| *byte == b'\t')
@@ -257,11 +266,17 @@ fn git_output(repository: &Path, args: &[&str]) -> Result<Output, ReadConflictEr
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C")
         .output()
-        .map_err(|_| ReadConflictError::GitFailed)?;
+        .map_err(|error| {
+            ReadConflictError::Diagnostic(Diagnostic::command_io("conflict.command", args, &error))
+        })?;
     if output.status.success() {
         Ok(output)
     } else {
-        Err(ReadConflictError::GitFailed)
+        Err(ReadConflictError::Diagnostic(Diagnostic::command(
+            "conflict.command",
+            args,
+            &output,
+        )))
     }
 }
 

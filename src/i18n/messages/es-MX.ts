@@ -579,6 +579,7 @@ export const esMX = {
   'working.refPanel.emptyStashes': 'Sin stashes',
   'working.refPanel.emptyWorktrees': 'Sin worktrees además de este',
   'working.refRow.tracking': '{ahead} commits por delante y {behind} por detrás del upstream',
+  'working.upstreamMissing': 'El upstream {upstream} ya no existe.',
 
   // GitActionBar — acciones locales, de red y acceso contextual a Terminal.
   'working.actionBar.label': 'Barra de acciones de GitWorking',
@@ -837,6 +838,9 @@ export const esMX = {
     'Los commits elegidos no van seguidos: se aplican en el orden del historial, del más viejo al más nuevo.',
   'working.dialog.branch.createTitle': 'Crear una rama desde {from}',
   'working.dialog.remoteBranchAhead.title': '{branch} tiene commits locales propios',
+  'working.dialog.remoteBranchAhead.titleUnknown': '{branch} y la remota tienen puntas distintas',
+  'working.dialog.remoteBranchAhead.descriptionUnknown':
+    'El upstream {upstream} de {local} ya no existe y no hay conteos disponibles frente a {remote}. Puedes alinear {local} con la remota, crear otra rama desde la punta remota o no hacer nada.',
   'working.dialog.remoteBranchAhead.description':
     '{local} tiene {ahead} commits que no están en {remote} y está {behind} commits atrás. Puedes alinear {local} con la remota, crear otra rama desde la punta remota o no hacer nada.',
   'working.dialog.remoteBranchAhead.reset': 'Alinear {branch} con la remota',
@@ -1236,6 +1240,10 @@ export const esMX = {
   'working.operationBanner.kind.revert': 'revert',
   'working.operationBanner.kind.pop': 'stash pop',
   'working.operationBanner.kind.stashApply': 'stash apply',
+  'working.operationBanner.kind.autoStash': 'la reaplicación del auto-stash',
+  'working.operationBanner.autoStashConflicts': 'Conflictos al restaurar el stash automático',
+  'working.operationBanner.abortAutoStash': 'Abortar restauración',
+  'resolve.stash.finishAutoStash': 'Terminar restauración',
   'working.operationBanner.resolve': 'Resolver',
 
   // GitActionBar alternativa — F2.8
@@ -1545,11 +1553,16 @@ export const esMX = {
   'resolve.operation.title': 'Resolviendo {source} dentro de {target}',
   'resolve.standalone.title': 'Hay conflictos sin resolver en {target}',
   'resolve.standalone.source': 'los cambios aplicados',
+  'resolve.standalone.detail':
+    'Estos conflictos no tienen una operación Git abortable ni un punto de recuperación registrado. Puedes resolverlos aquí o recuperar el estado que necesites desde la terminal.',
   'resolve.stash.popTitle': 'Resolviendo los conflictos de stash pop en {target}',
   'resolve.stash.applyTitle': 'Resolviendo los conflictos de stash apply en {target}',
   'resolve.stash.finishPop': 'Conservar los cambios y terminar stash pop',
   'resolve.stash.finishApply': 'Conservar los cambios aplicados',
   'resolve.stash.cancel': 'Cancelar y volver al estado anterior',
+  'resolve.stash.autoStashTitle': 'Resolviendo los conflictos del auto-stash en {target}',
+  'resolve.stash.autoStashDetail':
+    'La rama ya está actualizada. Al abortar, tus cambios locales quedan guardados en el stash.',
   'resolve.focus.one': 'Conflicto en 1 archivo — resuélvelo para continuar',
   'resolve.focus.many': 'Conflicto en {count} archivos — resuélvelos para continuar',
   'resolve.focus.detail':
@@ -1695,6 +1708,10 @@ export const esMX = {
     'Se cambió de rama, pero hubo conflictos al restaurar los cambios. El stash automático se conservó como respaldo.',
   'error.branch.exists.title': 'Ya existe una rama llamada {branch}',
   'error.branch.exists.cause': 'Dos ramas no pueden compartir nombre dentro del mismo repositorio.',
+  'error.branch.checkoutBlocked.title':
+    'Cambiar a {branch} sobrescribiría archivos locales. Crea un stash o haz commit primero',
+  'error.branch.checkoutBlocked.cause':
+    'Git detuvo el cambio de rama porque sobrescribiría archivos o cambios locales. Incluye los archivos sin seguimiento afectados en el stash, o agrégalos al staging y haz commit, y vuelve a intentarlo.',
   'error.branch.current.title': '{branch} es la rama activa',
   'error.branch.current.cause':
     'Git no puede eliminar la rama que está en uso. Cambia a otra rama y vuelve a intentarlo.',
@@ -1718,6 +1735,10 @@ export const esMX = {
   'error.tag.identityMissing.cause':
     'Un tag anotado necesita el nombre y correo de quien lo crea, y todavía no están configurados.',
   'error.stash.nothingToStash.title': 'No hay cambios para crear un stash',
+  'error.stash.autoConflict.title':
+    'La rama se actualizó, pero el auto-stash dejó {count} archivos en conflicto',
+  'error.stash.autoConflict.cause':
+    'Resuelve los conflictos o aborta la reaplicación. La rama actualizada se conserva y, al abortar, tus cambios locales quedan guardados en el stash.',
   'error.stash.nothingToStash.cause':
     'El árbol de trabajo está limpio. Un stash requiere cambios pendientes de commit.',
   'error.stash.conflict.title': 'Aplicar {stash} sobre {branch} dejó {count} archivos en conflicto',
@@ -1826,6 +1847,8 @@ export const esMX = {
   'errorFix.abortRebase': 'Abortar el rebase y dejar {source} como estaba',
   'errorFix.continueOperation': 'Continuar la operación',
   'errorFix.abortOperation': 'Abortar la operación y dejar el repositorio como estaba',
+  'errorFix.abortStashRestore':
+    'Abortar la reaplicación y conservar los cambios locales en el stash',
   'errorFix.openWorktree': 'Abrir el worktree de {path}',
   'errorFix.stashAndSwitch': 'Crear un stash con los cambios y cambiar a {branch}',
   'errorFix.discardChanges': 'Descartar los cambios de {count} archivos y cambiar a {branch}',

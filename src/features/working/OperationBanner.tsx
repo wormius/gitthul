@@ -52,6 +52,7 @@ export function OperationBanner({
 
   return (
     <Banner
+      layout="stacked"
       variant={hasConflicts ? 'warning' : 'info'}
       title={title}
       actions={

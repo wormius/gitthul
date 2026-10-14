@@ -551,6 +551,7 @@ export const de: Messages = {
   'working.refPanel.emptyStashes': 'Keine Stashes',
   'working.refPanel.emptyWorktrees': 'Keine weiteren Worktrees',
   'working.refRow.tracking': '{ahead} Commits vor und {behind} hinter dem Upstream-Branch',
+  'working.upstreamMissing': 'Der Upstream-Branch {upstream} existiert nicht mehr.',
 
   // GitActionBar — lokale/Netzwerk-Aktionen und kontextueller Terminal-Zugriff.
   'working.actionBar.label': 'Aktionsleiste von GitWorking',
@@ -806,6 +807,10 @@ export const de: Messages = {
     'Die gewählten Commits liegen nicht hintereinander: sie werden in der Reihenfolge des Verlaufs angewendet, vom ältesten zum neuesten.',
   'working.dialog.branch.createTitle': 'Branch von {from} erstellen',
   'working.dialog.remoteBranchAhead.title': '{branch} hat eigene lokale Commits',
+  'working.dialog.remoteBranchAhead.titleUnknown':
+    '{branch} und der Remote-Branch haben verschiedene Spitzen',
+  'working.dialog.remoteBranchAhead.descriptionUnknown':
+    'Der Upstream-Branch {upstream} von {local} existiert nicht mehr. Die Anzahl der Commits vor oder hinter {remote} ist daher unbekannt. Du kannst {local} an den Remote-Branch angleichen, dort einen neuen Branch erstellen oder nichts tun.',
   'working.dialog.remoteBranchAhead.description':
     '{local} enthält {ahead} Commits, die nicht in {remote} liegen, und liegt {behind} Commits zurück. Du kannst {local} an den Remote-Branch angleichen, dort einen neuen Branch erstellen oder nichts tun.',
   'working.dialog.remoteBranchAhead.reset': '{branch} an Remote angleichen',
@@ -1210,6 +1215,10 @@ export const de: Messages = {
   'working.operationBanner.kind.revert': 'Revert',
   'working.operationBanner.kind.pop': 'stash pop',
   'working.operationBanner.kind.stashApply': 'stash apply',
+  'working.operationBanner.kind.autoStash': 'die Wiederherstellung des Auto-Stash',
+  'working.operationBanner.autoStashConflicts': 'Konflikte beim Wiederherstellen des Auto-Stash',
+  'working.operationBanner.abortAutoStash': 'Wiederherstellung abbrechen',
+  'resolve.stash.finishAutoStash': 'Wiederherstellung abschließen',
   'working.operationBanner.resolve': 'Auflösen',
 
   // GitActionBar Alternative — F2.8
@@ -1508,11 +1517,16 @@ export const de: Messages = {
   'resolve.operation.title': '{source} in {target} auflösen',
   'resolve.standalone.title': 'In {target} gibt es ungelöste Konflikte',
   'resolve.standalone.source': 'die angewendeten Änderungen',
+  'resolve.standalone.detail':
+    'Für diese Konflikte gibt es weder einen abbrechbaren Git-Vorgang noch einen gespeicherten Wiederherstellungspunkt. Du kannst sie hier lösen oder den benötigten Zustand im Terminal wiederherstellen.',
   'resolve.stash.popTitle': 'Konflikte von stash pop auf {target} lösen',
   'resolve.stash.applyTitle': 'Konflikte von stash apply auf {target} lösen',
   'resolve.stash.finishPop': 'Änderungen behalten und stash pop abschließen',
   'resolve.stash.finishApply': 'Angewendete Änderungen behalten',
   'resolve.stash.cancel': 'Abbrechen und zum vorherigen Zustand zurückkehren',
+  'resolve.stash.autoStashTitle': 'Auto-Stash-Konflikte auf {target} lösen',
+  'resolve.stash.autoStashDetail':
+    'Der Branch ist bereits aktualisiert. Beim Abbrechen bleiben deine lokalen Änderungen im Stash gespeichert.',
   'resolve.focus.one': 'Konflikt in 1 Datei — zum Fortfahren auflösen',
   'resolve.focus.many': 'Konflikt in {count} Dateien — zum Fortfahren auflösen',
   'resolve.focus.detail':
@@ -1661,6 +1675,10 @@ export const de: Messages = {
   'error.branch.exists.title': 'Ein Branch namens {branch} existiert bereits',
   'error.branch.exists.cause':
     'Zwei Branches können sich im selben Repository keinen Namen teilen.',
+  'error.branch.checkoutBlocked.title':
+    'Der Wechsel zu {branch} würde lokale Dateien überschreiben. Erstelle zuerst einen Stash oder Commit mit deinen Änderungen',
+  'error.branch.checkoutBlocked.cause':
+    'Git hat den Branch-Wechsel gestoppt, weil lokale Dateien oder Änderungen überschrieben würden. Nimm betroffene unversionierte Dateien in den Stash auf oder füge sie zum Staging hinzu und erstelle einen Commit. Versuche es dann erneut.',
   'error.branch.current.title': '{branch} ist der aktuelle Branch',
   'error.branch.current.cause':
     'Git kann den verwendeten Branch nicht löschen. Wechsle zu einem anderen Branch und versuche es erneut.',
@@ -1684,6 +1702,10 @@ export const de: Messages = {
   'error.tag.identityMissing.cause':
     'Ein annotierter Tag benötigt Name und E-Mail der erstellenden Person; beides ist noch nicht konfiguriert.',
   'error.stash.nothingToStash.title': 'Keine Änderungen für einen Stash vorhanden',
+  'error.stash.autoConflict.title':
+    'Der Branch wurde aktualisiert, aber beim Wiederherstellen des Auto-Stash entstanden Konflikte in {count} Dateien',
+  'error.stash.autoConflict.cause':
+    'Löse die Konflikte oder brich die Wiederherstellung ab. Der aktualisierte Branch bleibt erhalten; beim Abbrechen bleiben deine lokalen Änderungen im Stash.',
   'error.stash.nothingToStash.cause':
     'Der Arbeitsbaum ist sauber. Ein Stash benötigt Änderungen ohne Commit.',
   'error.stash.conflict.title':
@@ -1796,6 +1818,8 @@ export const de: Messages = {
   'errorFix.abortRebase': 'Rebase abbrechen und {source} so lassen, wie es war',
   'errorFix.continueOperation': 'Die Operation fortsetzen',
   'errorFix.abortOperation': 'Die Operation abbrechen und das Repository so lassen, wie es war',
+  'errorFix.abortStashRestore':
+    'Wiederherstellung abbrechen und lokale Änderungen im Stash behalten',
   'errorFix.openWorktree': 'Den Worktree in {path} öffnen',
   'errorFix.stashAndSwitch': 'Stash mit den Änderungen erstellen und zu {branch} wechseln',
   'errorFix.discardChanges': 'Änderungen in {count} Dateien verwerfen und zu {branch} wechseln',

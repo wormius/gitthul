@@ -6,7 +6,7 @@ use std::process::Output;
 
 use serde::Serialize;
 
-use super::{history, refs};
+use super::{diagnostics::Diagnostic, history, refs};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,8 +53,10 @@ struct RawChange {
     change: ChangeType,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReadDetailError {
+    Diagnostic(Diagnostic),
+    WithDiagnostic(Box<Self>, Diagnostic),
     CommitEncoding,
     RefEncoding,
     PathEncoding,
@@ -64,23 +66,29 @@ pub enum ReadDetailError {
 }
 
 pub fn read(path: &Path, sha: &str) -> Result<CommitDetails, ReadDetailError> {
-    let repo = gix::open(path).map_err(|_| ReadDetailError::GitFailed)?;
-    let id = gix::ObjectId::from_hex(sha.as_bytes()).map_err(|_| ReadDetailError::NotFound)?;
-    let object = repo
-        .find_commit(id)
-        .map_err(|_| ReadDetailError::NotFound)?;
+    let repo = gix::open(path).map_err(|error| {
+        ReadDetailError::Diagnostic(Diagnostic::cause("commit.openRepository", &error))
+    })?;
+    let id = gix::ObjectId::from_hex(sha.as_bytes()).map_err(|error| {
+        ReadDetailError::WithDiagnostic(
+            Box::new(ReadDetailError::NotFound),
+            Diagnostic::new("commit.validateObjectId", error),
+        )
+    })?;
+    let object = repo.find_commit(id).map_err(|error| {
+        ReadDetailError::WithDiagnostic(
+            Box::new(ReadDetailError::NotFound),
+            Diagnostic::cause("commit.findObject", &error),
+        )
+    })?;
     let parent = object
         .decode()
-        .map_err(|_| ReadDetailError::GitFailed)?
+        .map_err(|error| {
+            ReadDetailError::Diagnostic(Diagnostic::cause("commit.decodeObject", &error))
+        })?
         .parents()
         .next();
-    let commit = history::read_commit(&repo, id).map_err(|error| match error {
-        history::ReadHistoryError::InvalidEncoding => ReadDetailError::CommitEncoding,
-        history::ReadHistoryError::StartNotFound => ReadDetailError::NotFound,
-        history::ReadHistoryError::Cancelled | history::ReadHistoryError::GitFailed => {
-            ReadDetailError::GitFailed
-        }
-    })?;
+    let commit = history::read_commit(&repo, id).map_err(map_history_error)?;
     let files = if is_stash(path, sha)? {
         read_stash_files(path, sha)?
     } else {
@@ -92,15 +100,28 @@ pub fn read(path: &Path, sha: &str) -> Result<CommitDetails, ReadDetailError> {
     };
     let refs = refs::names_at(path, id).map_err(|error| match error {
         refs::ReadRefsError::InvalidEncoding => ReadDetailError::RefEncoding,
-        refs::ReadRefsError::GitFailed | refs::ReadRefsError::MalformedOutput => {
-            ReadDetailError::GitFailed
-        }
+        refs::ReadRefsError::GitFailed(diagnostic) => ReadDetailError::Diagnostic(diagnostic),
+        error => ReadDetailError::Diagnostic(Diagnostic::new("commit.readReferences", error)),
     })?;
     Ok(CommitDetails {
         commit,
         files,
         refs,
     })
+}
+
+fn map_history_error(error: history::ReadHistoryError) -> ReadDetailError {
+    match error {
+        history::ReadHistoryError::InvalidEncoding => ReadDetailError::CommitEncoding,
+        history::ReadHistoryError::StartNotFound => ReadDetailError::NotFound,
+        history::ReadHistoryError::Diagnostic(diagnostic) => {
+            ReadDetailError::Diagnostic(diagnostic)
+        }
+        history::ReadHistoryError::WithDiagnostic(error, diagnostic) => {
+            ReadDetailError::WithDiagnostic(Box::new(map_history_error(*error)), diagnostic)
+        }
+        history::ReadHistoryError::Cancelled => ReadDetailError::GitFailed,
+    }
 }
 
 fn is_stash(repository: &Path, sha: &str) -> Result<bool, ReadDetailError> {
@@ -113,8 +134,10 @@ fn is_stash(repository: &Path, sha: &str) -> Result<bool, ReadDetailError> {
 fn read_stash_files(repository: &Path, sha: &str) -> Result<Vec<FileChange>, ReadDetailError> {
     let raw = stash_diff_output(repository, sha, "--raw")?;
     let stats = stash_diff_output(repository, sha, "--numstat")?;
-    let stats = parse_numstat(&stats.stdout)?;
-    parse_raw(&raw.stdout)?
+    let stats = parse_numstat(&stats.stdout)
+        .map_err(|error| parse_error("commit.parseFileStatistics", error))?;
+    parse_raw(&raw.stdout)
+        .map_err(|error| parse_error("commit.parseFileChanges", error))?
         .into_iter()
         .map(|entry| {
             let file_stats = stats.get(&entry.path).copied().unwrap_or_default();
@@ -161,8 +184,10 @@ fn read_files(
 ) -> Result<Vec<FileChange>, ReadDetailError> {
     let raw = diff_output(repository, parent, sha, "--raw")?;
     let stats = diff_output(repository, parent, sha, "--numstat")?;
-    let stats = parse_numstat(&stats.stdout)?;
-    parse_raw(&raw.stdout)?
+    let stats = parse_numstat(&stats.stdout)
+        .map_err(|error| parse_error("commit.parseFileStatistics", error))?;
+    parse_raw(&raw.stdout)
+        .map_err(|error| parse_error("commit.parseFileChanges", error))?
         .into_iter()
         .map(|entry| {
             let file_stats = stats.get(&entry.path).copied().unwrap_or_default();
@@ -216,6 +241,16 @@ fn diff_output(
     }
     args.push("--");
     git(repository, &args)
+}
+
+fn parse_error(stage: &str, error: ReadDetailError) -> ReadDetailError {
+    match error {
+        ReadDetailError::MalformedOutput => ReadDetailError::WithDiagnostic(
+            Box::new(ReadDetailError::MalformedOutput),
+            Diagnostic::new(stage, "Git returned malformed structured output"),
+        ),
+        error => error,
+    }
 }
 
 fn parse_raw(bytes: &[u8]) -> Result<Vec<RawChange>, ReadDetailError> {
@@ -338,11 +373,17 @@ fn git(repository: &Path, args: &[&str]) -> Result<Output, ReadDetailError> {
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C")
         .output()
-        .map_err(|_| ReadDetailError::GitFailed)?;
+        .map_err(|error| {
+            ReadDetailError::Diagnostic(Diagnostic::command_io("commit.command", args, &error))
+        })?;
     if output.status.success() {
         Ok(output)
     } else {
-        Err(ReadDetailError::GitFailed)
+        Err(ReadDetailError::Diagnostic(Diagnostic::command(
+            "commit.command",
+            args,
+            &output,
+        )))
     }
 }
 
@@ -479,10 +520,10 @@ mod tests {
     #[test]
     fn distingue_commit_inexistente() {
         let temporary = repository();
-        assert_eq!(
+        assert!(matches!(
             read(temporary.path(), &"f".repeat(40)).unwrap_err(),
-            ReadDetailError::NotFound
-        );
+            ReadDetailError::WithDiagnostic(error, _) if *error == ReadDetailError::NotFound
+        ));
     }
 
     #[cfg(unix)]
@@ -522,5 +563,49 @@ mod tests {
             read(path, &invalid).unwrap_err(),
             ReadDetailError::PathEncoding
         );
+    }
+    #[test]
+    fn malformed_commit_diagnostics_preserve_the_parser_cause_without_commit_contents() {
+        use std::io::Write;
+        let temporary = repository();
+        let mut child = Command::new("git")
+            .args([
+                "hash-object",
+                "--literally",
+                "-t",
+                "commit",
+                "-w",
+                "--stdin",
+            ])
+            .current_dir(temporary.path())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(
+                b"private malformed commit contents
+",
+            )
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(output.status.success());
+        let sha = String::from_utf8(output.stdout).unwrap().trim().to_owned();
+        let error = read(temporary.path(), &sha).unwrap_err();
+        let ReadDetailError::Diagnostic(diagnostic) = error else {
+            panic!("expected diagnostic, got {error:?}")
+        };
+        let value = serde_json::to_value(diagnostic).unwrap();
+        assert_eq!(value["stage"], "commit.decodeObject");
+        assert!(value["causes"][0]
+            .as_str()
+            .unwrap()
+            .contains("parsing failed"));
+        assert!(!value
+            .to_string()
+            .contains("private malformed commit contents"));
     }
 }

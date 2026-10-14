@@ -11,6 +11,8 @@ pub(crate) mod backup_store;
 mod commit;
 mod conflict;
 mod detail;
+mod diagnostic_privacy;
+mod diagnostics;
 mod diff;
 mod encoding;
 mod files;
@@ -73,7 +75,10 @@ pub async fn git_write_identity(
         Ok(identity)
     })
     .await
-    .map_err(|_| GitCommandError::internal("No se pudo aplicar la identidad"))?
+    .map_err(|error| {
+        GitCommandError::internal("No se pudo aplicar la identidad")
+            .with_diagnostic(diagnostics::Diagnostic::task("identity.join", &error))
+    })?
 }
 
 fn set_identity(
@@ -87,13 +92,39 @@ fn set_identity(
     {
         return Err(GitCommandError::new("commit.identityMissing", json!({})));
     }
-    let repo = gix::open(repository)
-        .map_err(|_| GitCommandError::internal("No se pudo abrir el repositorio"))?;
-    let worktree_config = crate::process::command("git")
+    let repo = gix::open(repository).map_err(|error| {
+        GitCommandError::internal("No se pudo abrir el repositorio").with_diagnostic(
+            diagnostics::Diagnostic::cause("identity.openRepository", &error),
+        )
+    })?;
+    let probe_args = ["config", "--bool", "--get", "extensions.worktreeConfig"];
+    let probe = crate::process::command("git")
         .current_dir(repository)
-        .args(["config", "--bool", "--get", "extensions.worktreeConfig"])
+        .args(probe_args)
+        .env("LC_ALL", "C")
         .output()
-        .is_ok_and(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).trim() == "true");
+        .map_err(|error| {
+            GitCommandError::internal("No se pudo consultar la configuración").with_diagnostic(
+                diagnostics::Diagnostic::command_io(
+                    "identity.probeWorktreeConfig",
+                    &probe_args,
+                    &error,
+                ),
+            )
+        })?;
+    if !probe.status.success() && probe.status.code() != Some(1) {
+        return Err(
+            GitCommandError::internal("No se pudo consultar la configuración").with_diagnostic(
+                diagnostics::Diagnostic::command(
+                    "identity.probeWorktreeConfig",
+                    &probe_args,
+                    &probe,
+                ),
+            ),
+        );
+    }
+    let worktree_config =
+        probe.status.success() && String::from_utf8_lossy(&probe.stdout).trim() == "true";
     let config = if worktree_config {
         repo.git_dir().join("config.worktree")
     } else {
@@ -106,37 +137,74 @@ fn set_identity(
         .write(true)
         .create_new(true)
         .open(&pending)
-        .map_err(|_| GitCommandError::internal("La configuración de Git está bloqueada"))?;
+        .map_err(|error| {
+            GitCommandError::internal("La configuración de Git está bloqueada").with_diagnostic(
+                diagnostics::Diagnostic::io("identity.openConfigLock", &error),
+            )
+        })?;
     let result = (|| {
         let contents = match std::fs::read(&config) {
             Ok(contents) => contents,
             Err(e) if worktree_config && e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-            Err(_) => {
-                return Err(GitCommandError::internal(
-                    "No se pudo leer la configuración",
-                ))
+            Err(error) => {
+                return Err(
+                    GitCommandError::internal("No se pudo leer la configuración").with_diagnostic(
+                        diagnostics::Diagnostic::io("identity.readConfig", &error),
+                    ),
+                )
             }
         };
-        file.write_all(&contents)
-            .map_err(|_| GitCommandError::internal("No se pudo escribir la configuración"))?;
+        file.write_all(&contents).map_err(|error| {
+            GitCommandError::internal("No se pudo escribir la configuración").with_diagnostic(
+                diagnostics::Diagnostic::io("identity.writePendingConfig", &error),
+            )
+        })?;
         drop(file);
         for (key, value) in [
             ("user.name", &identity.name),
             ("user.email", &identity.email),
         ] {
-            let status = crate::process::command("git")
+            let diagnostic_args = [
+                "config",
+                "--file",
+                "[pending repository config]",
+                "--replace-all",
+                key,
+                "[identity value]",
+            ];
+            let output = crate::process::command("git")
                 .arg("config")
                 .arg("--file")
                 .arg(&pending)
                 .args(["--replace-all", key, value.trim()])
-                .status()
-                .map_err(|_| GitCommandError::internal("No se pudo aplicar la identidad"))?;
-            if !status.success() {
-                return Err(GitCommandError::internal("No se pudo aplicar la identidad"));
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .env("LC_ALL", "C")
+                .output()
+                .map_err(|error| {
+                    GitCommandError::internal("No se pudo aplicar la identidad").with_diagnostic(
+                        diagnostics::Diagnostic::command_io(
+                            "identity.replaceValue",
+                            &diagnostic_args,
+                            &error,
+                        ),
+                    )
+                })?;
+            if !output.status.success() {
+                return Err(GitCommandError::internal("No se pudo aplicar la identidad")
+                    .with_diagnostic(diagnostics::Diagnostic::command_with_inputs(
+                        "identity.replaceValue",
+                        &diagnostic_args,
+                        &output,
+                        &[identity.name.as_str(), identity.email.as_str()],
+                    )));
             }
         }
-        std::fs::rename(&pending, &config)
-            .map_err(|_| GitCommandError::internal("No se pudo guardar la identidad"))
+        std::fs::rename(&pending, &config).map_err(|error| {
+            GitCommandError::internal("No se pudo guardar la identidad").with_diagnostic(
+                diagnostics::Diagnostic::io("identity.publishConfig", &error),
+            )
+        })
     })();
     if result.is_err() {
         let _ = std::fs::remove_file(&pending);
@@ -147,22 +215,38 @@ fn set_identity(
 #[tauri::command]
 pub fn git_read_identity(id: String) -> Result<Option<GitIdentity>, GitCommandError> {
     let repository = existing_repository(&id)?;
-    let read = |key: &str| -> Option<String> {
+    let read = |key: &str| -> Result<Option<String>, GitCommandError> {
+        let args = ["config", "--get", key];
         let output = crate::process::command("git")
-            .args(["config", "--get", key])
+            .args(args)
             .current_dir(&repository)
             .env("GIT_OPTIONAL_LOCKS", "0")
             .env("GIT_TERMINAL_PROMPT", "0")
+            .env("LC_ALL", "C")
             .output()
-            .ok()?;
+            .map_err(|error| {
+                GitCommandError::internal("No se pudo leer la identidad").with_diagnostic(
+                    diagnostics::Diagnostic::command_io("identity.readValue", &args, &error),
+                )
+            })?;
+        if output.status.code() == Some(1) {
+            return Ok(None);
+        }
         if !output.status.success() {
-            return None;
+            return Err(
+                GitCommandError::internal("No se pudo leer la identidad").with_diagnostic(
+                    diagnostics::Diagnostic::command("identity.readValue", &args, &output),
+                ),
+            );
         }
         String::from_utf8(output.stdout)
-            .ok()
-            .map(|value| value.trim().to_owned())
+            .map(|value| Some(value.trim().to_owned()))
+            .map_err(|error| {
+                GitCommandError::internal("No se pudo leer la identidad")
+                    .with_diagnostic(diagnostics::Diagnostic::new("identity.decodeValue", error))
+            })
     };
-    let (Some(name), Some(email)) = (read("user.name"), read("user.email")) else {
+    let (Some(name), Some(email)) = (read("user.name")?, read("user.email")?) else {
         return Ok(None);
     };
     if name.is_empty() || email.is_empty() {
@@ -265,6 +349,8 @@ pub struct GitCommandError {
     params: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     output: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    diagnostic: Option<diagnostics::Diagnostic>,
 }
 
 impl GitCommandError {
@@ -273,6 +359,7 @@ impl GitCommandError {
             code,
             params,
             output: None,
+            diagnostic: None,
         }
     }
 
@@ -281,6 +368,7 @@ impl GitCommandError {
             code: "unknown",
             params: json!({}),
             output: Some(context.to_owned()),
+            diagnostic: None,
         }
     }
 
@@ -289,23 +377,37 @@ impl GitCommandError {
             code,
             params,
             output: (!output.is_empty()).then_some(output),
+            diagnostic: None,
         }
+    }
+
+    fn with_diagnostic(mut self, diagnostic: diagnostics::Diagnostic) -> Self {
+        self.output = Some(diagnostic.to_string());
+        self.diagnostic = Some(diagnostic);
+        self
     }
 }
 
 fn read_registry(app: &AppHandle) -> Result<registry::Registry, GitCommandError> {
-    let value = store::read(app, FILE_NAME)
-        .map_err(|_| GitCommandError::internal("No se pudo leer el registro de repositorios"))?;
-    registry::Registry::from_value(value)
-        .map_err(|_| GitCommandError::internal("El registro de repositorios no es válido"))
+    let value = store::read(app, FILE_NAME).map_err(|error| {
+        GitCommandError::internal("No se pudo leer el registro de repositorios")
+            .with_diagnostic(diagnostics::Diagnostic::new("registry.read", error))
+    })?;
+    registry::Registry::from_value(value).map_err(|error| {
+        GitCommandError::internal("El registro de repositorios no es válido")
+            .with_diagnostic(diagnostics::Diagnostic::cause("registry.decode", &error))
+    })
 }
 
 fn write_registry(app: &AppHandle, registry: &registry::Registry) -> Result<(), GitCommandError> {
-    let value = serde_json::to_value(registry).map_err(|_| {
+    let value = serde_json::to_value(registry).map_err(|error| {
         GitCommandError::internal("No se pudo serializar el registro de repositorios")
+            .with_diagnostic(diagnostics::Diagnostic::cause("registry.encode", &error))
     })?;
-    store::write(app, FILE_NAME, &value)
-        .map_err(|_| GitCommandError::internal("No se pudo guardar el registro de repositorios"))
+    store::write(app, FILE_NAME, &value).map_err(|error| {
+        GitCommandError::internal("No se pudo guardar el registro de repositorios")
+            .with_diagnostic(diagnostics::Diagnostic::new("registry.write", error))
+    })
 }
 
 #[tauri::command]
@@ -326,8 +428,10 @@ pub fn git_read_repository(id: String) -> Result<Repository, GitCommandError> {
             json!({ "repo": id, "path": id }),
         ));
     }
-    repository::discover(path)
-        .map_err(|_| GitCommandError::new("repo.notARepository", json!({ "path": id })))
+    repository::discover(path).map_err(|diagnostic| {
+        GitCommandError::new("repo.notARepository", json!({ "path": id }))
+            .with_diagnostic(diagnostic)
+    })
 }
 
 /**
@@ -362,8 +466,10 @@ fn refresh_registry(registry: &mut registry::Registry) -> bool {
 
 #[tauri::command]
 pub fn git_open_repository(app: AppHandle, path: String) -> Result<Repository, GitCommandError> {
-    let mut repository = repository::discover(&path)
-        .map_err(|_| GitCommandError::new("repo.notARepository", json!({ "path": path })))?;
+    let mut repository = repository::discover(&path).map_err(|diagnostic| {
+        GitCommandError::new("repo.notARepository", json!({ "path": path }))
+            .with_diagnostic(diagnostic)
+    })?;
     let mut registry = read_registry(&app)?;
 
     if let Some(known) = registry
@@ -526,7 +632,11 @@ pub async fn git_clone_repository(
         ))
     })
     .await
-    .map_err(|_| GitCommandError::internal("La tarea de clonación se interrumpió"))??;
+    .map_err(|error| {
+        GitCommandError::internal("La tarea de clonación se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_clone_repository.task", &error),
+        )
+    })??;
 
     let mut repository = result;
     repository.last_opened_at = Some(now_millis());
@@ -567,8 +677,9 @@ fn run_clone(
     processes: &CloneProcesses,
     credentials: Option<&auth::CommandConfig>,
 ) -> Result<Repository, GitCommandError> {
-    let parent = std::fs::canonicalize(&request.path).map_err(|_| {
+    let parent = std::fs::canonicalize(&request.path).map_err(|error| {
         GitCommandError::new("create.parentNotFound", json!({ "path": request.path }))
+            .with_diagnostic(diagnostics::Diagnostic::io("clone.resolveParent", &error))
     })?;
     if !parent.is_dir() || !repository::is_single_component(&request.name) {
         return Err(GitCommandError::new(
@@ -602,6 +713,13 @@ fn run_clone(
     if let Some(credentials) = credentials {
         credentials.apply(&mut command);
     }
+    let args = [
+        "clone",
+        "--progress",
+        "--",
+        request.url.as_str(),
+        request.name.as_str(),
+    ];
     let mut child = command
         .arg("clone")
         .arg("--progress")
@@ -617,7 +735,11 @@ fn run_clone(
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|_| GitCommandError::internal("Git no pudo iniciar la clonación"))?;
+        .map_err(|error| {
+            GitCommandError::internal("Git no pudo iniciar la clonación").with_diagnostic(
+                diagnostics::Diagnostic::command_io("clone.spawn", &args, &error),
+            )
+        })?;
     let stderr = child.stderr.take();
     let child = Arc::new(Mutex::new(child));
     processes
@@ -636,14 +758,11 @@ fn run_clone(
     }
 
     let reader = thread::spawn(move || {
-        let mut captured = Vec::new();
+        let mut captured = network::StderrCapture::default();
         if let Some(stderr) = stderr {
             for chunk in BufReader::new(stderr).split(b'\r').map_while(Result::ok) {
-                if captured.len() < 65_536 {
-                    let remaining = 65_536 - captured.len();
-                    captured.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
-                    captured.push(b'\n');
-                }
+                captured.push(&chunk);
+                captured.push(b"\n");
                 for line in chunk.split(|byte| *byte == b'\n') {
                     if let Some(progress) = parse_clone_progress(&String::from_utf8_lossy(line)) {
                         let _ = on_progress.send(progress);
@@ -651,7 +770,7 @@ fn run_clone(
                 }
             }
         }
-        captured
+        captured.finish()
     });
 
     let status = loop {
@@ -659,7 +778,11 @@ fn run_clone(
             .lock()
             .map_err(|_| GitCommandError::internal("No se pudo consultar la clonación"))?
             .try_wait()
-            .map_err(|_| GitCommandError::internal("No se pudo esperar la clonación"))?;
+            .map_err(|error| {
+                GitCommandError::internal("No se pudo esperar la clonación").with_diagnostic(
+                    diagnostics::Diagnostic::command_io("clone.wait", &args, &error),
+                )
+            })?;
         if let Some(status) = status {
             break status;
         }
@@ -675,11 +798,14 @@ fn run_clone(
             let _ = std::fs::remove_dir_all(&target);
         }
         let output = String::from_utf8_lossy(&stderr).into_owned();
-        return Err(classify_clone_error(&source_label, output));
+        let diagnostic =
+            diagnostics::Diagnostic::command_stderr("clone.execute", &args, status, &output);
+        return Err(classify_clone_error(&source_label, output).with_diagnostic(diagnostic));
     }
-    repository::discover(&target).map_err(|_| {
+    repository::discover(&target).map_err(|diagnostic| {
         let _ = std::fs::remove_dir_all(&target);
         GitCommandError::internal("El repositorio clonado no se pudo leer")
+            .with_diagnostic(diagnostic)
     })
 }
 
@@ -799,21 +925,25 @@ pub async fn git_read_status(id: String) -> Result<status::WorkingStatus, GitCom
             json!({ "repo": id, "path": id }),
         ));
     }
-    if repository::discover(&path).is_err() {
-        return Err(GitCommandError::new(
-            "repo.notARepository",
-            json!({ "path": id }),
-        ));
-    }
+    repository::discover(&path).map_err(|diagnostic| {
+        GitCommandError::new("repo.notARepository", json!({ "path": id }))
+            .with_diagnostic(diagnostic)
+    })?;
 
     tauri::async_runtime::spawn_blocking(move || status::read(&path))
         .await
-        .map_err(|_| GitCommandError::internal("La tarea de status se interrumpió"))?
+        .map_err(|error| {
+            GitCommandError::internal("La tarea de status se interrumpió")
+                .with_diagnostic(diagnostics::Diagnostic::task("status.task", &error))
+        })?
         .map_err(|error| match error {
+            status::ReadStatusError::Diagnostic(diagnostic) => {
+                GitCommandError::internal("Git no pudo leer el status").with_diagnostic(diagnostic)
+            }
             status::ReadStatusError::InvalidPathEncoding => {
                 GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
             }
-            status::ReadStatusError::GitFailed | status::ReadStatusError::MalformedOutput => {
+            status::ReadStatusError::MalformedOutput => {
                 GitCommandError::internal("Git no pudo leer el status")
             }
         })
@@ -831,8 +961,15 @@ pub async fn git_read_conflict(
         move || conflict::read_encoded(&repository, &requested_path, encoding.as_deref())
     })
     .await
-    .map_err(|_| GitCommandError::internal("La lectura del conflicto se interrumpió"))?
+    .map_err(|error| {
+        GitCommandError::internal("La lectura del conflicto se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("conflict.task", &error))
+    })?
     .map_err(|error| match error {
+        conflict::ReadConflictError::Diagnostic(diagnostic) => {
+            GitCommandError::internal("Git no pudo leer las etapas del conflicto")
+                .with_diagnostic(diagnostic)
+        }
         conflict::ReadConflictError::UnsupportedEncoding(encoding) => {
             GitCommandError::new("text.encodingUnsupported", json!({ "encoding": encoding }))
         }
@@ -842,10 +979,24 @@ pub async fn git_read_conflict(
         conflict::ReadConflictError::InvalidPathEncoding => {
             GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
         }
-        conflict::ReadConflictError::GitFailed | conflict::ReadConflictError::MalformedOutput => {
+        conflict::ReadConflictError::MalformedOutput => {
             GitCommandError::internal("Git no pudo leer las etapas del conflicto")
         }
     })
+}
+
+fn map_status_error(error: status::ReadStatusError, id: &str) -> GitCommandError {
+    match error {
+        status::ReadStatusError::Diagnostic(diagnostic) => {
+            GitCommandError::internal("Git no pudo leer el status").with_diagnostic(diagnostic)
+        }
+        status::ReadStatusError::InvalidPathEncoding => {
+            GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
+        }
+        status::ReadStatusError::MalformedOutput => {
+            GitCommandError::internal("Git no pudo leer el status")
+        }
+    }
 }
 
 #[tauri::command]
@@ -862,12 +1013,10 @@ pub async fn git_read_diff(
             json!({ "repo": id, "path": id }),
         ));
     }
-    if repository::discover(&path).is_err() {
-        return Err(GitCommandError::new(
-            "repo.notARepository",
-            json!({ "path": id }),
-        ));
-    }
+    repository::discover(&path).map_err(|diagnostic| {
+        GitCommandError::new("repo.notARepository", json!({ "path": id }))
+            .with_diagnostic(diagnostic)
+    })?;
 
     let reads = reads.inner().clone();
     let cancelled = reads.begin(&operation_id);
@@ -877,7 +1026,10 @@ pub async fn git_read_diff(
     .await;
     reads.finish(&operation_id);
     joined
-        .map_err(|_| GitCommandError::internal("La tarea de diff se interrumpió"))?
+        .map_err(|error| {
+            GitCommandError::internal("La tarea de diff se interrumpió")
+                .with_diagnostic(diagnostics::Diagnostic::task("diff.task", &error))
+        })?
         .map_err(|error| map_diff_error(error, &id))
 }
 
@@ -897,12 +1049,21 @@ pub async fn git_read_diff_files(
     .await;
     reads.finish(&operation_id);
     joined
-        .map_err(|_| GitCommandError::internal("La comparación de archivos se interrumpió"))?
+        .map_err(|error| {
+            GitCommandError::internal("La comparación de archivos se interrumpió")
+                .with_diagnostic(diagnostics::Diagnostic::task("diffFiles.task", &error))
+        })?
         .map_err(|error| map_diff_error(error, &id))
 }
 
 fn map_diff_error(error: diff::ReadDiffError, id: &str) -> GitCommandError {
     match error {
+        diff::ReadDiffError::Diagnostic(diagnostic) => {
+            GitCommandError::internal("Git no pudo leer el diff").with_diagnostic(diagnostic)
+        }
+        diff::ReadDiffError::WithDiagnostic(error, diagnostic) => {
+            map_diff_error(*error, id).with_diagnostic(diagnostic)
+        }
         diff::ReadDiffError::Cancelled => GitCommandError::new("operation.cancelled", json!({})),
         diff::ReadDiffError::InvalidPathEncoding => {
             GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
@@ -913,9 +1074,7 @@ fn map_diff_error(error: diff::ReadDiffError, id: &str) -> GitCommandError {
         diff::ReadDiffError::UnsupportedEncoding(encoding) => {
             GitCommandError::new("text.encodingUnsupported", json!({ "encoding": encoding }))
         }
-        diff::ReadDiffError::InvalidPath
-        | diff::ReadDiffError::GitFailed
-        | diff::ReadDiffError::MalformedOutput => {
+        diff::ReadDiffError::InvalidPath | diff::ReadDiffError::MalformedOutput => {
             GitCommandError::internal("Git no pudo leer el diff")
         }
     }
@@ -930,24 +1089,30 @@ pub async fn git_read_refs(id: String) -> Result<refs::RefsSnapshot, GitCommandE
             json!({ "repo": id, "path": id }),
         ));
     }
-    if repository::discover(&path).is_err() {
-        return Err(GitCommandError::new(
-            "repo.notARepository",
-            json!({ "path": id }),
-        ));
+    if let Err(diagnostic) = repository::discover(&path) {
+        return Err(
+            GitCommandError::new("repo.notARepository", json!({ "path": id }))
+                .with_diagnostic(diagnostic),
+        );
     }
 
     let repository_id = id.clone();
     tauri::async_runtime::spawn_blocking(move || refs::read(&path))
         .await
-        .map_err(|_| GitCommandError::internal("La lectura de referencias se interrumpió"))?
+        .map_err(|error| {
+            GitCommandError::internal("La lectura de referencias se interrumpió")
+                .with_diagnostic(diagnostics::Diagnostic::task("refs.join", &error))
+        })?
         .map_err(|error| match error {
             refs::ReadRefsError::InvalidEncoding => {
                 GitCommandError::new("ref.encodingUnsupported", json!({ "repo": repository_id }))
             }
-            refs::ReadRefsError::GitFailed | refs::ReadRefsError::MalformedOutput => {
+            refs::ReadRefsError::GitFailed(diagnostic) => {
                 GitCommandError::internal("Git no pudo leer las referencias")
+                    .with_diagnostic(diagnostic)
             }
+            error => GitCommandError::internal("Git no pudo leer las referencias")
+                .with_diagnostic(diagnostics::Diagnostic::new("refs.parse", error)),
         })
 }
 
@@ -965,12 +1130,10 @@ pub async fn git_read_commits(
             json!({ "repo": id, "path": id }),
         ));
     }
-    if repository::discover(&path).is_err() {
-        return Err(GitCommandError::new(
-            "repo.notARepository",
-            json!({ "path": id }),
-        ));
-    }
+    repository::discover(&path).map_err(|diagnostic| {
+        GitCommandError::new("repo.notARepository", json!({ "path": id }))
+            .with_diagnostic(diagnostic)
+    })?;
 
     let reads = reads.inner().clone();
     let cancelled = reads.begin(&operation_id);
@@ -980,11 +1143,27 @@ pub async fn git_read_commits(
         tauri::async_runtime::spawn_blocking(move || history::read(&path, request, &cancelled))
             .await;
     reads.finish(&operation_id);
-    let result =
-        joined.map_err(|_| GitCommandError::internal("La lectura de historia se interrumpió"))?;
-    result.map_err(|error| match error {
+    let result = joined.map_err(|error| {
+        GitCommandError::internal("La lectura de historia se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("history.task", &error))
+    })?;
+    result.map_err(|error| map_history_error(error, &id, start.as_deref()))
+}
+
+fn map_history_error(
+    error: history::ReadHistoryError,
+    id: &str,
+    start: Option<&str>,
+) -> GitCommandError {
+    match error {
+        history::ReadHistoryError::Diagnostic(diagnostic) => {
+            GitCommandError::internal("Git no pudo leer la historia").with_diagnostic(diagnostic)
+        }
+        history::ReadHistoryError::WithDiagnostic(error, diagnostic) => {
+            map_history_error(*error, id, start).with_diagnostic(diagnostic)
+        }
         history::ReadHistoryError::Cancelled => {
-            GitCommandError::internal("La lectura de historia fue cancelada")
+            GitCommandError::new("operation.cancelled", json!({}))
         }
         history::ReadHistoryError::InvalidEncoding => {
             GitCommandError::new("history.encodingUnsupported", json!({ "repo": id }))
@@ -992,10 +1171,7 @@ pub async fn git_read_commits(
         history::ReadHistoryError::StartNotFound => {
             GitCommandError::new("history.startNotFound", json!({ "start": start }))
         }
-        history::ReadHistoryError::GitFailed => {
-            GitCommandError::internal("Git no pudo leer la historia")
-        }
-    })
+    }
 }
 
 #[tauri::command]
@@ -1010,40 +1186,57 @@ pub async fn git_read_commit(
             json!({ "repo": id, "path": id }),
         ));
     }
-    if repository::discover(&path).is_err() {
-        return Err(GitCommandError::new(
-            "repo.notARepository",
-            json!({ "path": id }),
-        ));
-    }
+    repository::discover(&path).map_err(|diagnostic| {
+        GitCommandError::new("repo.notARepository", json!({ "path": id }))
+            .with_diagnostic(diagnostic)
+    })?;
 
     let repository_id = id.clone();
     let requested = sha.clone();
     tauri::async_runtime::spawn_blocking(move || detail::read(&path, &sha))
         .await
-        .map_err(|_| GitCommandError::internal("La lectura del commit se interrumpió"))?
-        .map_err(|error| match error {
-            detail::ReadDetailError::CommitEncoding => GitCommandError::new(
-                "history.encodingUnsupported",
-                json!({ "repo": repository_id }),
-            ),
-            detail::ReadDetailError::RefEncoding => {
-                GitCommandError::new("ref.encodingUnsupported", json!({ "repo": repository_id }))
-            }
-            detail::ReadDetailError::PathEncoding => {
-                GitCommandError::new("path.encodingUnsupported", json!({ "repo": repository_id }))
-            }
-            detail::ReadDetailError::NotFound => {
-                GitCommandError::new("history.startNotFound", json!({ "start": requested }))
-            }
-            detail::ReadDetailError::GitFailed | detail::ReadDetailError::MalformedOutput => {
-                GitCommandError::internal("Git no pudo leer el detalle del commit")
-            }
-        })
+        .map_err(|error| {
+            GitCommandError::internal("La lectura del commit se interrumpió")
+                .with_diagnostic(diagnostics::Diagnostic::task("commit.task", &error))
+        })?
+        .map_err(|error| map_detail_error(error, &repository_id, &requested))
+}
+
+fn map_detail_error(error: detail::ReadDetailError, id: &str, requested: &str) -> GitCommandError {
+    match error {
+        detail::ReadDetailError::Diagnostic(diagnostic) => {
+            GitCommandError::internal("Git no pudo leer el detalle del commit")
+                .with_diagnostic(diagnostic)
+        }
+        detail::ReadDetailError::WithDiagnostic(error, diagnostic) => {
+            map_detail_error(*error, id, requested).with_diagnostic(diagnostic)
+        }
+        detail::ReadDetailError::CommitEncoding => {
+            GitCommandError::new("history.encodingUnsupported", json!({ "repo": id }))
+        }
+        detail::ReadDetailError::RefEncoding => {
+            GitCommandError::new("ref.encodingUnsupported", json!({ "repo": id }))
+        }
+        detail::ReadDetailError::PathEncoding => {
+            GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
+        }
+        detail::ReadDetailError::NotFound => {
+            GitCommandError::new("history.startNotFound", json!({ "start": requested }))
+        }
+        detail::ReadDetailError::GitFailed | detail::ReadDetailError::MalformedOutput => {
+            GitCommandError::internal("Git no pudo leer el detalle del commit")
+        }
+    }
 }
 
 fn map_file_error(error: files::ReadFileError, id: &str, path: &str) -> GitCommandError {
     match error {
+        files::ReadFileError::Diagnostic(diagnostic) => {
+            GitCommandError::internal("Git no pudo leer el archivo").with_diagnostic(diagnostic)
+        }
+        files::ReadFileError::WithDiagnostic(error, diagnostic) => {
+            map_file_error(*error, id, path).with_diagnostic(diagnostic)
+        }
         files::ReadFileError::UnsupportedEncoding(encoding) => {
             GitCommandError::new("text.encodingUnsupported", json!({ "encoding": encoding }))
         }
@@ -1073,12 +1266,10 @@ fn existing_repository(id: &str) -> Result<std::path::PathBuf, GitCommandError> 
             json!({ "repo": id, "path": id }),
         ));
     }
-    if repository::discover(&path).is_err() {
-        return Err(GitCommandError::new(
-            "repo.notARepository",
-            json!({ "path": id }),
-        ));
-    }
+    repository::discover(&path).map_err(|diagnostic| {
+        GitCommandError::new("repo.notARepository", json!({ "path": id }))
+            .with_diagnostic(diagnostic)
+    })?;
     Ok(path)
 }
 
@@ -1097,7 +1288,10 @@ pub async fn git_read_file(
         None => files::read_file_encoded(&repository, path, at.as_deref(), encoding.as_deref()),
     })
     .await
-    .map_err(|_| GitCommandError::internal("La lectura del archivo se interrumpió"))?
+    .map_err(|error| {
+        GitCommandError::internal("La lectura del archivo se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("file.task", &error))
+    })?
     .map_err(|error| map_file_error(error, &id, &error_path))
 }
 
@@ -1110,7 +1304,10 @@ pub async fn git_read_tree(
     let revision = at.clone().unwrap_or_else(|| "HEAD".to_owned());
     tauri::async_runtime::spawn_blocking(move || files::read_tree(&repository, at.as_deref()))
         .await
-        .map_err(|_| GitCommandError::internal("La lectura del árbol se interrumpió"))?
+        .map_err(|error| {
+            GitCommandError::internal("La lectura del árbol se interrumpió")
+                .with_diagnostic(diagnostics::Diagnostic::task("tree.task", &error))
+        })?
         .map_err(|error| map_file_error(error, &id, &revision))
 }
 
@@ -1123,8 +1320,9 @@ pub async fn git_read_file_history(
     let error_path = path.clone();
     tauri::async_runtime::spawn_blocking(move || files::read_history(&repository, &path))
         .await
-        .map_err(|_| {
+        .map_err(|error| {
             GitCommandError::internal("La lectura del historial de archivo se interrumpió")
+                .with_diagnostic(diagnostics::Diagnostic::task("fileHistory.task", &error))
         })?
         .map_err(|error| map_file_error(error, &id, &error_path))
 }
@@ -1146,11 +1344,24 @@ pub async fn git_preview_integration(
     })
     .await;
     reads.finish(&operation_id);
-    let result = joined
-        .map_err(|_| GitCommandError::internal("La vista previa de integración se interrumpió"))?;
-    result.map_err(|error| match error {
+    let result = joined.map_err(|error| {
+        GitCommandError::internal("La vista previa de integración se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("preview.task", &error))
+    })?;
+    result.map_err(|error| map_preview_error(error, &id))
+}
+
+fn map_preview_error(error: preview::ReadPreviewError, id: &str) -> GitCommandError {
+    match error {
+        preview::ReadPreviewError::Diagnostic(diagnostic) => {
+            GitCommandError::internal("Git no pudo leer la vista previa")
+                .with_diagnostic(diagnostic)
+        }
+        preview::ReadPreviewError::WithDiagnostic(error, diagnostic) => {
+            map_preview_error(*error, id).with_diagnostic(diagnostic)
+        }
         preview::ReadPreviewError::Cancelled => {
-            GitCommandError::internal("La vista previa de integración fue cancelada")
+            GitCommandError::new("operation.cancelled", json!({}))
         }
         preview::ReadPreviewError::InvalidEncoding => {
             GitCommandError::new("history.encodingUnsupported", json!({ "repo": id }))
@@ -1158,10 +1369,10 @@ pub async fn git_preview_integration(
         preview::ReadPreviewError::RevisionNotFound(revision) => {
             GitCommandError::new("history.startNotFound", json!({ "start": revision }))
         }
-        preview::ReadPreviewError::GitFailed | preview::ReadPreviewError::MalformedOutput => {
+        preview::ReadPreviewError::MalformedOutput => {
             GitCommandError::internal("Git no pudo calcular la vista previa de integración")
         }
-    })
+    }
 }
 
 pub(crate) struct TerminalRecovery {
@@ -1293,7 +1504,10 @@ pub async fn git_merge(
         result
     })
     .await
-    .map_err(|_| GitCommandError::internal("La fusión se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La fusión se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("git_merge.task", &error))
+    })?;
     result
 }
 
@@ -1328,7 +1542,10 @@ pub async fn git_rebase(
         result
     })
     .await
-    .map_err(|_| GitCommandError::internal("El rebase se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("El rebase se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("git_rebase.task", &error))
+    })?;
     result
 }
 
@@ -1364,7 +1581,11 @@ pub async fn git_cherry_pick(
         result
     })
     .await
-    .map_err(|_| GitCommandError::internal("El cherry-pick se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("El cherry-pick se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_cherry_pick.task", &error),
+        )
+    })?;
     result
 }
 
@@ -1400,7 +1621,10 @@ pub async fn git_revert(
         result
     })
     .await
-    .map_err(|_| GitCommandError::internal("El revert se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("El revert se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("git_revert.task", &error))
+    })?;
     result
 }
 
@@ -1435,7 +1659,10 @@ pub async fn git_reset(
         result
     })
     .await
-    .map_err(|_| GitCommandError::internal("El reset se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("El reset se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("git_reset.task", &error))
+    })?;
     result
 }
 
@@ -1456,7 +1683,11 @@ pub async fn git_create_stash(
         create_stash_with_recovery(&id, &repository, &undo, &message, &options)
     })
     .await
-    .map_err(|_| GitCommandError::internal("Guardar los cambios se interrumpió"))?
+    .map_err(|error| {
+        GitCommandError::internal("Guardar los cambios se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_create_stash.task", &error),
+        )
+    })?
 }
 
 fn reset_with_recovery(
@@ -1506,7 +1737,11 @@ pub async fn git_apply_stash(
         apply_stash_with_recovery(&id, &repository, &undo, index, &options)
     })
     .await
-    .map_err(|_| GitCommandError::internal("Aplicar el guardado se interrumpió"))?
+    .map_err(|error| {
+        GitCommandError::internal("Aplicar el guardado se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_apply_stash.task", &error),
+        )
+    })?
 }
 
 fn apply_stash_with_recovery(
@@ -1542,7 +1777,10 @@ pub async fn git_drop_stash(
         })
     })
     .await
-    .map_err(|_| GitCommandError::internal("Descartar el guardado se interrumpió"))?
+    .map_err(|error| {
+        GitCommandError::internal("Descartar el guardado se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("git_drop_stash.task", &error))
+    })?
 }
 
 #[tauri::command]
@@ -1577,7 +1815,11 @@ pub async fn git_rename_stash(
         result
     })
     .await
-    .map_err(|_| GitCommandError::internal("Renombrar el guardado se interrumpió"))?
+    .map_err(|error| {
+        GitCommandError::internal("Renombrar el guardado se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_rename_stash.task", &error),
+        )
+    })?
 }
 
 fn map_reset_error(error: reset::ResetError) -> GitCommandError {
@@ -1655,8 +1897,12 @@ fn map_integration_error(error: integration::IntegrationError) -> GitCommandErro
                 json!({ "sha": sha, "parent": parent, "count": count }),
             )
         }
-        integration::IntegrationError::GitFailed => {
-            GitCommandError::internal("Git no pudo iniciar la integración")
+        integration::IntegrationError::Stash(error) => map_stash_error(error),
+        integration::IntegrationError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
+        integration::IntegrationError::WithDiagnostic(error, diagnostic) => {
+            map_integration_error(*error).with_diagnostic(diagnostic)
         }
     }
 }
@@ -1669,27 +1915,38 @@ fn map_stash_error(error: stash::StashError) -> GitCommandError {
         stash::StashError::NothingToStash => {
             GitCommandError::new("stash.nothingToStash", json!({}))
         }
+        stash::StashError::AutoConflict { count, diagnostic } => {
+            GitCommandError::new("stash.autoConflict", json!({ "count": count }))
+                .with_diagnostic(diagnostic)
+        }
         stash::StashError::Conflict {
             stash,
             branch,
             count,
+            diagnostic,
         } => GitCommandError::new(
             "stash.conflict",
             json!({ "stash": stash, "branch": branch, "count": count }),
-        ),
+        )
+        .with_diagnostic(diagnostic),
         stash::StashError::BlockedByWip {
             stash,
             branch,
             count,
+            diagnostic,
         } => GitCommandError::new(
             "stash.dirtyTree",
             json!({ "stash": stash, "branch": branch, "count": count }),
-        ),
+        )
+        .with_diagnostic(diagnostic),
         stash::StashError::StillConflicted(count) => {
             GitCommandError::new("resolve.stillConflicted", json!({ "count": count }))
         }
         stash::StashError::RecoveryMissing => {
             GitCommandError::internal("No hay una recuperación de stash en curso")
+        }
+        stash::StashError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
         }
         stash::StashError::GitFailed => {
             GitCommandError::internal("Git no pudo completar la operación con el guardado")
@@ -1723,8 +1980,11 @@ pub async fn git_fetch(
     let undo = locks.undo.clone();
     let processes = processes.inner().clone();
     let credentials = Some(
-        auth::CommandConfig::configuration(&app, &repository, &operation_id)
-            .map_err(|_| GitCommandError::internal("No se pudo iniciar la autenticación"))?,
+        auth::CommandConfig::configuration(&app, &repository, &operation_id).map_err(|error| {
+            GitCommandError::internal("No se pudo iniciar la autenticación").with_diagnostic(
+                diagnostics::Diagnostic::new("network.configureAuthentication", error),
+            )
+        })?,
     );
     let result = tauri::async_runtime::spawn_blocking(move || {
         let _guard = repository_lock
@@ -1741,12 +2001,17 @@ pub async fn git_fetch(
                 credentials.as_ref(),
             )
             .map_err(map_network_error)?;
-            refs::read(&repository)
-                .map_err(|_| GitCommandError::internal("No se pudieron leer las referencias"))
+            refs::read(&repository).map_err(|error| {
+                GitCommandError::internal("No se pudieron leer las referencias")
+                    .with_diagnostic(refs_write_diagnostic(error))
+            })
         })
     })
     .await
-    .map_err(|_| GitCommandError::internal("La tarea de fetch se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La tarea de fetch se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("fetch.join", &error))
+    })?;
     result
 }
 
@@ -1765,8 +2030,11 @@ pub async fn git_pull(
     let undo = locks.undo.clone();
     let processes = processes.inner().clone();
     let credentials = Some(
-        auth::CommandConfig::configuration(&app, &repository, &operation_id)
-            .map_err(|_| GitCommandError::internal("No se pudo iniciar la autenticación"))?,
+        auth::CommandConfig::configuration(&app, &repository, &operation_id).map_err(|error| {
+            GitCommandError::internal("No se pudo iniciar la autenticación").with_diagnostic(
+                diagnostics::Diagnostic::new("network.configureAuthentication", error),
+            )
+        })?,
     );
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = repository_lock
@@ -1779,7 +2047,12 @@ pub async fn git_pull(
             .map_err(|_| GitCommandError::new("undo.snapshotUnavailable", json!({})))?;
         let mut prepare = |tree: &str, strategy| {
             undo_checkpoint::Checkpoint::prepare_pull(&repository, &mut before, tree, strategy)
-                .map_err(|_| network::NetworkError::GitFailed)
+                .map_err(|error| {
+                    network::NetworkError::Diagnostic(diagnostics::Diagnostic::new(
+                        "network.recovery",
+                        format!("{error:?}"),
+                    ))
+                })
         };
         let result = network::pull_configured(
             &repository,
@@ -1800,7 +2073,10 @@ pub async fn git_pull(
         result
     })
     .await
-    .map_err(|_| GitCommandError::internal("La tarea de pull se interrumpió"))?
+    .map_err(|error| {
+        GitCommandError::internal("La tarea de pull se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("pull.join", &error))
+    })?
 }
 
 #[tauri::command]
@@ -1819,8 +2095,11 @@ pub async fn git_push(
     let undo = locks.undo.clone();
     let processes = processes.inner().clone();
     let credentials = Some(
-        auth::CommandConfig::configuration(&app, &repository, &operation_id)
-            .map_err(|_| GitCommandError::internal("No se pudo iniciar la autenticación"))?,
+        auth::CommandConfig::configuration(&app, &repository, &operation_id).map_err(|error| {
+            GitCommandError::internal("No se pudo iniciar la autenticación").with_diagnostic(
+                diagnostics::Diagnostic::new("network.configureAuthentication", error),
+            )
+        })?,
     );
     let result = tauri::async_runtime::spawn_blocking(move || {
         let _guard = repository_lock
@@ -1836,10 +2115,14 @@ pub async fn git_push(
             credentials.as_ref(),
         )?;
         undo.remember_barrier(&id);
-        refs::read(&repository).map_err(|_| network::NetworkError::GitFailed)
+        refs::read(&repository)
+            .map_err(|error| network::NetworkError::Diagnostic(refs_write_diagnostic(error)))
     })
     .await
-    .map_err(|_| GitCommandError::internal("La tarea de push se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La tarea de push se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("push.join", &error))
+    })?;
     result.map_err(map_network_error)
 }
 
@@ -1889,8 +2172,12 @@ fn map_network_error(error: network::NetworkError) -> GitCommandError {
             "rebase.conflict",
             json!({ "source": source, "target": target, "sha": sha, "count": count }),
         ),
-        network::NetworkError::GitFailed => {
-            GitCommandError::internal("Git no pudo completar la operación de red")
+        network::NetworkError::Stash(error) => map_stash_error(error),
+        network::NetworkError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
+        network::NetworkError::WithDiagnostic(error, diagnostic) => {
+            map_network_error(*error).with_diagnostic(diagnostic)
         }
     }
 }
@@ -1927,7 +2214,10 @@ pub async fn git_add_remote(
         })
     })
     .await
-    .map_err(|_| GitCommandError::internal("La creación del remoto se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La creación del remoto se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("git_add_remote.task", &error))
+    })?;
     result
 }
 
@@ -1955,7 +2245,11 @@ pub async fn git_update_remote(
         })
     })
     .await
-    .map_err(|_| GitCommandError::internal("La edición del remoto se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La edición del remoto se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_update_remote.task", &error),
+        )
+    })?;
     result
 }
 
@@ -1982,14 +2276,26 @@ pub async fn git_remove_remote(
         })
     })
     .await
-    .map_err(|_| GitCommandError::internal("La eliminación del remoto se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La eliminación del remoto se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_remove_remote.task", &error),
+        )
+    })?;
     result
 }
 
 fn read_refs_after_remote_write(
     repository: &std::path::Path,
 ) -> Result<refs::RefsSnapshot, remote_write::WriteRemoteError> {
-    refs::read(repository).map_err(|_| remote_write::WriteRemoteError::GitFailed)
+    refs::read(repository)
+        .map_err(|error| remote_write::WriteRemoteError::Diagnostic(refs_write_diagnostic(error)))
+}
+
+fn refs_write_diagnostic(error: refs::ReadRefsError) -> diagnostics::Diagnostic {
+    match error {
+        refs::ReadRefsError::GitFailed(diagnostic) => diagnostic,
+        error => diagnostics::Diagnostic::new("write.refreshRefs", error),
+    }
 }
 
 fn map_remote_write_error(error: remote_write::WriteRemoteError, remote: &str) -> GitCommandError {
@@ -2009,8 +2315,8 @@ fn map_remote_write_error(error: remote_write::WriteRemoteError, remote: &str) -
         remote_write::WriteRemoteError::Stale => {
             GitCommandError::new("remote.stale", json!({ "remote": remote }))
         }
-        remote_write::WriteRemoteError::GitFailed => {
-            GitCommandError::internal("Git no pudo modificar el remoto")
+        remote_write::WriteRemoteError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
         }
     }
 }
@@ -2060,20 +2366,27 @@ pub async fn git_create_branch(
                 json!({ "branch": name }),
             );
         }
-        refs::read(&repository).map_err(|error| match error {
-            refs::ReadRefsError::InvalidEncoding => ref_write::WriteRefError::GitFailed(
-                "El nombre de una referencia no es UTF-8".to_owned(),
-            ),
-            refs::ReadRefsError::GitFailed | refs::ReadRefsError::MalformedOutput => {
-                ref_write::WriteRefError::GitFailed(String::new())
-            }
-        })
+        refs::read(&repository)
+            .map_err(|error| ref_write::WriteRefError::Diagnostic(refs_write_diagnostic(error)))
     })
     .await
-    .map_err(|_| GitCommandError::internal("La creación de rama se interrumpió"))?;
-    result.map_err(|error| match error {
+    .map_err(|error| {
+        GitCommandError::internal("La creación de rama se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("createBranch.join", &error))
+    })?;
+    result.map_err(|error| map_create_branch_error(error, &branch))
+}
+
+fn map_create_branch_error(error: ref_write::WriteRefError, branch: &str) -> GitCommandError {
+    match error {
+        ref_write::WriteRefError::WithDiagnostic(error, diagnostic) => {
+            map_create_branch_error(*error, branch).with_diagnostic(diagnostic)
+        }
         ref_write::WriteRefError::InvalidBranchName => {
             GitCommandError::new("create.invalidBranch", json!({ "branch": branch }))
+        }
+        ref_write::WriteRefError::CheckoutBlocked => {
+            GitCommandError::new("branch.checkoutBlocked", json!({ "branch": branch }))
         }
         ref_write::WriteRefError::InvalidTagName
         | ref_write::WriteRefError::TagIdentityMissing
@@ -2093,7 +2406,10 @@ pub async fn git_create_branch(
         ref_write::WriteRefError::GitFailed(output) => {
             GitCommandError::git("unknown", json!({}), output)
         }
-    })
+        ref_write::WriteRefError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
+    }
 }
 
 #[tauri::command]
@@ -2143,7 +2459,11 @@ pub async fn git_recover_reflog_entry(
         })
     })
     .await
-    .map_err(|_| GitCommandError::internal("La recuperación se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La recuperación se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_recover_reflog_entry.task", &error),
+        )
+    })?;
 
     result.map_err(|error| match error {
         reflog::ReflogError::Stale => {
@@ -2192,18 +2512,22 @@ pub async fn git_create_tag(
             "undo.createTag",
             json!({ "tag": name }),
         );
-        refs::read(&repository).map_err(|error| match error {
-            refs::ReadRefsError::InvalidEncoding => ref_write::WriteRefError::GitFailed(
-                "El nombre de una referencia no es UTF-8".to_owned(),
-            ),
-            refs::ReadRefsError::GitFailed | refs::ReadRefsError::MalformedOutput => {
-                ref_write::WriteRefError::GitFailed(String::new())
-            }
-        })
+        refs::read(&repository)
+            .map_err(|error| ref_write::WriteRefError::Diagnostic(refs_write_diagnostic(error)))
     })
     .await
-    .map_err(|_| GitCommandError::internal("La creación de tag se interrumpió"))?;
-    result.map_err(|error| match error {
+    .map_err(|error| {
+        GitCommandError::internal("La creación de tag se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("createTag.join", &error))
+    })?;
+    result.map_err(|error| map_create_tag_error(error, &tag))
+}
+
+fn map_create_tag_error(error: ref_write::WriteRefError, tag: &str) -> GitCommandError {
+    match error {
+        ref_write::WriteRefError::WithDiagnostic(error, diagnostic) => {
+            map_create_tag_error(*error, tag).with_diagnostic(diagnostic)
+        }
         ref_write::WriteRefError::InvalidTagName => {
             GitCommandError::new("tag.invalidName", json!({ "tag": tag }))
         }
@@ -2219,15 +2543,19 @@ pub async fn git_create_tag(
         ref_write::WriteRefError::GitFailed(output) => {
             GitCommandError::git("unknown", json!({}), output)
         }
+        ref_write::WriteRefError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
         ref_write::WriteRefError::InvalidBranchName
         | ref_write::WriteRefError::DirtyTree(_)
+        | ref_write::WriteRefError::CheckoutBlocked
         | ref_write::WriteRefError::RestoreFailed { .. }
         | ref_write::WriteRefError::Stale
         | ref_write::WriteRefError::CurrentBranch
         | ref_write::WriteRefError::NotMerged { .. } => {
             GitCommandError::internal("Error inesperado al crear el tag")
         }
-    })
+    }
 }
 
 #[tauri::command]
@@ -2267,21 +2595,17 @@ pub async fn git_checkout(
                     // ahora el checkpoint fuerte y reintenta con auto-stash.
                     let checkpoint =
                         undo_checkpoint::Checkpoint::capture_checkout(&repository, &target)
-                            .map_err(|_| {
-                                ref_write::WriteRefError::GitFailed(
-                                    "No se pudo crear el punto de recuperación".to_owned(),
-                                )
-                            })?;
+                            .map_err(|error| {
+                                ref_write::WriteRefError::Diagnostic(diagnostics::Diagnostic::new("write.recovery", format!("No se pudo crear el punto de recuperación: {error:?}")))
+                                })?;
                     checkpoint.recovery_set_label("undo.checkoutState").map_err(|_| {
                         ref_write::WriteRefError::GitFailed("No se pudo guardar el punto de recuperación".to_owned())
                     })?;
                     let result = ref_write::checkout(&repository, &target, &options);
                     let after = undo_checkpoint::Checkpoint::after(&repository, &checkpoint)
-                        .map_err(|_| {
-                            ref_write::WriteRefError::GitFailed(
-                                "La copia previa permanece en el almacén de recuperación de GitThul".to_owned(),
-                            )
-                        })?;
+                        .map_err(|error| {
+                            ref_write::WriteRefError::Diagnostic(diagnostics::Diagnostic::new("write.recovery", format!("La copia previa permanece en el almacén de recuperación de GitThul: {error:?}")))
+                            })?;
                     undo.remember_checkpoint(
                         &repository_id,
                         checkpoint,
@@ -2295,9 +2619,7 @@ pub async fn git_checkout(
                                 "El nombre de una referencia no es UTF-8".to_owned(),
                             )
                         }
-                        refs::ReadRefsError::GitFailed | refs::ReadRefsError::MalformedOutput => {
-                            ref_write::WriteRefError::GitFailed(String::new())
-                        }
+                        error => ref_write::WriteRefError::GitFailed(error.to_string()),
                     });
                 }
                 let after = undo::checkout_snapshot(&repository).ok_or_else(|| {
@@ -2322,41 +2644,40 @@ pub async fn git_checkout(
             }
             ref_write::CheckoutUndoStrategy::Checkpoint => {
                 let before = undo_checkpoint::Checkpoint::capture_checkout(&repository, &target)
-                    .map_err(|_| {
-                        ref_write::WriteRefError::GitFailed(
-                            "No se pudo crear el punto de recuperación".to_owned(),
-                        )
-                    })?;
+                    .map_err(|error| {
+                        ref_write::WriteRefError::Diagnostic(diagnostics::Diagnostic::new("write.recovery", format!("No se pudo crear el punto de recuperación: {error:?}")))
+                        })?;
                 before.recovery_set_label("undo.checkoutState").map_err(|_| {
                     ref_write::WriteRefError::GitFailed("No se pudo guardar el punto de recuperación".to_owned())
                 })?;
                 let result = ref_write::checkout(&repository, &target, &options);
                 let after =
-                    undo_checkpoint::Checkpoint::after(&repository, &before).map_err(|_| {
-                        ref_write::WriteRefError::GitFailed(
-                            "La copia previa permanece en el almacén de recuperación de GitThul".to_owned(),
-                        )
-                    })?;
+                    undo_checkpoint::Checkpoint::after(&repository, &before).map_err(|error| {
+                        ref_write::WriteRefError::Diagnostic(diagnostics::Diagnostic::new("write.recovery", format!("La copia previa permanece en el almacén de recuperación de GitThul: {error:?}")))
+                        })?;
                 undo.remember_checkpoint(&repository_id, before, after, "undo.checkoutState");
                 result?;
             }
         }
-        refs::read(&repository).map_err(|error| match error {
-            refs::ReadRefsError::InvalidEncoding => ref_write::WriteRefError::GitFailed(
-                "El nombre de una referencia no es UTF-8".to_owned(),
-            ),
-            refs::ReadRefsError::GitFailed | refs::ReadRefsError::MalformedOutput => {
-                ref_write::WriteRefError::GitFailed(String::new())
-            }
-        })
+        refs::read(&repository).map_err(|error| ref_write::WriteRefError::Diagnostic(refs_write_diagnostic(error)))
     })
     .await
-    .map_err(|_| GitCommandError::internal("El cambio de referencia se interrumpió"))?;
-    result.map_err(|error| match error {
+    .map_err(|error| GitCommandError::internal("El cambio de referencia se interrumpió").with_diagnostic(diagnostics::Diagnostic::task("git_checkout.task", &error)))?;
+    result.map_err(|error| map_checkout_error(error, &label))
+}
+
+fn map_checkout_error(error: ref_write::WriteRefError, label: &str) -> GitCommandError {
+    match error {
+        ref_write::WriteRefError::WithDiagnostic(error, diagnostic) => {
+            map_checkout_error(*error, label).with_diagnostic(diagnostic)
+        }
         ref_write::WriteRefError::DirtyTree(count) => GitCommandError::new(
             "checkout.dirtyTree",
             json!({ "branch": label, "count": count }),
         ),
+        ref_write::WriteRefError::CheckoutBlocked => {
+            GitCommandError::new("branch.checkoutBlocked", json!({ "branch": label }))
+        }
         ref_write::WriteRefError::RestoreFailed { output, count } => GitCommandError::git(
             "checkout.restoreFailed",
             json!({ "branch": label, "count": count }),
@@ -2371,6 +2692,9 @@ pub async fn git_checkout(
         ref_write::WriteRefError::GitFailed(output) => {
             GitCommandError::git("unknown", json!({}), output)
         }
+        ref_write::WriteRefError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
         ref_write::WriteRefError::InvalidBranchName
         | ref_write::WriteRefError::InvalidTagName
         | ref_write::WriteRefError::TagIdentityMissing
@@ -2379,7 +2703,7 @@ pub async fn git_checkout(
         | ref_write::WriteRefError::NotMerged { .. } => {
             GitCommandError::internal("Error inesperado al cambiar de referencia")
         }
-    })
+    }
 }
 
 #[tauri::command]
@@ -2407,11 +2731,23 @@ pub async fn git_delete_branch(
                 json!({ "branch": name }),
             );
         }
-        refs::read(&repository).map_err(|_| ref_write::WriteRefError::GitFailed(String::new()))
+        refs::read(&repository)
+            .map_err(|error| ref_write::WriteRefError::Diagnostic(refs_write_diagnostic(error)))
     })
     .await
-    .map_err(|_| GitCommandError::internal("El borrado de rama se interrumpió"))?;
-    result.map_err(|error| match error {
+    .map_err(|error| {
+        GitCommandError::internal("El borrado de rama se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_delete_branch.task", &error),
+        )
+    })?;
+    result.map_err(|error| map_delete_branch_error(error, &branch))
+}
+
+fn map_delete_branch_error(error: ref_write::WriteRefError, branch: &str) -> GitCommandError {
+    match error {
+        ref_write::WriteRefError::WithDiagnostic(error, diagnostic) => {
+            map_delete_branch_error(*error, branch).with_diagnostic(diagnostic)
+        }
         ref_write::WriteRefError::Stale => {
             GitCommandError::new("ref.stale", json!({ "ref": branch }))
         }
@@ -2425,8 +2761,11 @@ pub async fn git_delete_branch(
         ref_write::WriteRefError::GitFailed(output) => {
             GitCommandError::git("unknown", json!({}), output)
         }
+        ref_write::WriteRefError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
         _ => GitCommandError::internal("Error inesperado al borrar la rama"),
-    })
+    }
 }
 
 #[tauri::command]
@@ -2454,17 +2793,31 @@ pub async fn git_delete_tag(
                 json!({ "tag": name }),
             );
         }
-        refs::read(&repository).map_err(|_| ref_write::WriteRefError::GitFailed(String::new()))
+        refs::read(&repository)
+            .map_err(|error| ref_write::WriteRefError::Diagnostic(refs_write_diagnostic(error)))
     })
     .await
-    .map_err(|_| GitCommandError::internal("El borrado de tag se interrumpió"))?;
-    result.map_err(|error| match error {
+    .map_err(|error| {
+        GitCommandError::internal("El borrado de tag se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("git_delete_tag.task", &error))
+    })?;
+    result.map_err(|error| map_delete_tag_error(error, &tag))
+}
+
+fn map_delete_tag_error(error: ref_write::WriteRefError, tag: &str) -> GitCommandError {
+    match error {
+        ref_write::WriteRefError::WithDiagnostic(error, diagnostic) => {
+            map_delete_tag_error(*error, tag).with_diagnostic(diagnostic)
+        }
         ref_write::WriteRefError::Stale => GitCommandError::new("ref.stale", json!({ "ref": tag })),
         ref_write::WriteRefError::GitFailed(output) => {
             GitCommandError::git("unknown", json!({}), output)
         }
+        ref_write::WriteRefError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
         _ => GitCommandError::internal("Error inesperado al borrar el tag"),
-    })
+    }
 }
 
 #[tauri::command]
@@ -2495,11 +2848,27 @@ pub async fn git_rename_branch(
                 undo.clear_redo(&repository_id);
             }
         }
-        refs::read(&repository).map_err(|_| ref_write::WriteRefError::GitFailed(String::new()))
+        refs::read(&repository)
+            .map_err(|error| ref_write::WriteRefError::Diagnostic(refs_write_diagnostic(error)))
     })
     .await
-    .map_err(|_| GitCommandError::internal("El rename de rama se interrumpió"))?;
-    result.map_err(|error| match error {
+    .map_err(|error| {
+        GitCommandError::internal("El rename de rama se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_rename_branch.task", &error),
+        )
+    })?;
+    result.map_err(|error| map_rename_branch_error(error, &source, &destination))
+}
+
+fn map_rename_branch_error(
+    error: ref_write::WriteRefError,
+    source: &str,
+    destination: &str,
+) -> GitCommandError {
+    match error {
+        ref_write::WriteRefError::WithDiagnostic(error, diagnostic) => {
+            map_rename_branch_error(*error, source, destination).with_diagnostic(diagnostic)
+        }
         ref_write::WriteRefError::InvalidBranchName => {
             GitCommandError::new("create.invalidBranch", json!({ "branch": destination }))
         }
@@ -2512,8 +2881,11 @@ pub async fn git_rename_branch(
         ref_write::WriteRefError::GitFailed(output) => {
             GitCommandError::git("unknown", json!({}), output)
         }
+        ref_write::WriteRefError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
         _ => GitCommandError::internal("Error inesperado al renombrar la rama"),
-    })
+    }
 }
 
 #[tauri::command]
@@ -2626,10 +2998,14 @@ pub async fn git_discard_all(
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         discard_all_with_recovery(&id, &repository, &undo, &precondition)?;
-        status::read(&repository).map_err(|_| GitCommandError::internal("No se pudo leer el WIP"))
+        status::read(&repository).map_err(|error| map_status_error(error, &id))
     })
     .await
-    .map_err(|_| GitCommandError::internal("El descarte se interrumpió"))?
+    .map_err(|error| {
+        GitCommandError::internal("El descarte se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_discard_all.task", &error),
+        )
+    })?
 }
 
 #[tauri::command]
@@ -2859,11 +3235,9 @@ pub async fn git_commit(
             .is_ok_and(|repo| !matches!(repo.operation(), repository::RepoOperation::None));
         let checkpoint = if integrating {
             Some(
-                undo_checkpoint::Checkpoint::capture_commit(&path).map_err(|_| {
-                    commit::CommitError::GitFailed(
-                        "No se pudo crear el punto de recuperación".to_owned(),
-                    )
-                })?,
+                undo_checkpoint::Checkpoint::capture_commit(&path).map_err(|error| {
+                    commit::CommitError::Diagnostic(diagnostics::Diagnostic::new("write.recovery", format!("No se pudo crear el punto de recuperación: {error:?}")))
+                    })?,
             )
         } else {
             None
@@ -2871,11 +3245,9 @@ pub async fn git_commit(
         if let Some(checkpoint) = &checkpoint {
             checkpoint
                 .recovery_set_label("undo.continue")
-                .map_err(|_| {
-                    commit::CommitError::GitFailed(
-                        "No se pudo guardar el punto de recuperación".to_owned(),
-                    )
-                })?;
+                .map_err(|error| {
+                    commit::CommitError::Diagnostic(diagnostics::Diagnostic::new("write.recovery", format!("No se pudo guardar el punto de recuperación: {error:?}")))
+                    })?;
         }
         let before = status::commit_precondition(&path);
         let amend = request.amend();
@@ -2884,12 +3256,9 @@ pub async fn git_commit(
         let sha = commit::commit(&path, request)?;
         if let Some(before_checkpoint) = checkpoint {
             let after =
-                undo_checkpoint::Checkpoint::after(&path, &before_checkpoint).map_err(|_| {
-                    commit::CommitError::GitFailed(
-                        "La copia previa permanece en el almacén de recuperación de GitThul"
-                            .to_owned(),
-                    )
-                })?;
+                undo_checkpoint::Checkpoint::after(&path, &before_checkpoint).map_err(|error| {
+                    commit::CommitError::Diagnostic(diagnostics::Diagnostic::new("write.recovery", format!("La copia previa permanece en el almacén de recuperación de GitThul: {error:?}")))
+                    })?;
             undo.remember_checkpoint(&repository_id, before_checkpoint, after, "undo.continue");
         } else {
             undo.remember_commit(&repository_id, before, sha.clone(), amend, branch, summary);
@@ -2897,8 +3266,12 @@ pub async fn git_commit(
         Ok(sha)
     })
     .await
-    .map_err(|_| GitCommandError::internal("El commit Git se interrumpió"))?;
-    result.map_err(|error| match error {
+    .map_err(|error| GitCommandError::internal("El commit Git se interrumpió").with_diagnostic(diagnostics::Diagnostic::task("commit.join", &error)))?;
+    result.map_err(|error| map_commit_error(error, &id))
+}
+
+fn map_commit_error(error: commit::CommitError, id: &str) -> GitCommandError {
+    match error {
         commit::CommitError::IdentityMissing => {
             GitCommandError::new("commit.identityMissing", json!({}))
         }
@@ -2910,7 +3283,13 @@ pub async fn git_commit(
         commit::CommitError::GitFailed(output) => {
             GitCommandError::git("unknown", json!({}), output)
         }
-    })
+        commit::CommitError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
+        commit::CommitError::WithDiagnostic(error, diagnostic) => {
+            map_commit_error(*error, id).with_diagnostic(diagnostic)
+        }
+    }
 }
 
 fn git_head_label(repository: &std::path::Path) -> String {
@@ -2985,7 +3364,11 @@ async fn run_undo_operation(
         repository::discover(&path).map_err(|_| undo::UndoError::GitFailed)
     })
     .await
-    .map_err(|_| GitCommandError::internal("Deshacer Git se interrumpió"))?
+    .map_err(|error| {
+        GitCommandError::internal("Deshacer Git se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("run_undo_operation.task", &error),
+        )
+    })?
     .map_err(|error| match error {
         undo::UndoError::Stale => GitCommandError::new("undo.stale", json!({})),
         undo::UndoError::GitFailed => {
@@ -3029,7 +3412,13 @@ pub async fn git_watch_repository(
         Ok(())
     })
     .await
-    .map_err(|_| GitCommandError::internal("No se pudo iniciar el observador del repositorio"))?
+    .map_err(|error| {
+        GitCommandError::internal("No se pudo iniciar el observador del repositorio")
+            .with_diagnostic(diagnostics::Diagnostic::task(
+                "git_watch_repository.task",
+                &error,
+            ))
+    })?
 }
 
 #[tauri::command]
@@ -3090,25 +3479,44 @@ where
         let integrating = repository::discover(&path)
             .is_ok_and(|repo| !matches!(repo.operation(), repository::RepoOperation::None));
         let result = if integrating
-            || undo_checkpoint::index_write_requires_full(&path)
-                .map_err(|_| write::WriteError::RecoveryUnavailable)?
-        {
+            || undo_checkpoint::index_write_requires_full(&path).map_err(|error| {
+                write::WriteError::WithDiagnostic(
+                    Box::new(write::WriteError::RecoveryUnavailable),
+                    diagnostics::Diagnostic::new("write.recovery", format!("{error:?}")),
+                )
+            })? {
             // Unmerged stages need the integration metadata, but only these
             // paths can be written. Do not also create a LocalSnapshot.
             let before =
                 undo_checkpoint::Checkpoint::capture_selected(&path, paths.into_iter().collect())
-                    .map_err(|_| write::WriteError::RecoveryUnavailable)?;
-            before
-                .recovery_set_label(label)
-                .map_err(|_| write::WriteError::RecoveryUnavailable)?;
+                    .map_err(|error| {
+                    write::WriteError::WithDiagnostic(
+                        Box::new(write::WriteError::RecoveryUnavailable),
+                        diagnostics::Diagnostic::new("write.recovery", format!("{error:?}")),
+                    )
+                })?;
+            before.recovery_set_label(label).map_err(|error| {
+                write::WriteError::WithDiagnostic(
+                    Box::new(write::WriteError::RecoveryUnavailable),
+                    diagnostics::Diagnostic::new("write.recovery", format!("{error:?}")),
+                )
+            })?;
             let result = operation(&path);
-            let after = undo_checkpoint::Checkpoint::after(&path, &before)
-                .map_err(|_| write::WriteError::RecoveryUnavailable)?;
+            let after = undo_checkpoint::Checkpoint::after(&path, &before).map_err(|error| {
+                write::WriteError::WithDiagnostic(
+                    Box::new(write::WriteError::RecoveryUnavailable),
+                    diagnostics::Diagnostic::new("write.recovery", format!("{error:?}")),
+                )
+            })?;
             undo.remember_checkpoint(&repository_id, before, after, label);
             result
         } else {
-            let before = undo_local::LocalSnapshot::capture(&path, &paths)
-                .map_err(|_| write::WriteError::RecoveryUnavailable)?;
+            let before = undo_local::LocalSnapshot::capture(&path, &paths).map_err(|error| {
+                write::WriteError::WithDiagnostic(
+                    Box::new(write::WriteError::RecoveryUnavailable),
+                    diagnostics::Diagnostic::new("write.recovery", format!("{error:?}")),
+                )
+            })?;
             let result = operation(&path);
             if let Ok(after) = undo_local::LocalSnapshot::capture(&path, &paths) {
                 undo.remember_local(&repository_id, before, after, label);
@@ -3120,22 +3528,30 @@ where
         result?;
         status::read(&path).map_err(|error| match error {
             status::ReadStatusError::InvalidPathEncoding => write::WriteError::InvalidPathEncoding,
-            status::ReadStatusError::GitFailed | status::ReadStatusError::MalformedOutput => {
-                write::WriteError::GitFailed
+            status::ReadStatusError::Diagnostic(diagnostic) => {
+                write::WriteError::Diagnostic(diagnostic)
             }
+            status::ReadStatusError::MalformedOutput => write::WriteError::GitFailed,
         })
     })
     .await
-    .map_err(|_| GitCommandError::internal("La escritura Git se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La escritura Git se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("write.join", &error))
+    })?;
 
     result.map_err(|error| map_local_write_error(error, &id))
 }
 
 fn map_local_write_error(error: write::WriteError, id: &str) -> GitCommandError {
     match error {
-        write::WriteError::GitFailedWithOutput(output) => {
-            GitCommandError::git("unknown", json!({}), output)
+        write::WriteError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
         }
+        write::WriteError::WithDiagnostic(error, diagnostic) => {
+            map_local_write_error(*error, id).with_diagnostic(diagnostic)
+        }
+        write::WriteError::Cancelled => GitCommandError::new("operation.cancelled", json!({})),
         write::WriteError::RecoveryUnavailable => {
             GitCommandError::new("undo.snapshotUnavailable", json!({}))
         }
@@ -3148,7 +3564,6 @@ fn map_local_write_error(error: write::WriteError, id: &str) -> GitCommandError 
         write::WriteError::InvalidPath
         | write::WriteError::MalformedDiff
         | write::WriteError::UnsupportedSelection
-        | write::WriteError::FileSystemFailed
         | write::WriteError::GitFailed => {
             GitCommandError::internal("Git no pudo aplicar el cambio")
         }
@@ -3199,15 +3614,20 @@ where
                     status::ReadStatusError::InvalidPathEncoding => {
                         resolve::ResolveError::InvalidPathEncoding
                     }
-                    status::ReadStatusError::GitFailed
-                    | status::ReadStatusError::MalformedOutput => resolve::ResolveError::GitFailed,
+                    status::ReadStatusError::MalformedOutput => resolve::ResolveError::GitFailed,
+                    status::ReadStatusError::Diagnostic(diagnostic) => {
+                        resolve::ResolveError::Diagnostic(diagnostic)
+                    }
                 })
                 .map_err(map_resolve_error)?;
             Ok(ResolveWriteResult { resolved, status })
         })
     })
     .await
-    .map_err(|_| GitCommandError::internal("La resolución Git se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La resolución Git se interrumpió")
+            .with_diagnostic(diagnostics::Diagnostic::task("resolve.join", &error))
+    })?;
 
     result
 }
@@ -3232,6 +3652,12 @@ fn map_resolve_error(error: resolve::ResolveError) -> GitCommandError {
         }
         resolve::ResolveError::InvalidPathEncoding => {
             GitCommandError::new("path.encodingUnsupported", json!({ "repo": "" }))
+        }
+        resolve::ResolveError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
+        resolve::ResolveError::WithDiagnostic(error, diagnostic) => {
+            map_resolve_error(*error).with_diagnostic(diagnostic)
         }
         resolve::ResolveError::InvalidPath | resolve::ResolveError::GitFailed => {
             GitCommandError::internal("Git no pudo resolver el conflicto")
@@ -3266,7 +3692,11 @@ async fn run_operation_write(
         result
     })
     .await
-    .map_err(|_| GitCommandError::internal("La operación Git se interrumpió"))?;
+    .map_err(|error| {
+        GitCommandError::internal("La operación Git se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("run_operation_write.task", &error),
+        )
+    })?;
 
     result
 }
@@ -3277,8 +3707,9 @@ fn operation_with_recovery(
     undo: &undo::UndoStacks,
     action: OperationAction,
 ) -> Result<Repository, GitCommandError> {
-    let current = repository::discover(path)
-        .map_err(|_| GitCommandError::internal("Git no pudo leer la operación"))?;
+    let current = repository::discover(path).map_err(|diagnostic| {
+        GitCommandError::internal("Git no pudo leer la operación").with_diagnostic(diagnostic)
+    })?;
     let before = if matches!(action, OperationAction::Quit)
         || (matches!(action, OperationAction::Continue)
             && stash::recovery_kind(path).is_some()
@@ -3328,8 +3759,8 @@ fn map_operation_error(error: operation::OperationError) -> GitCommandError {
         operation::OperationError::StillConflicted(count) => {
             GitCommandError::new("resolve.stillConflicted", json!({ "count": count }))
         }
-        operation::OperationError::GitFailed => {
-            GitCommandError::internal("Git no pudo cerrar la operación")
+        operation::OperationError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
         }
         operation::OperationError::NoOperation => {
             GitCommandError::internal("No hay una operación Git en curso")
@@ -3460,6 +3891,48 @@ mod repository_read_tests {
             "repo.notFound"
         );
     }
+    #[test]
+    fn read_ipc_preserves_native_diagnostics_and_expected_error_codes() {
+        let temporary = TempDir::new().unwrap();
+        let status = Command::new("git")
+            .args(["init", "--initial-branch=main"])
+            .current_dir(temporary.path())
+            .output()
+            .unwrap();
+        assert!(status.status.success());
+        fs::write(temporary.path().join(".git/index"), b"broken index").unwrap();
+        let id = temporary.path().to_string_lossy().into_owned();
+        let error = tauri::async_runtime::block_on(super::git_read_status(id.clone())).unwrap_err();
+        assert_eq!(error.code, "unknown");
+        let diagnostic = error
+            .diagnostic
+            .as_ref()
+            .expect("native evidence survives IPC mapping");
+        let value = serde_json::to_value(&error).unwrap();
+        assert_eq!(
+            value["diagnostic"]["diagnosticId"],
+            diagnostic.diagnostic_id
+        );
+        assert_eq!(value["diagnostic"]["stage"], "status.command");
+        assert_eq!(value["diagnostic"]["command"]["args"][0], "status");
+        assert_ne!(value["diagnostic"]["exitCode"], 0);
+        assert!(value["output"].as_str().unwrap().contains("index"));
+        assert!(!value.to_string().contains("stdout"));
+        let missing = tauri::async_runtime::block_on(super::git_read_file(
+            id,
+            "missing.txt".into(),
+            None,
+            None,
+            None,
+        ))
+        .unwrap_err();
+        assert_eq!(missing.code, "path.notFound");
+        let value = serde_json::to_value(&missing).unwrap();
+        assert_eq!(value["params"]["path"], "missing.txt");
+        assert_eq!(value["diagnostic"]["stage"], "file.readWorktree");
+        assert_eq!(value["diagnostic"]["ioKind"], "NotFound");
+        assert!(value["diagnostic"]["osCode"].is_number());
+    }
 }
 
 #[cfg(test)]
@@ -3516,6 +3989,46 @@ mod clone_tests {
         .expect_err("fuente inválida");
         assert_eq!(error.code, "clone.invalidUrl");
         assert!(!temporary.path().join("copia").exists());
+    }
+
+    #[test]
+    fn failed_local_clone_preserves_exit_command_stderr_and_removes_partial_target() {
+        let temporary = TempDir::new().unwrap();
+        let source = temporary.path().join("source");
+        fs::create_dir(&source).unwrap();
+        git(&source, &["init", "--initial-branch=main"]);
+        fs::write(
+            source.join(".git/refs/heads/main"),
+            "0123456789abcdef0123456789abcdef01234567\n",
+        )
+        .unwrap();
+        let before = fs::read(source.join(".git/refs/heads/main")).unwrap();
+        let error = run_clone(
+            CloneRepositoryRequest {
+                url: source.to_string_lossy().into_owned(),
+                path: temporary.path().to_string_lossy().into_owned(),
+                name: "copy".into(),
+            },
+            "clone-diagnostic".into(),
+            Channel::new(|_| Ok(())),
+            &CloneProcesses::default(),
+            None,
+        )
+        .unwrap_err();
+        let value = serde_json::to_value(error).unwrap();
+        assert_eq!(value["diagnostic"]["stage"], "clone.execute");
+        assert_ne!(value["diagnostic"]["exitCode"], 0);
+        assert_eq!(value["diagnostic"]["command"]["args"][0], "clone");
+        assert!(value["diagnostic"]["stderr"]
+            .as_str()
+            .unwrap()
+            .contains("fatal:"));
+        assert!(value["diagnostic"].get("stdout").is_none());
+        assert!(!temporary.path().join("copy").exists());
+        assert_eq!(
+            fs::read(source.join(".git/refs/heads/main")).unwrap(),
+            before
+        );
     }
 
     #[test]
@@ -3721,6 +4234,36 @@ mod identity_tests {
         assert_eq!(
             fs::read(folder.path().join(".git/config.lock")).unwrap(),
             b"other process"
+        );
+    }
+    #[test]
+    fn profile_lock_failure_keeps_io_evidence_without_identity_values() {
+        let temporary = tempfile::tempdir().unwrap();
+        let output = Command::new("git")
+            .args(["init", "--initial-branch=main"])
+            .current_dir(temporary.path())
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        fs::write(temporary.path().join(".git/config.lock"), "held").unwrap();
+        let error = set_identity(
+            temporary.path(),
+            &GitIdentity {
+                name: "PRIVATE_IDENTITY_NAME".into(),
+                email: "PRIVATE_IDENTITY_EMAIL@example.invalid".into(),
+            },
+        )
+        .unwrap_err();
+        let value = serde_json::to_value(error).unwrap();
+        assert_eq!(value["code"], "unknown");
+        assert_eq!(value["diagnostic"]["stage"], "identity.openConfigLock");
+        assert_eq!(value["diagnostic"]["ioKind"], "AlreadyExists");
+        assert!(value["diagnostic"]["osCode"].is_number());
+        assert!(!value.to_string().contains("PRIVATE_IDENTITY_NAME"));
+        assert!(!value.to_string().contains("PRIVATE_IDENTITY_EMAIL"));
+        assert_eq!(
+            fs::read_to_string(temporary.path().join(".git/config.lock")).unwrap(),
+            "held"
         );
     }
 }

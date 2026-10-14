@@ -127,6 +127,20 @@ describe('refLabelsAt', () => {
     expect(otra?.remote?.name).toBe('origin/otra');
   });
 
+  it('un upstream ausente no agrupa la local como copia de una remota', () => {
+    const missing: RefsSnapshot = {
+      ...snapshot,
+      branches: snapshot.branches.map((item) =>
+        item.kind === 'local' && item.isHead ? { ...item, upstreamMissing: true } : item,
+      ),
+    };
+
+    const labels = refLabelsAt(missing, 'aaa');
+
+    expect(labels.find((item) => item.local?.name === 'main')?.remote).toBeUndefined();
+    expect(labels.find((item) => item.remote?.name === 'origin/main')?.local).toBeUndefined();
+  });
+
   it('no funde una local con su remota si apuntan a commits distintos', () => {
     const separated: RefsSnapshot = {
       ...snapshot,
