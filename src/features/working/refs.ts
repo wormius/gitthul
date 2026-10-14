@@ -206,6 +206,8 @@ function remoteTwin(
   remotes: readonly Branch[],
   paired: ReadonlySet<string>,
 ): Branch | undefined {
+  if (local.upstreamMissing) return undefined;
+
   if (local.upstream !== undefined) {
     return remotes.find((remote) => remote.name === local.upstream && !paired.has(remote.id));
   }

@@ -10,6 +10,7 @@ import styles from './RefRow.module.css';
 interface RefRowProps {
   kind: RefIconKind;
   label: string;
+  title?: string;
   /** Solo tiene sentido en una local con remota de seguimiento — CU-3. */
   ahead?: number;
   behind?: number;
@@ -48,6 +49,7 @@ interface RefRowProps {
 export function RefRow({
   kind,
   label,
+  title,
   ahead,
   behind,
   menu,
@@ -86,6 +88,7 @@ export function RefRow({
     const row = (
       <div
         className={[styles.row, className].filter(Boolean).join(' ')}
+        title={title}
         data-active={kind === 'activeBranch' ? 'true' : undefined}
         data-selected={selected ? '' : undefined}
         data-nested-in-tree={nestedInTree ? '' : undefined}
@@ -117,6 +120,7 @@ export function RefRow({
     <DraggableRow
       kind={kind}
       label={label}
+      title={title}
       tracking={tracking}
       menu={menu}
       menuLabel={menuLabel}
@@ -139,6 +143,7 @@ export function RefRow({
 function DraggableRow({
   kind,
   label,
+  title,
   tracking,
   menu,
   menuLabel,
@@ -153,6 +158,7 @@ function DraggableRow({
 }: {
   kind: RefIconKind;
   label: string;
+  title?: string;
   tracking: React.ReactNode;
   menu?: readonly MenuEntry[];
   menuLabel?: string;
@@ -187,6 +193,7 @@ function DraggableRow({
   const row = (
     <div
       className={[dragProps.className, dropProps.className, className].filter(Boolean).join(' ')}
+      title={title}
       data-active={kind === 'activeBranch' ? 'true' : undefined}
       data-selected={selected ? '' : undefined}
       data-nested-in-tree={nestedInTree ? '' : undefined}

@@ -545,6 +545,7 @@ export const en: Messages = {
   'working.refPanel.emptyStashes': 'No stashes',
   'working.refPanel.emptyWorktrees': 'No worktrees besides this one',
   'working.refRow.tracking': '{ahead} commits ahead and {behind} behind the upstream branch',
+  'working.upstreamMissing': 'Upstream {upstream} no longer exists.',
 
   // GitActionBar — local/network actions and contextual access to Terminal.
   'working.actionBar.label': 'GitWorking action bar',
@@ -800,6 +801,9 @@ export const en: Messages = {
     'The chosen commits are not consecutive: they are applied in history order, oldest first.',
   'working.dialog.branch.createTitle': 'Create a branch from {from}',
   'working.dialog.remoteBranchAhead.title': '{branch} has local commits of its own',
+  'working.dialog.remoteBranchAhead.titleUnknown': '{branch} and the remote have different tips',
+  'working.dialog.remoteBranchAhead.descriptionUnknown':
+    'The upstream {upstream} of {local} no longer exists, so commit counts against {remote} are unavailable. You can align {local} with the remote, create another branch from the remote tip, or do nothing.',
   'working.dialog.remoteBranchAhead.description':
     '{local} has {ahead} commits that are not in {remote} and is {behind} commits behind. You can align {local} with the remote, create another branch from the remote tip, or do nothing.',
   'working.dialog.remoteBranchAhead.reset': 'Align {branch} with remote',
@@ -1636,6 +1640,10 @@ export const en: Messages = {
     'The branch changed, but the automatic stash was kept as a backup because restoring it caused conflicts.',
   'error.branch.exists.title': 'A branch called {branch} already exists',
   'error.branch.exists.cause': 'Two branches cannot share a name inside the same repository.',
+  'error.branch.checkoutBlocked.title':
+    'Switching to {branch} would overwrite local files. Stash your changes or commit them first',
+  'error.branch.checkoutBlocked.cause':
+    'Git stopped the branch switch because it would overwrite local files or changes. Include the affected untracked files in the stash, or stage and commit them, then try again.',
   'error.branch.current.title': '{branch} is the current branch',
   'error.branch.current.cause':
     'Git cannot delete the branch that is in use. Switch to another branch and try again.',

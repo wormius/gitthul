@@ -1066,6 +1066,24 @@ describe('ramas', () => {
     ).rejects.toMatchObject({ code: 'branch.exists', params: { branch: 'dev' } });
   });
 
+  it('un rechazo al crear y cambiar de rama conserva los cambios y las referencias', async () => {
+    const before = {
+      refs: await git.readRefs('gitthul'),
+      status: await git.readStatus('gitthul'),
+      undo: await git.readUndoStack('gitthul'),
+    };
+    const error = new GitOperationError('branch.checkoutBlocked', { branch: 'pendiente' });
+    git.failNext('createBranch', error);
+
+    await expect(
+      git.createBranch('gitthul', 'pendiente', { kind: 'branch', name: 'dev' }, { checkout: true }),
+    ).rejects.toBe(error);
+
+    expect(await git.readRefs('gitthul')).toEqual(before.refs);
+    expect(await git.readStatus('gitthul')).toEqual(before.status);
+    expect(await git.readUndoStack('gitthul')).toEqual(before.undo);
+  });
+
   it('renombrar arrastra HEAD, el worktree y los guardados', async () => {
     const refs = await git.renameBranch('gitthul', 'main', 'principal');
 
@@ -1139,6 +1157,97 @@ describe('ramas', () => {
 
     expect(otra?.upstream).toBe('origin/main');
     expect(otra?.ahead).toBeGreaterThan(0);
+  });
+});
+
+describe('upstream retirado', () => {
+  beforeEach(async () => {
+    const world = fixtureWorld.buildWorld();
+    const repo = world.repos.get('gitthul');
+    if (!repo) throw new Error('El fixture requiere gitthul');
+    vi.spyOn(fixtureWorld, 'buildWorld').mockReturnValue({
+      ...world,
+      repos: new Map(world.repos).set('gitthul', {
+        ...repo,
+        refs: {
+          ...repo.refs,
+          branches: repo.refs.branches.filter((branch) => branch.name !== 'origin/main'),
+        },
+      }),
+    });
+    await git.fetch('gitthul', 'origin');
+  });
+
+  it('conserva el seguimiento sin inventar conteos después de fetch o commit', async () => {
+    const missing = {
+      upstream: 'origin/main',
+      upstreamMissing: true,
+      ahead: 0,
+      behind: 0,
+    };
+    const refs = await git.readRefs('gitthul');
+    expect(refs.branches.find((branch) => branch.name === 'main')).toMatchObject(missing);
+
+    await git.commit('gitthul', { summary: 'Cambio local con upstream retirado', body: '' });
+    const committed = await git.readRefs('gitthul');
+    expect(committed.branches.find((branch) => branch.name === 'main')).toMatchObject(missing);
+
+    const fetched = await git.fetch('gitthul', 'origin');
+    expect(fetched.branches.find((branch) => branch.name === 'main')).toMatchObject(missing);
+  });
+
+  it('podar una referencia seguida conserva su nombre y marca que falta', async () => {
+    await git.setUpstream('gitthul', 'main', 'origin/dev');
+    await git.deleteBranch('gitthul', 'dev', { force: true });
+    const refs = await git.fetch('gitthul', 'origin', { prune: true });
+    expect(refs.branches.some((branch) => branch.name === 'origin/dev')).toBe(false);
+    expect(refs.branches.find((branch) => branch.name === 'main')).toMatchObject({
+      upstream: 'origin/dev',
+      upstreamMissing: true,
+      ahead: 0,
+      behind: 0,
+    });
+  });
+
+  it('pull falla antes de decidir si la historia está publicada', async () => {
+    await expect(git.pull('gitthul')).rejects.toMatchObject({
+      code: 'unknown',
+      output: "fatal: 'origin/main' does not point to a commit",
+    });
+  });
+
+  it('push vuelve a materializar la referencia y limpia el aviso', async () => {
+    const refs = await git.push('gitthul', 'main');
+    const main = refs.branches.find((branch) => branch.name === 'main');
+    expect(main).toMatchObject({ upstream: 'origin/main', ahead: 0, behind: 0 });
+    expect(main?.upstreamMissing).toBeUndefined();
+    expect(refs.branches.find((branch) => branch.name === 'origin/main')?.tip).toBe(main?.tip);
+  });
+
+  it('cambiar a un upstream presente vuelve a calcular los conteos', async () => {
+    const refs = await git.setUpstream('gitthul', 'main', 'origin/dev');
+    const main = refs.branches.find((branch) => branch.name === 'main');
+    expect(main?.upstream).toBe('origin/dev');
+    expect(main?.upstreamMissing).toBeUndefined();
+    expect((main?.ahead ?? 0) + (main?.behind ?? 0)).toBeGreaterThan(0);
+  });
+
+  it('dejar de seguir elimina el nombre y el aviso', async () => {
+    const refs = await git.setUpstream('gitthul', 'main', null);
+    const main = refs.branches.find((branch) => branch.name === 'main');
+    expect(main).toMatchObject({ ahead: 0, behind: 0 });
+    expect(main?.upstream).toBeUndefined();
+    expect(main?.upstreamMissing).toBeUndefined();
+  });
+
+  it('quitar el remoto elimina el seguimiento y el aviso', async () => {
+    const before = await git.readRefs('gitthul');
+    const origin = before.remotes.find((remote) => remote.name === 'origin')!;
+    const refs = await git.removeRemote('gitthul', 'origin', origin);
+    const main = refs.branches.find((branch) => branch.name === 'main');
+    expect(main).toMatchObject({ ahead: 0, behind: 0 });
+    expect(main?.upstream).toBeUndefined();
+    expect(main?.upstreamMissing).toBeUndefined();
   });
 });
 

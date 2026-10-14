@@ -579,6 +579,7 @@ export const esMX = {
   'working.refPanel.emptyStashes': 'Sin stashes',
   'working.refPanel.emptyWorktrees': 'Sin worktrees además de este',
   'working.refRow.tracking': '{ahead} commits por delante y {behind} por detrás del upstream',
+  'working.upstreamMissing': 'El upstream {upstream} ya no existe.',
 
   // GitActionBar — acciones locales, de red y acceso contextual a Terminal.
   'working.actionBar.label': 'Barra de acciones de GitWorking',
@@ -837,6 +838,9 @@ export const esMX = {
     'Los commits elegidos no van seguidos: se aplican en el orden del historial, del más viejo al más nuevo.',
   'working.dialog.branch.createTitle': 'Crear una rama desde {from}',
   'working.dialog.remoteBranchAhead.title': '{branch} tiene commits locales propios',
+  'working.dialog.remoteBranchAhead.titleUnknown': '{branch} y la remota tienen puntas distintas',
+  'working.dialog.remoteBranchAhead.descriptionUnknown':
+    'El upstream {upstream} de {local} ya no existe y no hay conteos disponibles frente a {remote}. Puedes alinear {local} con la remota, crear otra rama desde la punta remota o no hacer nada.',
   'working.dialog.remoteBranchAhead.description':
     '{local} tiene {ahead} commits que no están en {remote} y está {behind} commits atrás. Puedes alinear {local} con la remota, crear otra rama desde la punta remota o no hacer nada.',
   'working.dialog.remoteBranchAhead.reset': 'Alinear {branch} con la remota',
@@ -1695,6 +1699,10 @@ export const esMX = {
     'Se cambió de rama, pero hubo conflictos al restaurar los cambios. El stash automático se conservó como respaldo.',
   'error.branch.exists.title': 'Ya existe una rama llamada {branch}',
   'error.branch.exists.cause': 'Dos ramas no pueden compartir nombre dentro del mismo repositorio.',
+  'error.branch.checkoutBlocked.title':
+    'Cambiar a {branch} sobrescribiría archivos locales. Crea un stash o haz commit primero',
+  'error.branch.checkoutBlocked.cause':
+    'Git detuvo el cambio de rama porque sobrescribiría archivos o cambios locales. Incluye los archivos sin seguimiento afectados en el stash, o agrégalos al staging y haz commit, y vuelve a intentarlo.',
   'error.branch.current.title': '{branch} es la rama activa',
   'error.branch.current.cause':
     'Git no puede eliminar la rama que está en uso. Cambia a otra rama y vuelve a intentarlo.',

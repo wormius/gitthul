@@ -19,7 +19,9 @@ export interface Branch {
   tip: Sha;
   /** Rama remota que sigue esta local, por nombre completo. */
   upstream?: string;
-  /** Commits que tiene de más y de menos respecto de su `upstream`. */
+  /** Tiene seguimiento configurado, pero su referencia ya no existe. */
+  upstreamMissing?: boolean;
+  /** Commits respecto de `upstream`; no disponibles si `upstreamMissing` es true. */
   ahead: number;
   behind: number;
   /** La rama activa del repositorio principal. */

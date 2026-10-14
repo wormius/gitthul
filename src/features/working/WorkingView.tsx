@@ -392,6 +392,7 @@ export function WorkingView({ base }: WorkingViewProps) {
       },
       headUpstream: (() => {
         const local = refs.branches.find((branch) => branch.kind === 'local' && branch.isHead);
+        if (local?.upstreamMissing) return null;
         const upstream = refs.branches.find(
           (branch) => branch.kind === 'remote' && branch.name === local?.upstream,
         );

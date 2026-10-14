@@ -417,6 +417,9 @@ function Divergence({ branch }: { branch: Branch }) {
   if (branch.upstream === undefined) {
     return <Badge>{t('repositories.stats.noUpstream', { branch: branch.name })}</Badge>;
   }
+  if (branch.upstreamMissing) {
+    return <Badge>{t('working.upstreamMissing', { upstream: branch.upstream })}</Badge>;
+  }
 
   return (
     <>

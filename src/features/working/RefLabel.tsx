@@ -43,7 +43,7 @@ export function RefLabel({ item, drag, onDrop, className, onDoubleClick }: RefLa
       ? ({ '--ref-color': `var(--graph-branch-${String(colorIndex)})` } as React.CSSProperties)
       : undefined;
 
-  const kindLabel =
+  const baseLabel =
     item.kind === 'tag'
       ? t('working.refLabel.tag', { name: item.name })
       : item.isHead
@@ -53,6 +53,10 @@ export function RefLabel({ item, drag, onDrop, className, onDoubleClick }: RefLa
           : item.remote
             ? t('working.refLabel.remote', { name: item.name })
             : t('working.refLabel.local', { name: item.name });
+  const kindLabel =
+    item.local?.upstreamMissing && item.local.upstream !== undefined
+      ? `${baseLabel}. ${t('working.upstreamMissing', { upstream: item.local.upstream })}`
+      : baseLabel;
 
   const icons = (
     <span className={styles.icons} aria-hidden="true">

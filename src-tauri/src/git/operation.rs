@@ -3,13 +3,14 @@
 use std::path::Path;
 use std::process::Command;
 
+use super::diagnostics::Diagnostic;
 use super::repository::{self, RepoOperation, Repository};
 use super::stash::{self, StashError};
 use super::status;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum OperationError {
-    GitFailed,
+    Diagnostic(Diagnostic),
     NoOperation,
     StillConflicted(usize),
     Stash(StashError),
@@ -17,12 +18,17 @@ pub enum OperationError {
 
 pub fn continue_operation(repository: &Path) -> Result<Repository, OperationError> {
     let conflicts = status::read(repository)
-        .map_err(|_| OperationError::GitFailed)?
+        .map_err(|error| {
+            OperationError::Diagnostic(match error {
+                status::ReadStatusError::Diagnostic(diagnostic) => diagnostic,
+                error => Diagnostic::new("operation.readStatus", format!("{error:?}")),
+            })
+        })?
         .conflicted_count();
     if conflicts > 0 {
         return Err(OperationError::StillConflicted(conflicts));
     }
-    let current = repository::discover(repository).map_err(|_| OperationError::GitFailed)?;
+    let current = repository::discover(repository).map_err(OperationError::Diagnostic)?;
     let Some(args) = continue_args(current.operation()) else {
         if stash::recovery_kind(repository).is_some() {
             stash::finish_recovery(repository).map_err(OperationError::Stash)?;
@@ -35,7 +41,7 @@ pub fn continue_operation(repository: &Path) -> Result<Repository, OperationErro
 }
 
 pub fn abort_operation(repository: &Path) -> Result<Repository, OperationError> {
-    let current = repository::discover(repository).map_err(|_| OperationError::GitFailed)?;
+    let current = repository::discover(repository).map_err(OperationError::Diagnostic)?;
     let Some(args) = abort_args(current.operation()) else {
         if stash::recovery_kind(repository).is_some() {
             stash::abort_recovery(repository).map_err(OperationError::Stash)?;
@@ -50,12 +56,17 @@ pub fn abort_operation(repository: &Path) -> Result<Repository, OperationError> 
 /// Olvida la integración sin crear commits ni restaurar el índice o el árbol.
 pub fn quit_operation(repository: &Path) -> Result<Repository, OperationError> {
     let conflicts = status::read(repository)
-        .map_err(|_| OperationError::GitFailed)?
+        .map_err(|error| {
+            OperationError::Diagnostic(match error {
+                status::ReadStatusError::Diagnostic(diagnostic) => diagnostic,
+                error => Diagnostic::new("operation.readStatus", format!("{error:?}")),
+            })
+        })?
         .conflicted_count();
     if conflicts > 0 {
         return Err(OperationError::StillConflicted(conflicts));
     }
-    let current = repository::discover(repository).map_err(|_| OperationError::GitFailed)?;
+    let current = repository::discover(repository).map_err(OperationError::Diagnostic)?;
     let args: &[&str] = match current.operation() {
         RepoOperation::Merge { .. } => &["merge", "--quit"],
         RepoOperation::Rebase { .. } => &["rebase", "--quit"],
@@ -93,18 +104,24 @@ fn abort_args(operation: &RepoOperation) -> Option<&'static [&'static str]> {
 }
 
 fn rediscover(repository: &Path) -> Result<Repository, OperationError> {
-    repository::discover(repository).map_err(|_| OperationError::GitFailed)
+    repository::discover(repository).map_err(OperationError::Diagnostic)
 }
 
 fn run(repository: &Path, args: &[&str]) -> Result<(), OperationError> {
     let output = git_command(repository)
         .args(args)
         .output()
-        .map_err(|_| OperationError::GitFailed)?;
+        .map_err(|error| {
+            OperationError::Diagnostic(Diagnostic::command_io("operation.spawn", args, &error))
+        })?;
     if output.status.success() {
         Ok(())
     } else {
-        Err(OperationError::GitFailed)
+        Err(OperationError::Diagnostic(Diagnostic::command(
+            "operation.execute",
+            args,
+            &output,
+        )))
     }
 }
 

@@ -1,4 +1,4 @@
-import { redactLogText } from '@core/domain/logPrivacy';
+import { boundLogText, redactLogText, redactLogValue } from '@core/domain/logPrivacy';
 import type { LogContext, LogEntry, LogLevel } from '@core/domain/logs';
 
 /** One session per journal, shared by every instrumented subsystem. */
@@ -15,7 +15,7 @@ export function logEntryFactory() {
   ): LogEntry => ({
     id: ++sequence,
     at: Date.now(),
-    schemaVersion: 2,
+    schemaVersion: 3,
     sessionId,
     appVersion: __APP_VERSION__,
     platform: typeof navigator === 'undefined' ? 'unknown' : navigator.userAgent,
@@ -23,17 +23,12 @@ export function logEntryFactory() {
     debugEnabled,
     level,
     scope: redactLogText(scope).slice(0, 128),
-    message: redactLogText(message).slice(0, 4000),
-    ...(detail === undefined ? {} : { detail: redactLogText(detail).slice(0, 15000) }),
+    message: boundLogText(redactLogText(message), 4000),
+    ...(detail === undefined ? {} : { detail: boundLogText(redactLogText(detail), 15000) }),
     ...(context === undefined
       ? {}
       : {
-          context: Object.fromEntries(
-            Object.entries(context).map(([key, value]) => [
-              key,
-              typeof value === 'string' ? redactLogText(value).slice(0, 10000) : value,
-            ]),
-          ),
+          context: redactLogValue(context) as unknown as LogContext,
         }),
   });
 }

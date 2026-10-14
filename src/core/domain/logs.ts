@@ -10,17 +10,39 @@
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+export type LogValue = string | number | boolean | null | LogValue[] | { [key: string]: LogValue };
+export type LogMetadata = Record<string, LogValue>;
+
+export interface LogErrorDiagnostic {
+  name?: string;
+  message?: string;
+  stack?: string;
+  code?: string;
+  params?: LogValue;
+  output?: string;
+  cause?: LogErrorDiagnostic;
+  diagnostic?: LogValue;
+}
+
 /** Stable fields for support tools; detail remains readable diagnostic evidence. */
 export interface LogContext {
   operationId?: string;
+  nativeOperationId?: string;
   method?: string;
   phase?: 'start' | 'success' | 'failure' | 'cancelled' | 'event';
   durationMs?: number;
+  startedAt?: number;
   repository?: string;
   request?: string;
+  requestData?: LogMetadata;
   result?: string;
+  resultData?: LogMetadata;
+  error?: LogErrorDiagnostic;
+  recentOperations?: LogMetadata[];
   errorCode?: string;
   recovery?: string;
+  report?: LogMetadata;
+  environment?: LogMetadata;
 }
 
 export interface LogEntry {

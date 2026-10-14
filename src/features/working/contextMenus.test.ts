@@ -412,6 +412,22 @@ describe('menú de una rama remota', () => {
     expect(actions.activateRemoteBranch).toHaveBeenCalledWith(remote, local);
     expect(actions.checkout).not.toHaveBeenCalled();
   });
+
+  it('un upstream ausente no promete fast-forward con conteos no disponibles', () => {
+    const local = { ...dev, tip: 'local', ahead: 0, behind: 3, upstreamMissing: true };
+    const remote = { ...originDev, tip: 'remote' };
+    const checkout = find(
+      remoteBranchMenu(context({ branches: [local, remote] }), remote),
+      'checkout',
+    );
+
+    expect(isAction(checkout) ? checkout.description : '').toBe(
+      t('working.menu.remoteBranch.checkoutHintDiverged', {
+        branch: local.name,
+        remote: remote.name,
+      }),
+    );
+  });
 });
 
 describe('menú de un tag', () => {

@@ -1,6 +1,8 @@
 import { logEntryFactory } from '../logEntry';
 import { atLeast, type LogEntry, type LogFilter } from '@core/domain/logs';
 import type { LogPort } from '@core/ports/LogPort';
+import { clearOperationHistory } from '../logOperation';
+import { encodeLogExport } from '../logExport';
 
 export interface MockLogPortOptions {
   /** Cuántas entradas se conservan. Las viejas se van por el otro extremo. */
@@ -28,7 +30,7 @@ export function createMockLogPort(options: MockLogPortOptions = {}): LogPort {
   let debugEnabled = options.debugEnabled ?? false;
   const makeEntry = logEntryFactory();
 
-  return {
+  const port: LogPort = {
     setDebugEnabled: (enabled) => {
       debugEnabled = enabled;
     },
@@ -73,11 +75,20 @@ export function createMockLogPort(options: MockLogPortOptions = {}): LogPort {
     },
 
     export: (errorsOnly = false) => {
-      const found = entries.filter((entry) => !errorsOnly || atLeast(entry.level, 'warn'));
       const url = URL.createObjectURL(
-        new Blob([found.map((entry) => JSON.stringify(entry)).join('\n')], {
-          type: 'application/x-ndjson',
-        }),
+        new Blob(
+          [
+            encodeLogExport(entries, {
+              incidentsOnly: errorsOnly,
+              debugEnabled,
+              retention: { capacityEntries: capacity },
+              makeEntry,
+            }),
+          ],
+          {
+            type: 'application/x-ndjson',
+          },
+        ),
       );
       const link = document.createElement('a');
       link.href = url;
@@ -88,10 +99,12 @@ export function createMockLogPort(options: MockLogPortOptions = {}): LogPort {
     },
     clear: () => {
       entries.length = 0;
+      clearOperationHistory(port);
 
       return Promise.resolve();
     },
 
     openDirectory: () => Promise.resolve(),
   };
+  return port;
 }

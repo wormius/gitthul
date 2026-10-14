@@ -113,6 +113,28 @@ describe('RefLabel', () => {
 
     expectNoHoverShift(screen.getByTitle('Rama activa main'));
   });
+
+  it.each([false, true])('nombra el upstream ausente en el tooltip (arrastre: %s)', (drag) => {
+    const missing = { ...labelNamed('main'), remote: undefined };
+    missing.local = { ...local('main', true, 'origin/main'), upstreamMissing: true };
+    render(
+      <I18nProvider initialLocale="es-MX">
+        <DragLayer>
+          <RefLabel
+            item={missing}
+            {...(drag
+              ? { drag: { kind: 'branch', name: 'main', ref: 'refs/heads/main' } as const }
+              : {})}
+          />
+        </DragLayer>
+      </I18nProvider>,
+    );
+
+    expect(
+      screen.getByTitle('Rama activa main. El upstream origin/main ya no existe.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByTitle(/la local y la remota/)).not.toBeInTheDocument();
+  });
 });
 
 describe('RefLabelCluster', () => {

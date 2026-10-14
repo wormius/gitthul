@@ -14,7 +14,7 @@ GitThul es una aplicación de escritorio que vuelve visibles el estado y las ope
 Git. Combina una experiencia gráfica completa con una terminal integrada, de modo que tanto el
 trabajo cotidiano como las operaciones complejas pueden realizarse sin perder contexto.
 
-La versión actual es **1.1.0**. No incluye telemetría ni una función de IA. Las conexiones de red
+La versión actual es **1.1.1**. No incluye telemetría ni una función de IA. Las conexiones de red
 ocurren por acciones del usuario, como clonar, fetch, pull, push o abrir un enlace confirmado,
 y por la consulta de versiones al iniciar si activas esa opción, desactivada por defecto.
 
@@ -75,7 +75,7 @@ para conocer su alcance y las condiciones necesarias para una copia completa.
 ## Instalación y ayuda
 
 Los paquetes publicados están en [GitHub Releases](https://github.com/wormius/gitthul/releases).
-Consulta las [notas de 1.1.0](docs/releases/1.1.0.md) y la
+Consulta las [notas de 1.1.1](docs/releases/1.1.1.md) y la
 [guía de instalación](docs/instalacion.md) para elegir el paquete de tu sistema.
 Revisa las [dependencias](docs/instalacion.md#dependencias), incluido Git instalado
 y disponible en el sistema.

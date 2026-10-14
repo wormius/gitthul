@@ -6,9 +6,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use gix::bstr::ByteSlice;
 use gix::revision::walk::Sorting;
+
 use serde::{Deserialize, Serialize};
 
-use super::refs;
+use super::{diagnostics::Diagnostic, refs};
 
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -79,12 +80,13 @@ pub struct CommitPage {
     search_cursor: Option<usize>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReadHistoryError {
+    Diagnostic(Diagnostic),
+    WithDiagnostic(Box<Self>, Diagnostic),
     Cancelled,
     InvalidEncoding,
     StartNotFound,
-    GitFailed,
 }
 
 #[derive(Debug)]
@@ -99,7 +101,9 @@ pub fn read(
     request: CommitPageRequest,
     cancelled: &AtomicBool,
 ) -> Result<CommitPage, ReadHistoryError> {
-    let repo = gix::open(path).map_err(|_| ReadHistoryError::GitFailed)?;
+    let repo = gix::open(path).map_err(|error| {
+        ReadHistoryError::Diagnostic(Diagnostic::cause("history.openRepository", &error))
+    })?;
     let tips = tips(&repo, path, request.start.as_deref())?;
     if tips.is_empty() {
         return Ok(CommitPage {
@@ -113,7 +117,9 @@ pub fn read(
     let mut platform = repo.rev_walk(tips);
     if let Some(since) = request.since {
         let seconds = since.saturating_add(999) / 1_000;
-        let seconds = i64::try_from(seconds).map_err(|_| ReadHistoryError::GitFailed)?;
+        let seconds = i64::try_from(seconds).map_err(|error| {
+            ReadHistoryError::Diagnostic(Diagnostic::new("history.timeRange", error))
+        })?;
         platform = platform.sorting(Sorting::ByCommitTimeCutoff {
             order: Default::default(),
             seconds,
@@ -134,11 +140,15 @@ pub fn read(
         let scan_skip = search.scan_skip.unwrap_or(0);
         let scan_limit = search.scan_limit.map(|limit| limit.clamp(1, 2000));
         let mut scanned = 0usize;
-        for info in platform.all().map_err(|_| ReadHistoryError::GitFailed)? {
+        for info in platform.all().map_err(|error| {
+            ReadHistoryError::Diagnostic(Diagnostic::cause("history.startWalk", &error))
+        })? {
             if cancelled.load(Ordering::Relaxed) {
                 return Err(ReadHistoryError::Cancelled);
             }
-            let info = info.map_err(|_| ReadHistoryError::GitFailed)?;
+            let info = info.map_err(|error| {
+                ReadHistoryError::Diagnostic(Diagnostic::cause("history.walkCommit", &error))
+            })?;
             if scanned < scan_skip {
                 scanned += 1;
                 continue;
@@ -159,7 +169,12 @@ pub fn read(
                 "messages" => format!("{}\n{}", commit.summary, commit.body),
                 "authors" => format!("{} <{}>", commit.author.name, commit.author.email),
                 "shas" => commit.sha.clone(),
-                _ => return Err(ReadHistoryError::GitFailed),
+                _ => {
+                    return Err(ReadHistoryError::Diagnostic(Diagnostic::new(
+                        "history.searchField",
+                        "Unsupported history search field",
+                    )))
+                }
             };
             if !fold_search(&value).contains(&needle) {
                 continue;
@@ -190,12 +205,16 @@ pub fn read(
     }
 
     let mut nodes = Vec::new();
-    let walk = platform.all().map_err(|_| ReadHistoryError::GitFailed)?;
+    let walk = platform.all().map_err(|error| {
+        ReadHistoryError::Diagnostic(Diagnostic::cause("history.startWalk", &error))
+    })?;
     for (index, info) in walk.enumerate() {
         if index % 128 == 0 && cancelled.load(Ordering::Relaxed) {
             return Err(ReadHistoryError::Cancelled);
         }
-        let info = info.map_err(|_| ReadHistoryError::GitFailed)?;
+        let info = info.map_err(|error| {
+            ReadHistoryError::Diagnostic(Diagnostic::cause("history.walkCommit", &error))
+        })?;
         nodes.push(Node {
             id: info.id,
             parents: info.parent_ids.into_iter().collect(),
@@ -238,11 +257,17 @@ fn tips(
         return resolve_commit(repo, start).map(|id| vec![id]);
     }
 
-    let references = repo.references().map_err(|_| ReadHistoryError::GitFailed)?;
-    let references = references.all().map_err(|_| ReadHistoryError::GitFailed)?;
+    let references = repo.references().map_err(|error| {
+        ReadHistoryError::Diagnostic(Diagnostic::cause("history.openReferences", &error))
+    })?;
+    let references = references.all().map_err(|error| {
+        ReadHistoryError::Diagnostic(Diagnostic::cause("history.listReferences", &error))
+    })?;
     let mut result = BTreeSet::new();
     for reference in references {
-        let mut reference = reference.map_err(|_| ReadHistoryError::GitFailed)?;
+        let mut reference = reference.map_err(|error| {
+            ReadHistoryError::Diagnostic(Diagnostic::cause("history.readReference", error.as_ref()))
+        })?;
         let name = reference.name().as_bstr();
         if !(name.starts_with(b"refs/heads/")
             || name.starts_with(b"refs/remotes/")
@@ -250,17 +275,39 @@ fn tips(
         {
             continue;
         }
-        if let Ok(commit) = reference.peel_to_commit() {
-            result.insert(commit.id);
+        // Remote HEAD aliases may outlive a pruned branch. Direct tracking refs
+        // already cover their reachable commits; a missing alias is expected.
+        if name.starts_with(b"refs/remotes/") && reference.try_id().is_none() {
+            continue;
+        }
+        let is_tag = name.starts_with(b"refs/tags/");
+        match reference.peel_to_commit() {
+            Ok(commit) => {
+                result.insert(commit.id);
+            }
+            Err(_) if is_tag => {}
+            Err(error) => {
+                return Err(ReadHistoryError::Diagnostic(Diagnostic::cause(
+                    "history.peelBranch",
+                    &error,
+                )))
+            }
         }
     }
-    if let Ok(head) = resolve_commit(repo, "HEAD") {
-        result.insert(head);
+    let mut head = repo.head().map_err(|error| {
+        ReadHistoryError::Diagnostic(Diagnostic::cause("history.readHead", &error))
+    })?;
+    if !head.is_unborn() {
+        let commit = head.peel_to_commit().map_err(|error| {
+            ReadHistoryError::Diagnostic(Diagnostic::cause("history.peelHead", &error))
+        })?;
+        result.insert(commit.id);
     }
-    for base in refs::stash_bases(path).map_err(|_| ReadHistoryError::GitFailed)? {
-        if let Ok(id) = resolve_commit(repo, &base) {
-            result.insert(id);
-        }
+    for base in refs::stash_bases(path).map_err(|error| match error {
+        refs::ReadRefsError::GitFailed(diagnostic) => ReadHistoryError::Diagnostic(diagnostic),
+        error => ReadHistoryError::Diagnostic(Diagnostic::new("history.stashBases", error)),
+    })? {
+        result.insert(resolve_commit(repo, &base)?);
     }
     Ok(result.into_iter().collect())
 }
@@ -269,14 +316,17 @@ pub(super) fn resolve_commit(
     repo: &gix::Repository,
     revision: &str,
 ) -> Result<gix::ObjectId, ReadHistoryError> {
+    let missing = |diagnostic| {
+        ReadHistoryError::WithDiagnostic(Box::new(ReadHistoryError::StartNotFound), diagnostic)
+    };
     if let Ok(id) = gix::ObjectId::from_hex(revision.as_bytes()) {
         let object = repo
             .find_object(id)
-            .map_err(|_| ReadHistoryError::StartNotFound)?;
+            .map_err(|error| missing(Diagnostic::cause("history.resolveObject", &error)))?;
         return object
             .peel_to_commit()
             .map(|commit| commit.id)
-            .map_err(|_| ReadHistoryError::StartNotFound);
+            .map_err(|error| missing(Diagnostic::cause("history.peelStartCommit", &error)));
     }
     for name in [
         revision.to_owned(),
@@ -284,14 +334,19 @@ pub(super) fn resolve_commit(
         format!("refs/tags/{revision}"),
         format!("refs/remotes/{revision}"),
     ] {
-        if let Ok(mut reference) = repo.find_reference(&name) {
+        if let Some(mut reference) = repo.try_find_reference(&name).map_err(|error| {
+            ReadHistoryError::Diagnostic(Diagnostic::cause("history.resolveReference", &error))
+        })? {
             return reference
                 .peel_to_commit()
                 .map(|commit| commit.id)
-                .map_err(|_| ReadHistoryError::StartNotFound);
+                .map_err(|error| missing(Diagnostic::cause("history.peelStartReference", &error)));
         }
     }
-    Err(ReadHistoryError::StartNotFound)
+    Err(missing(Diagnostic::new(
+        "history.resolveStart",
+        "Requested revision does not exist",
+    )))
 }
 
 fn topological_order(nodes: Vec<Node>) -> Vec<gix::ObjectId> {
@@ -340,15 +395,19 @@ pub(super) fn read_commit(
     repo: &gix::Repository,
     id: gix::ObjectId,
 ) -> Result<Commit, ReadHistoryError> {
-    let object = repo
-        .find_commit(id)
-        .map_err(|_| ReadHistoryError::GitFailed)?;
-    let decoded = object.decode().map_err(|_| ReadHistoryError::GitFailed)?;
+    let object = repo.find_commit(id).map_err(|error| {
+        ReadHistoryError::Diagnostic(Diagnostic::cause("history.findCommit", &error))
+    })?;
+    let decoded = object.decode().map_err(|error| {
+        ReadHistoryError::Diagnostic(Diagnostic::cause("history.decodeCommit", &error))
+    })?;
     let (summary, body) = split_message(utf8(decoded.message)?);
-    let author = decoded.author().map_err(|_| ReadHistoryError::GitFailed)?;
-    let committer = decoded
-        .committer()
-        .map_err(|_| ReadHistoryError::GitFailed)?;
+    let author = decoded.author().map_err(|error| {
+        ReadHistoryError::Diagnostic(Diagnostic::cause("history.readAuthor", &error))
+    })?;
+    let committer = decoded.committer().map_err(|error| {
+        ReadHistoryError::Diagnostic(Diagnostic::cause("history.readCommitter", &error))
+    })?;
 
     Ok(Commit {
         sha: id.to_string(),
@@ -396,9 +455,12 @@ fn person(signature: gix::actor::SignatureRef<'_>) -> Result<Person, ReadHistory
 }
 
 fn utf8(bytes: &gix::bstr::BStr) -> Result<&str, ReadHistoryError> {
-    bytes
-        .to_str()
-        .map_err(|_| ReadHistoryError::InvalidEncoding)
+    bytes.to_str().map_err(|error| {
+        ReadHistoryError::WithDiagnostic(
+            Box::new(ReadHistoryError::InvalidEncoding),
+            Diagnostic::new("history.decodeMetadataUtf8", error),
+        )
+    })
 }
 
 #[cfg(test)]
@@ -694,7 +756,7 @@ mod tests {
     fn distingue_inicio_inexistente_y_cancelacion() {
         let temporary = repository();
         commit(temporary.path(), "primero", 1_700_000_000);
-        assert_eq!(
+        assert!(matches!(
             read(
                 temporary.path(),
                 CommitPageRequest {
@@ -704,8 +766,8 @@ mod tests {
                 &AtomicBool::new(false),
             )
             .unwrap_err(),
-            ReadHistoryError::StartNotFound
-        );
+            ReadHistoryError::WithDiagnostic(error, _) if *error == ReadHistoryError::StartNotFound
+        ));
         assert_eq!(
             read(
                 temporary.path(),
@@ -864,15 +926,15 @@ mod tests {
             &["update-ref", "refs/heads/main", sha.trim()],
         );
 
-        assert_eq!(
+        assert!(matches!(
             read(
                 temporary.path(),
                 CommitPageRequest::default(),
                 &AtomicBool::new(false),
             )
             .unwrap_err(),
-            ReadHistoryError::InvalidEncoding
-        );
+            ReadHistoryError::WithDiagnostic(error, _) if *error == ReadHistoryError::InvalidEncoding
+        ));
     }
 
     #[test]
@@ -897,5 +959,52 @@ mod tests {
         assert_eq!(ordered.len(), 100_000);
         assert_eq!(ordered[0].to_string(), format!("{:040x}", 99_999));
         assert_eq!(ordered[99_999].to_string(), format!("{:040x}", 0));
+    }
+    #[test]
+    fn a_missing_branch_object_does_not_become_empty_history() {
+        let temporary = repository();
+        let sha = commit(temporary.path(), "private commit metadata", 1_700_000_000);
+        std::fs::remove_file(
+            temporary
+                .path()
+                .join(".git/objects")
+                .join(&sha[..2])
+                .join(&sha[2..]),
+        )
+        .unwrap();
+        let error = read(
+            temporary.path(),
+            CommitPageRequest::default(),
+            &AtomicBool::new(false),
+        )
+        .unwrap_err();
+        let ReadHistoryError::Diagnostic(diagnostic) = error else {
+            panic!("expected diagnostic, got {error:?}")
+        };
+        let value = serde_json::to_value(diagnostic).unwrap();
+        assert_eq!(value["stage"], "history.peelBranch");
+        assert!(!value["causes"].as_array().unwrap().is_empty());
+        assert!(!value.to_string().contains("private commit metadata"));
+    }
+    #[test]
+    fn a_pruned_remote_head_alias_keeps_valid_history_readable() {
+        let temporary = repository();
+        let sha = commit(temporary.path(), "initial", 1_700_000_000);
+        git(
+            temporary.path(),
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/missing",
+            ],
+        );
+        let page = read(
+            temporary.path(),
+            CommitPageRequest::default(),
+            &AtomicBool::new(false),
+        )
+        .unwrap();
+        assert_eq!(page.commits.len(), 1);
+        assert_eq!(page.commits[0].sha, sha);
     }
 }

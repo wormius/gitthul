@@ -376,6 +376,85 @@ describe('WorkingView', () => {
     );
   });
 
+  it.each([false, true])(
+    'abre la vista y no trata un upstream ausente como publicado (ausente: %s)',
+    async (missing) => {
+      const user = userEvent.setup();
+      const ports = makePorts();
+      const readRefs = ports.git.readRefs.bind(ports.git);
+      vi.spyOn(ports.git, 'readRefs').mockImplementation(async (...args) => {
+        const refs = await readRefs(...args);
+        return {
+          ...refs,
+          branches: refs.branches.map((branch) => {
+            if (branch.kind !== 'local') return branch;
+            if (branch.isHead)
+              return {
+                ...branch,
+                upstream: missing ? 'origin/removed' : branch.upstream,
+                upstreamMissing: missing,
+                ahead: 0,
+                behind: 0,
+              };
+            return missing && branch.name === 'dev'
+              ? {
+                  ...branch,
+                  upstream: 'origin/missing-dev',
+                  upstreamMissing: true,
+                  ahead: 9,
+                  behind: 3,
+                }
+              : branch;
+          }),
+        };
+      });
+      const checkout = vi.spyOn(ports.git, 'checkout');
+
+      renderApp(ports);
+      await openRepo(user, GITTHUL_PATH);
+      const grid = await screen.findByRole('grid', { name: 'Commits de gitthul' });
+      const panel = screen.getByRole('region', { name: 'Referencias de gitthul' });
+      const locals = within(panel).getByRole('group', { name: 'Ramas locales' });
+      if (missing) {
+        expect(
+          within(locals).getByTitle('El upstream origin/removed ya no existe.'),
+        ).toBeInTheDocument();
+        expect(
+          within(locals).queryByLabelText('9 commits por delante y 3 por detrás del upstream'),
+        ).not.toBeInTheDocument();
+        expect(
+          within(grid).getByTitle('Rama activa main. El upstream origin/removed ya no existe.'),
+        ).toBeInTheDocument();
+        expect(useWorkingStore.getState().context?.headUpstream).toBeNull();
+      }
+
+      await user.click(
+        screen.getByRole('checkbox', { name: 'Modificar el último commit (amend)' }),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole('textbox', { name: 'Resumen del commit' })).toBeEnabled(),
+      );
+      const published = screen.queryByText(/main ya está publicada en/);
+      if (missing) expect(published).not.toBeInTheDocument();
+      else expect(published).toBeInTheDocument();
+
+      if (missing) {
+        await user.dblClick(within(grid).getByTitle('Rama remota main'));
+        const dialog = await screen.findByRole('dialog', {
+          name: 'main y la remota tienen puntas distintas',
+        });
+        expect(
+          within(dialog).getByText(
+            /El upstream origin\/removed de main ya no existe y no hay conteos disponibles/,
+          ),
+        ).toBeInTheDocument();
+        expect(within(dialog).queryByText(/0 commits/)).not.toBeInTheDocument();
+        expect(checkout).not.toHaveBeenCalled();
+        await user.click(within(dialog).getByRole('button', { name: 'No hacer nada' }));
+      }
+    },
+  );
+
   it('pinta las cinco secciones con datos reales del repositorio', async () => {
     const user = userEvent.setup();
 
@@ -1694,6 +1773,100 @@ describe('WorkingView', () => {
         screen.getByRole('button', { name: 'Plegar el panel de referencias: gitthul' }),
       ).findByText('f2-4-etiquetas'),
     ).toBeInTheDocument();
+  });
+
+  it('el aviso de creación bloqueada explica que debe hacerse stash o commit primero', async () => {
+    const user = userEvent.setup();
+    const git = createMockGitPort({ latency: NO_LATENCY });
+    const ports = { ...makePorts(), git };
+    const before = {
+      refs: await git.readRefs('gitthul'),
+      status: await git.readStatus('gitthul'),
+      undo: await git.readUndoStack('gitthul'),
+    };
+    git.failNext(
+      'createBranch',
+      new GitOperationError(
+        'branch.checkoutBlocked',
+        { branch: 'pendiente' },
+        {
+          output:
+            'error: Your local changes would be overwritten by checkout. Please commit your changes or stash them before you switch branches.',
+        },
+      ),
+    );
+    const createBranch = vi.spyOn(git, 'createBranch');
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    await screen.findByRole('region', { name: 'Referencias de gitthul' });
+    act(() =>
+      useWorkingStore.getState().openDialog({
+        kind: 'createBranch',
+        from: { kind: 'branch', name: 'dev' },
+        fromLabel: 'dev',
+      }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Crear una rama desde dev' });
+    await user.type(within(dialog).getByLabelText('Nombre de la rama'), 'pendiente');
+    await user.click(within(dialog).getByRole('button', { name: 'Crear la rama' }));
+
+    const message =
+      'Cambiar a pendiente sobrescribiría archivos locales. Crea un stash o haz commit primero';
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(createBranch).toHaveBeenCalledWith(
+      'gitthul',
+      'pendiente',
+      { kind: 'branch', name: 'dev' },
+      { checkout: true },
+    );
+    expect(await git.readRefs('gitthul')).toEqual(before.refs);
+    expect(await git.readStatus('gitthul')).toEqual(before.status);
+    expect(await git.readUndoStack('gitthul')).toEqual(before.undo);
+
+    act(() => useShellStore.getState().setOverlay('notifications'));
+    const history = await screen.findByRole('dialog', { name: 'Historial de notificaciones' });
+    expect(within(history).getByText(message)).toBeVisible();
+  });
+
+  it('el aviso de checkout bloqueado explica la colisión sin afirmar que se creó una rama', async () => {
+    const user = userEvent.setup();
+    const git = createMockGitPort({ latency: NO_LATENCY });
+    const ports = { ...makePorts(), git };
+    const before = {
+      refs: await git.readRefs('gitthul'),
+      status: await git.readStatus('gitthul'),
+      undo: await git.readUndoStack('gitthul'),
+    };
+    git.failNext(
+      'checkout',
+      new GitOperationError(
+        'branch.checkoutBlocked',
+        { branch: 'dev' },
+        {
+          output:
+            'error: The following untracked working tree files would be overwritten by checkout:',
+        },
+      ),
+    );
+    const checkout = vi.spyOn(git, 'checkout');
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    const panel = await screen.findByRole('region', { name: 'Referencias de gitthul' });
+    const locals = within(panel).getByRole('group', { name: 'Ramas locales' });
+    fireEvent.contextMenu(within(locals).getByText('dev'));
+    await user.click(await screen.findByRole('menuitem', { name: 'Cambiar a dev' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Cambiar a dev sobrescribiría archivos locales. Crea un stash o haz commit primero',
+    );
+    expect(checkout).toHaveBeenCalledWith(
+      'gitthul',
+      { kind: 'branch', name: 'dev' },
+      { autoStash: true },
+    );
+    expect(await git.readRefs('gitthul')).toEqual(before.refs);
+    expect(await git.readStatus('gitthul')).toEqual(before.status);
+    expect(await git.readUndoStack('gitthul')).toEqual(before.undo);
   });
 
   it('renombra una rama y recorre el cambio por Deshacer y Rehacer', async () => {

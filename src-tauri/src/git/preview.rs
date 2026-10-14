@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use super::history;
+use super::{diagnostics::Diagnostic, history};
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,10 +37,11 @@ struct IntegrationPrecondition {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReadPreviewError {
+    Diagnostic(Diagnostic),
+    WithDiagnostic(Box<Self>, Diagnostic),
     Cancelled,
     InvalidEncoding,
     RevisionNotFound(String),
-    GitFailed,
     MalformedOutput,
 }
 
@@ -51,11 +52,13 @@ pub fn read(
     target: String,
     cancelled: &AtomicBool,
 ) -> Result<IntegrationPreview, ReadPreviewError> {
-    let repo = gix::open(path).map_err(|_| ReadPreviewError::GitFailed)?;
+    let repo = gix::open(path).map_err(|error| {
+        ReadPreviewError::Diagnostic(Diagnostic::cause("preview.openRepository", &error))
+    })?;
     let source_id = history::resolve_commit(&repo, &source)
-        .map_err(|_| ReadPreviewError::RevisionNotFound(source.clone()))?;
+        .map_err(|error| map_revision_error(error, &source))?;
     let target_id = history::resolve_commit(&repo, &target)
-        .map_err(|_| ReadPreviewError::RevisionNotFound(target.clone()))?;
+        .map_err(|error| map_revision_error(error, &target))?;
 
     if cancelled.load(Ordering::Relaxed) {
         return Err(ReadPreviewError::Cancelled);
@@ -99,20 +102,27 @@ fn commits_between(
     included: gix::ObjectId,
     excluded: gix::ObjectId,
 ) -> Result<Vec<gix::ObjectId>, ReadPreviewError> {
+    let included = included.to_string();
+    let excluded = excluded.to_string();
+    let args = ["rev-list", "--topo-order", &included, "--not", &excluded];
     let output = crate::process::command("git")
-        .args([
-            "rev-list",
-            "--topo-order",
-            &included.to_string(),
-            "--not",
-            &excluded.to_string(),
-        ])
+        .args(args)
         .current_dir(path)
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .output()
-        .map_err(|_| ReadPreviewError::GitFailed)?;
+        .map_err(|error| {
+            ReadPreviewError::Diagnostic(Diagnostic::command_io(
+                "preview.listCommits",
+                &args,
+                &error,
+            ))
+        })?;
     if !output.status.success() {
-        return Err(ReadPreviewError::GitFailed);
+        return Err(ReadPreviewError::Diagnostic(Diagnostic::command(
+            "preview.listCommits",
+            &args,
+            &output,
+        )));
     }
     output
         .stdout
@@ -124,10 +134,30 @@ fn commits_between(
 
 fn map_history_error(error: history::ReadHistoryError) -> ReadPreviewError {
     match error {
+        history::ReadHistoryError::Diagnostic(diagnostic) => {
+            ReadPreviewError::Diagnostic(diagnostic)
+        }
+        history::ReadHistoryError::WithDiagnostic(error, diagnostic) => {
+            ReadPreviewError::WithDiagnostic(Box::new(map_history_error(*error)), diagnostic)
+        }
         history::ReadHistoryError::Cancelled => ReadPreviewError::Cancelled,
         history::ReadHistoryError::InvalidEncoding => ReadPreviewError::InvalidEncoding,
         history::ReadHistoryError::StartNotFound => ReadPreviewError::MalformedOutput,
-        history::ReadHistoryError::GitFailed => ReadPreviewError::GitFailed,
+    }
+}
+
+fn map_revision_error(error: history::ReadHistoryError, revision: &str) -> ReadPreviewError {
+    match error {
+        history::ReadHistoryError::StartNotFound => {
+            ReadPreviewError::RevisionNotFound(revision.to_owned())
+        }
+        history::ReadHistoryError::WithDiagnostic(error, diagnostic) => {
+            ReadPreviewError::WithDiagnostic(
+                Box::new(map_revision_error(*error, revision)),
+                diagnostic,
+            )
+        }
+        error => map_history_error(error),
     }
 }
 
@@ -269,9 +299,16 @@ mod tests {
             &active,
         )
         .unwrap_err();
+        let ReadPreviewError::WithDiagnostic(classification, diagnostic) = missing else {
+            panic!("expected classified diagnostic")
+        };
         assert_eq!(
-            missing,
+            *classification,
             ReadPreviewError::RevisionNotFound("no-existe".into())
+        );
+        assert_eq!(
+            serde_json::to_value(diagnostic).unwrap()["stage"],
+            "history.resolveStart"
         );
 
         let cancelled = AtomicBool::new(true);

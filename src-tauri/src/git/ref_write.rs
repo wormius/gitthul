@@ -3,6 +3,8 @@
 use std::path::Path;
 use std::process::Output;
 
+use super::diagnostics::Diagnostic;
+
 use serde::Deserialize;
 
 use super::{history, status};
@@ -101,6 +103,7 @@ pub enum WriteRefError {
     InvalidTagName,
     TagIdentityMissing,
     DirtyTree(usize),
+    CheckoutBlocked,
     RestoreFailed { output: String, count: usize },
     Stale,
     CurrentBranch,
@@ -108,6 +111,47 @@ pub enum WriteRefError {
     Exists,
     RevisionNotFound(String),
     GitFailed(String),
+    Diagnostic(Diagnostic),
+    WithDiagnostic(Box<WriteRefError>, Diagnostic),
+}
+
+impl WriteRefError {
+    fn with_diagnostic(self, diagnostic: Diagnostic) -> Self {
+        Self::WithDiagnostic(Box::new(self), diagnostic)
+    }
+
+    #[cfg(test)]
+    fn into_classification(self) -> Self {
+        match self {
+            Self::WithDiagnostic(error, _) => error.into_classification(),
+            _ => self,
+        }
+    }
+}
+
+fn revision_failure(
+    error: history::ReadHistoryError,
+    classification: WriteRefError,
+) -> WriteRefError {
+    let diagnostic = match error {
+        history::ReadHistoryError::Diagnostic(diagnostic)
+        | history::ReadHistoryError::WithDiagnostic(_, diagnostic) => diagnostic,
+        error => Diagnostic::new("refWrite.resolveCommit", format!("{error:?}")),
+    };
+    classification.with_diagnostic(diagnostic)
+}
+
+struct CommandOutput {
+    output: Output,
+    diagnostic: Diagnostic,
+}
+
+impl std::ops::Deref for CommandOutput {
+    type Target = Output;
+
+    fn deref(&self) -> &Self::Target {
+        &self.output
+    }
 }
 
 pub fn create_branch(
@@ -117,13 +161,18 @@ pub fn create_branch(
     options: &CreateBranchOptions,
 ) -> Result<(), WriteRefError> {
     validate_branch_name(repository, name)?;
-    let repo = gix::open(repository).map_err(|_| WriteRefError::GitFailed(String::new()))?;
+    let repo = gix::open(repository)
+        .map_err(|error| WriteRefError::Diagnostic(Diagnostic::cause("refWrite.open", &error)))?;
     if repo.find_reference(&format!("refs/heads/{name}")).is_ok() {
         return Err(WriteRefError::Exists);
     }
     let revision = from.revision();
-    let target = history::resolve_commit(&repo, &revision)
-        .map_err(|_| WriteRefError::RevisionNotFound(from.label().to_owned()))?;
+    let target = history::resolve_commit(&repo, &revision).map_err(|error| {
+        revision_failure(
+            error,
+            WriteRefError::RevisionNotFound(from.label().to_owned()),
+        )
+    })?;
     let target = target.to_string();
 
     let output = if options.checkout == Some(true) {
@@ -137,9 +186,22 @@ pub fn create_branch(
     if repo.find_reference(&format!("refs/heads/{name}")).is_ok() {
         return Err(WriteRefError::Exists);
     }
-    Err(WriteRefError::GitFailed(
-        String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-    ))
+    if options.checks_out() && checkout_would_overwrite(&output.stderr) {
+        return Err(WriteRefError::CheckoutBlocked.with_diagnostic(output.diagnostic));
+    }
+    Err(WriteRefError::Diagnostic(output.diagnostic))
+}
+
+/// Only classify a refusal that Git explicitly reports. Local changes may be
+/// compatible with a switch, including when creating a branch from HEAD.
+fn checkout_would_overwrite(stderr: &[u8]) -> bool {
+    String::from_utf8_lossy(stderr).lines().any(|line| {
+        matches!(
+            line,
+            "error: Your local changes to the following files would be overwritten by checkout:"
+                | "error: The following untracked working tree files would be overwritten by checkout:"
+        )
+    })
 }
 
 pub fn create_tag(
@@ -149,20 +211,26 @@ pub fn create_tag(
     options: &CreateTagOptions,
 ) -> Result<(), WriteRefError> {
     validate_tag_name(repository, name)?;
-    let repo = gix::open(repository).map_err(|_| WriteRefError::GitFailed(String::new()))?;
+    let repo = gix::open(repository)
+        .map_err(|error| WriteRefError::Diagnostic(Diagnostic::cause("refWrite.open", &error)))?;
     if repo.find_reference(&format!("refs/tags/{name}")).is_ok() {
         return Err(WriteRefError::Exists);
     }
     let revision = at.revision();
     let target = history::resolve_commit(&repo, &revision)
-        .map_err(|_| WriteRefError::RevisionNotFound(at.label().to_owned()))?
+        .map_err(|error| {
+            revision_failure(
+                error,
+                WriteRefError::RevisionNotFound(at.label().to_owned()),
+            )
+        })?
         .to_string();
 
     let output = match &options.message {
         Some(message) => {
             let identity = command(repository, &["var", "GIT_COMMITTER_IDENT"])?;
             if !identity.status.success() {
-                return Err(WriteRefError::TagIdentityMissing);
+                return Err(WriteRefError::TagIdentityMissing.with_diagnostic(identity.diagnostic));
             }
             command(
                 repository,
@@ -182,16 +250,15 @@ pub fn create_tag(
     if output.status.success() {
         return Ok(());
     }
-    let refreshed = gix::open(repository).map_err(|_| WriteRefError::GitFailed(String::new()))?;
+    let refreshed = gix::open(repository)
+        .map_err(|error| WriteRefError::Diagnostic(Diagnostic::cause("refWrite.open", &error)))?;
     if refreshed
         .find_reference(&format!("refs/tags/{name}"))
         .is_ok()
     {
         return Err(WriteRefError::Exists);
     }
-    Err(WriteRefError::GitFailed(
-        String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-    ))
+    Err(WriteRefError::Diagnostic(output.diagnostic))
 }
 
 pub fn checkout(
@@ -224,10 +291,16 @@ fn checkout_inner(
     allow_auto_stash: bool,
     expected_absent_reference: Option<&str>,
 ) -> Result<(), WriteRefError> {
-    let repo = gix::open(repository).map_err(|_| WriteRefError::GitFailed(String::new()))?;
+    let repo = gix::open(repository)
+        .map_err(|error| WriteRefError::Diagnostic(Diagnostic::cause("refWrite.open", &error)))?;
     let revision = target.revision();
     let oid = history::resolve_commit(&repo, &revision)
-        .map_err(|_| WriteRefError::RevisionNotFound(target.label().to_owned()))?
+        .map_err(|error| {
+            revision_failure(
+                error,
+                WriteRefError::RevisionNotFound(target.label().to_owned()),
+            )
+        })?
         .to_string();
 
     let remote_local = if let RefTarget::RemoteBranch { name, remote } = target {
@@ -271,15 +344,23 @@ fn checkout_inner(
                 ],
             )?;
             if !ancestor.status.success() {
-                return Err(WriteRefError::Stale);
+                return Err(if ancestor.status.code() == Some(1) {
+                    WriteRefError::Stale
+                } else {
+                    WriteRefError::Diagnostic(ancestor.diagnostic)
+                });
             }
         }
         Some((local.to_owned(), local_tip))
     } else {
         None
     };
-    let dirty = status::checkout_change_count(repository)
-        .map_err(|_| WriteRefError::GitFailed(String::new()))?;
+    let dirty = status::checkout_change_count(repository).map_err(|error| {
+        WriteRefError::Diagnostic(Diagnostic::new(
+            "checkout.readChangeCount",
+            format!("{error:?}"),
+        ))
+    })?;
     if dirty > 0 && (!allow_auto_stash || options.auto_stash != Some(true)) {
         return Err(WriteRefError::DirtyTree(dirty));
     }
@@ -288,9 +369,7 @@ fn checkout_inner(
     let stashed = if dirty > 0 {
         let output = command(repository, &["stash", "push", "--quiet"])?;
         if !output.status.success() {
-            return Err(WriteRefError::GitFailed(
-                String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-            ));
+            return Err(WriteRefError::Diagnostic(output.diagnostic));
         }
         command_text(repository, &["rev-parse", "--verify", "refs/stash"])
             .filter(|after| Some(after) != stash_before.as_ref())
@@ -346,11 +425,11 @@ fn checkout_inner(
         return Ok(());
     }
 
-    let checkout_error = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+    let checkout_error = output.diagnostic.to_string();
     if stashed.is_some() {
         let restore = command(repository, &["stash", "pop", "--quiet", "--index"])?;
         if !restore.status.success() {
-            let restore_error = String::from_utf8_lossy(&restore.stderr).trim().to_owned();
+            let restore_error = restore.diagnostic.to_string();
             return Err(WriteRefError::RestoreFailed {
                 output: format!(
                     "{checkout_error}\nNo se pudo restaurar el guardado automático: {restore_error}"
@@ -361,7 +440,10 @@ fn checkout_inner(
             });
         }
     }
-    Err(WriteRefError::GitFailed(checkout_error))
+    if checkout_would_overwrite(&output.stderr) {
+        return Err(WriteRefError::CheckoutBlocked.with_diagnostic(output.diagnostic));
+    }
+    Err(WriteRefError::Diagnostic(output.diagnostic))
 }
 
 /// Para un cambio de HEAD limpio eso es innecesario: el undo de checkout ya
@@ -408,16 +490,17 @@ pub fn delete_branch(
     options: &DeleteBranchOptions,
 ) -> Result<Option<String>, WriteRefError> {
     let reference = format!("refs/heads/{name}");
-    let Some(raw_oid) = command_text(repository, &["rev-parse", "--verify", &reference]) else {
+    let Some(raw_oid) = optional_ref_text(repository, &reference)? else {
         return if options.expected_tip.is_some() {
             Err(WriteRefError::Stale)
         } else {
             Ok(None)
         };
     };
-    let repo = gix::open(repository).map_err(|_| WriteRefError::GitFailed(String::new()))?;
+    let repo = gix::open(repository)
+        .map_err(|error| WriteRefError::Diagnostic(Diagnostic::cause("refWrite.open", &error)))?;
     let actual = history::resolve_commit(&repo, &reference)
-        .map_err(|_| WriteRefError::GitFailed(String::new()))?
+        .map_err(|error| revision_failure(error, WriteRefError::Stale))?
         .to_string();
     if options
         .expected_tip
@@ -433,10 +516,16 @@ pub fn delete_branch(
     }
     if options.force != Some(true) {
         let Some(head) = command_text(repository, &["rev-parse", "--verify", "HEAD"]) else {
-            return Err(WriteRefError::GitFailed(String::new()));
+            return Err(WriteRefError::Diagnostic(Diagnostic::new(
+                "deleteBranch.readHead",
+                "HEAD could not be resolved",
+            )));
         };
         let merged = command(repository, &["merge-base", "--is-ancestor", &actual, &head])?;
         if !merged.status.success() {
+            if merged.status.code() != Some(1) {
+                return Err(WriteRefError::Diagnostic(merged.diagnostic));
+            }
             let count = command_text(
                 repository,
                 &["rev-list", "--count", &format!("{head}..{actual}")],
@@ -459,16 +548,17 @@ pub fn delete_tag(
     options: &DeleteTagOptions,
 ) -> Result<Option<String>, WriteRefError> {
     let reference = format!("refs/tags/{name}");
-    let Some(raw_oid) = command_text(repository, &["rev-parse", "--verify", &reference]) else {
+    let Some(raw_oid) = optional_ref_text(repository, &reference)? else {
         return if options.expected_tip.is_some() {
             Err(WriteRefError::Stale)
         } else {
             Ok(None)
         };
     };
-    let repo = gix::open(repository).map_err(|_| WriteRefError::GitFailed(String::new()))?;
+    let repo = gix::open(repository)
+        .map_err(|error| WriteRefError::Diagnostic(Diagnostic::cause("refWrite.open", &error)))?;
     let actual = history::resolve_commit(&repo, &reference)
-        .map_err(|_| WriteRefError::GitFailed(String::new()))?
+        .map_err(|error| revision_failure(error, WriteRefError::Stale))?
         .to_string();
     if options
         .expected_tip
@@ -490,12 +580,18 @@ pub fn rename_branch(
     validate_branch_name(repository, to)?;
     let source = format!("refs/heads/{from}");
     let destination = format!("refs/heads/{to}");
-    let repo = gix::open(repository).map_err(|_| WriteRefError::GitFailed(String::new()))?;
-    let actual = match history::resolve_commit(&repo, &source) {
-        Ok(actual) => actual.to_string(),
-        Err(_) if options.expected_tip.is_some() => return Err(WriteRefError::Stale),
-        Err(_) => return Ok(()),
-    };
+    let repo = gix::open(repository)
+        .map_err(|error| WriteRefError::Diagnostic(Diagnostic::cause("refWrite.open", &error)))?;
+    if optional_ref_text(repository, &source)?.is_none() {
+        return if options.expected_tip.is_some() {
+            Err(WriteRefError::Stale)
+        } else {
+            Ok(())
+        };
+    }
+    let actual = history::resolve_commit(&repo, &source)
+        .map_err(|error| revision_failure(error, WriteRefError::Stale))?
+        .to_string();
     if options
         .expected_tip
         .as_deref()
@@ -514,13 +610,12 @@ pub fn rename_branch(
     if output.status.success() {
         return Ok(());
     }
-    let refreshed = gix::open(repository).map_err(|_| WriteRefError::GitFailed(String::new()))?;
+    let refreshed = gix::open(repository)
+        .map_err(|error| WriteRefError::Diagnostic(Diagnostic::cause("refWrite.open", &error)))?;
     if refreshed.find_reference(&destination).is_ok() {
         return Err(WriteRefError::Exists);
     }
-    Err(WriteRefError::GitFailed(
-        String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-    ))
+    Err(WriteRefError::Diagnostic(output.diagnostic))
 }
 
 fn update_ref_delete(
@@ -532,13 +627,13 @@ fn update_ref_delete(
     if output.status.success() {
         Ok(())
     } else {
-        Err(WriteRefError::Stale)
+        Err(WriteRefError::Stale.with_diagnostic(output.diagnostic))
     }
 }
 
-fn restore_failed(repository: &Path, output: &Output) -> WriteRefError {
+fn restore_failed(repository: &Path, output: &CommandOutput) -> WriteRefError {
     WriteRefError::RestoreFailed {
-        output: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+        output: output.diagnostic.to_string(),
         count: status::read(repository)
             .map(|current| current.conflicted_count())
             .unwrap_or(0),
@@ -564,13 +659,33 @@ fn validate_tag_name(repository: &Path, name: &str) -> Result<(), WriteRefError>
     }
 }
 
-fn command(repository: &Path, args: &[&str]) -> Result<Output, WriteRefError> {
-    crate::process::command("git")
+fn command(repository: &Path, args: &[&str]) -> Result<CommandOutput, WriteRefError> {
+    let output = crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("LC_ALL", "C")
         .output()
-        .map_err(|_| WriteRefError::GitFailed(String::new()))
+        .map_err(|error| {
+            WriteRefError::Diagnostic(Diagnostic::command_io("refWrite.spawn", args, &error))
+        })?;
+    let diagnostic = Diagnostic::command("refWrite.execute", args, &output);
+    Ok(CommandOutput { output, diagnostic })
+}
+
+fn optional_ref_text(repository: &Path, reference: &str) -> Result<Option<String>, WriteRefError> {
+    let output = command(repository, &["rev-parse", "--verify", "--quiet", reference])?;
+    if output.status.code() == Some(1) {
+        return Ok(None);
+    }
+    if !output.status.success() {
+        return Err(WriteRefError::Diagnostic(output.diagnostic));
+    }
+    String::from_utf8(output.output.stdout)
+        .map(|text| Some(text.trim().to_owned()))
+        .map_err(|error| {
+            WriteRefError::Diagnostic(Diagnostic::new("refWrite.decodeReference", error))
+        })
 }
 
 fn command_text(repository: &Path, args: &[&str]) -> Option<String> {
@@ -704,7 +819,8 @@ mod tests {
                     name: "ausente".into()
                 },
                 &CreateBranchOptions::default(),
-            ),
+            )
+            .map_err(WriteRefError::into_classification),
             Err(WriteRefError::RevisionNotFound("ausente".into()))
         );
         assert_eq!(git(temporary.path(), &["show-ref"]), before);
@@ -717,9 +833,15 @@ mod tests {
         fs::write(temporary.path().join("README.md"), "principal\n").unwrap();
         git(temporary.path(), &["add", "README.md"]);
         git(temporary.path(), &["commit", "--quiet", "-m", "principal"]);
+        fs::write(temporary.path().join("README.md"), "cambio en índice\n").unwrap();
+        git(temporary.path(), &["add", "README.md"]);
         fs::write(temporary.path().join("README.md"), "cambio local\n").unwrap();
+        let refs_before = git(temporary.path(), &["show-ref"]);
+        let index_before = fs::read(temporary.path().join(".git/index")).unwrap();
+        let staged_before = git(temporary.path(), &["diff", "--cached", "--binary"]);
+        let worktree_before = fs::read(temporary.path().join("README.md")).unwrap();
 
-        let result = create_branch(
+        let error = create_branch(
             temporary.path(),
             "nueva",
             &RefTarget::Branch {
@@ -728,10 +850,33 @@ mod tests {
             &CreateBranchOptions {
                 checkout: Some(true),
             },
-        );
+        )
+        .unwrap_err();
 
-        assert!(matches!(result, Err(WriteRefError::GitFailed(_))));
+        assert_checkout_blocked(&error, "Your local changes");
+        let ipc =
+            serde_json::to_value(super::super::map_create_branch_error(error, "nueva")).unwrap();
+        assert_eq!(ipc["code"], "branch.checkoutBlocked");
+        assert_eq!(ipc["params"], serde_json::json!({ "branch": "nueva" }));
+        assert_eq!(ipc["diagnostic"]["exitCode"], 1);
+        assert!(ipc["output"]
+            .as_str()
+            .unwrap()
+            .contains("Please commit your changes or stash them"));
         assert_eq!(git(temporary.path(), &["branch", "--show-current"]), "main");
+        assert_eq!(git(temporary.path(), &["show-ref"]), refs_before);
+        assert_eq!(
+            fs::read(temporary.path().join(".git/index")).unwrap(),
+            index_before
+        );
+        assert_eq!(
+            git(temporary.path(), &["diff", "--cached", "--binary"]),
+            staged_before
+        );
+        assert_eq!(
+            fs::read(temporary.path().join("README.md")).unwrap(),
+            worktree_before
+        );
         let missing = Command::new("git")
             .args(["show-ref", "--verify", "--quiet", "refs/heads/nueva"])
             .current_dir(temporary.path())
@@ -739,6 +884,242 @@ mod tests {
             .status()
             .unwrap();
         assert!(!missing.success());
+    }
+
+    fn assert_checkout_blocked(error: &WriteRefError, stderr_marker: &str) {
+        let WriteRefError::WithDiagnostic(classification, diagnostic) = error else {
+            panic!("expected classified rejection with original evidence: {error:?}");
+        };
+        assert_eq!(**classification, WriteRefError::CheckoutBlocked);
+        let diagnostic = serde_json::to_value(diagnostic).unwrap();
+        assert_eq!(diagnostic["command"]["args"][0], "switch");
+        assert_eq!(diagnostic["exitCode"], 1);
+        assert!(diagnostic["stderr"]
+            .as_str()
+            .unwrap()
+            .contains(stderr_marker));
+        assert_eq!(diagnostic["stage"], "refWrite.execute");
+    }
+
+    #[test]
+    fn crear_y_cambiar_rechaza_colision_sin_seguimiento_sin_tocar_archivos_o_indice() {
+        let temporary = repository();
+        git(temporary.path(), &["switch", "--quiet", "-c", "origen"]);
+        fs::write(temporary.path().join("nuevo.txt"), "archivo del origen\n").unwrap();
+        git(temporary.path(), &["add", "nuevo.txt"]);
+        git(
+            temporary.path(),
+            &["commit", "--quiet", "-m", "nuevo archivo"],
+        );
+        git(temporary.path(), &["switch", "--quiet", "main"]);
+        fs::write(
+            temporary.path().join("nuevo.txt"),
+            "archivo local sin seguimiento\n",
+        )
+        .unwrap();
+        let refs_before = git(temporary.path(), &["show-ref"]);
+        let index_before = fs::read(temporary.path().join(".git/index")).unwrap();
+        let worktree_before = fs::read(temporary.path().join("nuevo.txt")).unwrap();
+
+        let error = create_branch(
+            temporary.path(),
+            "nueva",
+            &RefTarget::Branch {
+                name: "origen".into(),
+            },
+            &CreateBranchOptions {
+                checkout: Some(true),
+            },
+        )
+        .unwrap_err();
+
+        assert_checkout_blocked(&error, "untracked working tree files");
+        assert_eq!(git(temporary.path(), &["branch", "--show-current"]), "main");
+        assert_eq!(git(temporary.path(), &["show-ref"]), refs_before);
+        assert_eq!(
+            fs::read(temporary.path().join(".git/index")).unwrap(),
+            index_before
+        );
+        assert_eq!(
+            fs::read(temporary.path().join("nuevo.txt")).unwrap(),
+            worktree_before
+        );
+        assert_eq!(git(temporary.path(), &["ls-files", "nuevo.txt"]), "");
+    }
+
+    #[test]
+    fn crear_sin_cambiar_permite_cambios_que_impedirian_el_checkout() {
+        let temporary = repository();
+        git(temporary.path(), &["branch", "origen"]);
+        fs::write(temporary.path().join("README.md"), "principal\n").unwrap();
+        git(temporary.path(), &["add", "README.md"]);
+        git(temporary.path(), &["commit", "--quiet", "-m", "principal"]);
+        fs::write(temporary.path().join("README.md"), "cambio local\n").unwrap();
+        let head_before = git(temporary.path(), &["rev-parse", "HEAD"]);
+        let target = git(temporary.path(), &["rev-parse", "origen"]);
+        let index_before = fs::read(temporary.path().join(".git/index")).unwrap();
+
+        create_branch(
+            temporary.path(),
+            "nueva",
+            &RefTarget::Branch {
+                name: "origen".into(),
+            },
+            &CreateBranchOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(git(temporary.path(), &["branch", "--show-current"]), "main");
+        assert_eq!(git(temporary.path(), &["rev-parse", "HEAD"]), head_before);
+        assert_eq!(git(temporary.path(), &["rev-parse", "nueva"]), target);
+        assert_eq!(
+            fs::read(temporary.path().join(".git/index")).unwrap(),
+            index_before
+        );
+        assert_eq!(
+            fs::read_to_string(temporary.path().join("README.md")).unwrap(),
+            "cambio local\n"
+        );
+    }
+
+    #[test]
+    fn crear_y_cambiar_desde_head_permite_trabajo_pendiente_compatible() {
+        let temporary = repository();
+        fs::write(temporary.path().join("README.md"), "cambio en índice\n").unwrap();
+        git(temporary.path(), &["add", "README.md"]);
+        fs::write(temporary.path().join("README.md"), "cambio local\n").unwrap();
+        fs::write(
+            temporary.path().join("notas.txt"),
+            "nota local sin seguimiento\n",
+        )
+        .unwrap();
+        let head_before = git(temporary.path(), &["rev-parse", "HEAD"]);
+        let staged_before = git(temporary.path(), &["diff", "--cached", "--binary"]);
+
+        create_branch(
+            temporary.path(),
+            "nueva",
+            &RefTarget::Commit {
+                sha: head_before.clone(),
+            },
+            &CreateBranchOptions {
+                checkout: Some(true),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            git(temporary.path(), &["branch", "--show-current"]),
+            "nueva"
+        );
+        assert_eq!(git(temporary.path(), &["rev-parse", "HEAD"]), head_before);
+        assert_eq!(
+            git(temporary.path(), &["diff", "--cached", "--binary"]),
+            staged_before
+        );
+        assert_eq!(
+            fs::read_to_string(temporary.path().join("README.md")).unwrap(),
+            "cambio local\n"
+        );
+        assert_eq!(
+            fs::read_to_string(temporary.path().join("notas.txt")).unwrap(),
+            "nota local sin seguimiento\n"
+        );
+    }
+
+    #[test]
+    fn crear_y_cambiar_permite_wip_que_no_colisiona_con_el_destino() {
+        let temporary = repository();
+        git(temporary.path(), &["branch", "origen"]);
+        fs::write(temporary.path().join("otro.txt"), "archivo de main\n").unwrap();
+        git(temporary.path(), &["add", "otro.txt"]);
+        git(
+            temporary.path(),
+            &["commit", "--quiet", "-m", "otro archivo"],
+        );
+        fs::write(temporary.path().join("README.md"), "cambio local\n").unwrap();
+        let target = git(temporary.path(), &["rev-parse", "origen"]);
+
+        create_branch(
+            temporary.path(),
+            "nueva",
+            &RefTarget::Branch {
+                name: "origen".into(),
+            },
+            &CreateBranchOptions {
+                checkout: Some(true),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            git(temporary.path(), &["branch", "--show-current"]),
+            "nueva"
+        );
+        assert_eq!(git(temporary.path(), &["rev-parse", "HEAD"]), target);
+        assert_eq!(
+            fs::read_to_string(temporary.path().join("README.md")).unwrap(),
+            "cambio local\n"
+        );
+        assert!(!temporary.path().join("otro.txt").exists());
+    }
+
+    #[test]
+    fn clasificacion_checkout_no_confunde_otros_errores_con_cambios_locales() {
+        assert!(!checkout_would_overwrite(
+            b"fatal: invalid reference: ausente\n"
+        ));
+        assert!(!checkout_would_overwrite(
+            b"error: unable to read index file\n"
+        ));
+        assert!(!checkout_would_overwrite(b"fatal: branch already exists\n"));
+    }
+
+    #[test]
+    fn checkout_con_stash_no_pierde_archivos_sin_seguimiento_que_colisionan() {
+        let temporary = repository();
+        git(temporary.path(), &["switch", "--quiet", "-c", "origen"]);
+        fs::write(temporary.path().join("nuevo.txt"), "archivo del origen\n").unwrap();
+        git(temporary.path(), &["add", "nuevo.txt"]);
+        git(
+            temporary.path(),
+            &["commit", "--quiet", "-m", "nuevo archivo"],
+        );
+        git(temporary.path(), &["switch", "--quiet", "main"]);
+        fs::write(
+            temporary.path().join("nuevo.txt"),
+            "archivo local sin seguimiento\n",
+        )
+        .unwrap();
+        let refs_before = git(temporary.path(), &["show-ref"]);
+        let index_before = git(temporary.path(), &["ls-files", "--stage"]);
+
+        let error = checkout(
+            temporary.path(),
+            &RefTarget::Branch {
+                name: "origen".into(),
+            },
+            &CheckoutOptions {
+                auto_stash: Some(true),
+                ..CheckoutOptions::default()
+            },
+        )
+        .unwrap_err();
+
+        assert_checkout_blocked(&error, "untracked working tree files");
+        let ipc = serde_json::to_value(super::super::map_checkout_error(error, "origen")).unwrap();
+        assert_eq!(ipc["code"], "branch.checkoutBlocked");
+        assert_eq!(ipc["params"], serde_json::json!({ "branch": "origen" }));
+        assert_eq!(git(temporary.path(), &["branch", "--show-current"]), "main");
+        assert_eq!(git(temporary.path(), &["show-ref"]), refs_before);
+        assert_eq!(
+            git(temporary.path(), &["ls-files", "--stage"]),
+            index_before
+        );
+        assert_eq!(
+            fs::read_to_string(temporary.path().join("nuevo.txt")).unwrap(),
+            "archivo local sin seguimiento\n"
+        );
     }
 
     #[test]
@@ -812,7 +1193,8 @@ mod tests {
                     name: "ausente".into(),
                 },
                 &CreateTagOptions::default(),
-            ),
+            )
+            .map_err(WriteRefError::into_classification),
             Err(WriteRefError::RevisionNotFound("ausente".into()))
         );
         assert_eq!(git(temporary.path(), &["show-ref", "--tags"]), before);
@@ -834,7 +1216,8 @@ mod tests {
                 &CreateTagOptions {
                     message: Some("mensaje".into()),
                 },
-            ),
+            )
+            .map_err(WriteRefError::into_classification),
             Err(WriteRefError::TagIdentityMissing)
         );
         let missing = Command::new("git")
@@ -1095,7 +1478,10 @@ mod tests {
             },
         );
 
-        assert_eq!(result, Err(WriteRefError::Stale));
+        assert_eq!(
+            result.map_err(WriteRefError::into_classification),
+            Err(WriteRefError::Stale)
+        );
         assert_eq!(git(temporary.path(), &["branch", "--show-current"]), "main");
         assert_eq!(git(temporary.path(), &["rev-parse", "dev"]), local_tip);
     }
@@ -1231,7 +1617,10 @@ mod tests {
             },
         );
 
-        assert!(matches!(result, Err(WriteRefError::GitFailed(_))));
+        assert!(matches!(
+            result,
+            Err(WriteRefError::GitFailed(_) | WriteRefError::Diagnostic(_))
+        ));
         assert_eq!(git(temporary.path(), &["branch", "--show-current"]), "main");
         assert_eq!(
             fs::read_to_string(temporary.path().join("README.md")).unwrap(),
@@ -1512,5 +1901,48 @@ mod tests {
         .unwrap();
 
         assert_eq!(git(&linked, &["branch", "--show-current"]), "renombrada");
+    }
+    #[test]
+    fn annotated_tag_failure_preserves_git_evidence_and_excludes_message() {
+        let temporary = repository();
+        let root = temporary.path();
+        fs::create_dir_all(root.join(".git/refs/tags")).unwrap();
+        fs::write(root.join(".git/refs/tags/blocked.lock"), "held").unwrap();
+        let error = create_tag(
+            root,
+            "blocked",
+            &RefTarget::Branch {
+                name: "main".into(),
+            },
+            &CreateTagOptions {
+                message: Some("PRIVATE_TAG_MESSAGE".into()),
+            },
+        )
+        .unwrap_err();
+        let WriteRefError::Diagnostic(diagnostic) = error else {
+            panic!("Unexpected classification: {error:?}");
+        };
+        let value = serde_json::to_value(diagnostic).unwrap();
+        assert_eq!(value["command"]["args"][0], "tag");
+        assert_eq!(value["exitCode"], 128);
+        assert!(value["stderr"].as_str().unwrap().contains("blocked.lock"));
+        assert!(!value.to_string().contains("PRIVATE_TAG_MESSAGE"));
+        assert!(value.get("stdout").is_none());
+    }
+    #[test]
+    fn delete_branch_does_not_report_success_when_reference_probe_failed() {
+        let temporary = tempfile::tempdir().unwrap();
+        let error =
+            delete_branch(temporary.path(), "main", &DeleteBranchOptions::default()).unwrap_err();
+        let WriteRefError::Diagnostic(diagnostic) = error else {
+            panic!("Unexpected classification: {error:?}");
+        };
+        let value = serde_json::to_value(diagnostic).unwrap();
+        assert_eq!(value["exitCode"], 128);
+        assert_eq!(value["command"]["args"][0], "rev-parse");
+        assert!(value["stderr"]
+            .as_str()
+            .unwrap()
+            .contains("not a git repository"));
     }
 }

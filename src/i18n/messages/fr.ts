@@ -551,6 +551,7 @@ export const fr: Messages = {
   'working.refPanel.emptyWorktrees': 'Aucun autre worktree',
   'working.refRow.tracking':
     '{ahead} commits d’avance et {behind} de retard sur la branche de suivi',
+  'working.upstreamMissing': 'La branche de suivi {upstream} n’existe plus.',
 
   // GitActionBar — actions locales/réseau et accès contextuel au Terminal.
   'working.actionBar.label': 'Barre d’actions de GitWorking',
@@ -807,6 +808,10 @@ export const fr: Messages = {
   'working.dialog.branch.createTitle': 'Créer une branche depuis {from}',
   'working.dialog.remoteBranchAhead.title':
     '{branch} contient des commits locaux absents du dépôt distant',
+  'working.dialog.remoteBranchAhead.titleUnknown':
+    '{branch} et la branche distante ont des pointes différentes',
+  'working.dialog.remoteBranchAhead.descriptionUnknown':
+    'La branche de suivi {upstream} de {local} n’existe plus. Le nombre de commits d’avance ou de retard sur {remote} est donc inconnu. Vous pouvez aligner {local} sur la branche distante, créer une autre branche depuis sa pointe ou ne rien faire.',
   'working.dialog.remoteBranchAhead.description':
     '{local} contient {ahead} commits absents de {remote} et a {behind} commits de retard. Vous pouvez aligner {local} sur la branche distante, créer une autre branche depuis sa pointe ou ne rien faire.',
   'working.dialog.remoteBranchAhead.reset': 'Aligner {branch} sur la branche distante',
@@ -1660,6 +1665,10 @@ export const fr: Messages = {
     'La branche a changé, mais le stash automatique a été conservé comme sauvegarde car sa restauration a provoqué des conflits.',
   'error.branch.exists.title': 'Une branche nommée {branch} existe déjà',
   'error.branch.exists.cause': 'Deux branches ne peuvent pas partager un nom dans le même dépôt.',
+  'error.branch.checkoutBlocked.title':
+    'Passer à {branch} écraserait des fichiers locaux. Créez d’abord un stash ou un commit avec vos modifications',
+  'error.branch.checkoutBlocked.cause':
+    'Git a arrêté le changement de branche car il écraserait des fichiers ou des modifications locales. Incluez les fichiers non suivis concernés dans le stash, ou ajoutez-les à l’index et créez un commit, puis réessayez.',
   'error.branch.current.title': '{branch} est la branche active',
   'error.branch.current.cause':
     'Git ne peut pas supprimer la branche utilisée. Passez à une autre branche et réessayez.',

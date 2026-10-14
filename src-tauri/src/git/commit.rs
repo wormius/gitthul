@@ -6,15 +6,28 @@ use std::process::{Command, Stdio};
 
 use serde::Deserialize;
 
+use super::diagnostics::Diagnostic;
 use super::status::{self, CommitPrecondition};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum CommitError {
     GitFailed(String),
+    Diagnostic(Diagnostic),
+    WithDiagnostic(Box<CommitError>, Diagnostic),
     IdentityMissing,
     Locked,
     NothingStaged,
     Stale,
+}
+
+impl CommitError {
+    #[cfg(test)]
+    fn classification(&self) -> &Self {
+        match self {
+            Self::WithDiagnostic(error, _) => error.classification(),
+            _ => self,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -87,8 +100,13 @@ pub fn commit(repository: &Path, request: CommitRequest) -> Result<String, Commi
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
 
+    let args: Vec<String> = command
+        .get_args()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect();
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let mut child = command.spawn().map_err(|error| {
-        CommitError::GitFailed(format!("No se pudo iniciar git commit: {error}"))
+        CommitError::Diagnostic(Diagnostic::command_io("commit.spawn", &args, &error))
     })?;
     let message = message(&request.summary, &request.body);
     let input_result = child
@@ -97,41 +115,53 @@ pub fn commit(repository: &Path, request: CommitRequest) -> Result<String, Commi
         .ok_or_else(|| CommitError::GitFailed("Git no abrió la entrada del mensaje".to_owned()))
         .and_then(|mut stdin| {
             stdin.write_all(message.as_bytes()).map_err(|error| {
-                CommitError::GitFailed(format!("No se pudo enviar el mensaje: {error}"))
+                CommitError::Diagnostic(Diagnostic::command_io("commit.writeInput", &args, &error))
             })
         });
     // Close stdin and reap Git even if it rejected the message early. Its real
     // failure (for example, missing identity) takes precedence over BrokenPipe.
     let output = child.wait_with_output().map_err(|error| {
-        CommitError::GitFailed(format!("Git no devolvió un resultado: {error}"))
+        CommitError::Diagnostic(Diagnostic::command_io("commit.wait", &args, &error))
     })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         if stderr.trim().is_empty() {
             input_result?;
         }
-        return Err(classify_failure(&stderr));
+        let diagnostic = Diagnostic::command_with_inputs(
+            "commit.execute",
+            &args,
+            &output,
+            &[request.summary.trim(), request.body.trim(), &message],
+        );
+        return Err(match classify_failure(&stderr) {
+            CommitError::GitFailed(_) => CommitError::Diagnostic(diagnostic),
+            error => CommitError::WithDiagnostic(Box::new(error), diagnostic),
+        });
     }
     input_result?;
 
-    git_text(repository, &["rev-parse", "--verify", "HEAD"]).ok_or_else(|| {
-        CommitError::GitFailed("Git creó el commit pero HEAD no se pudo leer".to_owned())
-    })
+    git_text(repository, &["rev-parse", "--verify", "HEAD"])
 }
 
 fn nothing_staged(repository: &Path) -> Result<bool, CommitError> {
-    let status = git_command(repository)
-        .args(["diff", "--cached", "--quiet", "--exit-code"])
-        .status()
+    let args = ["diff", "--cached", "--quiet", "--exit-code"];
+    let output = git_command(repository)
+        .args(args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
         .map_err(|error| {
-            CommitError::GitFailed(format!("No se pudo comparar el índice: {error}"))
+            CommitError::Diagnostic(Diagnostic::command_io("commit.checkIndex", &args, &error))
         })?;
-    match status.code() {
+    match output.status.code() {
         Some(0) => Ok(true),
         Some(1) => Ok(false),
-        _ => Err(CommitError::GitFailed(
-            "Git no pudo comparar el índice con HEAD".to_owned(),
-        )),
+        _ => Err(CommitError::Diagnostic(Diagnostic::command(
+            "commit.checkIndex",
+            &args,
+            &output,
+        ))),
     }
 }
 
@@ -161,12 +191,23 @@ fn classify_failure(stderr: &str) -> CommitError {
     }
 }
 
-fn git_text(repository: &Path, args: &[&str]) -> Option<String> {
-    let output = git_command(repository).args(args).output().ok()?;
+fn git_text(repository: &Path, args: &[&str]) -> Result<String, CommitError> {
+    let output = git_command(repository)
+        .args(args)
+        .output()
+        .map_err(|error| {
+            CommitError::Diagnostic(Diagnostic::command_io("commit.readHead", args, &error))
+        })?;
     if !output.status.success() {
-        return None;
+        return Err(CommitError::Diagnostic(Diagnostic::command(
+            "commit.readHead",
+            args,
+            &output,
+        )));
     }
-    Some(String::from_utf8(output.stdout).ok()?.trim().to_owned())
+    String::from_utf8(output.stdout)
+        .map(|text| text.trim().to_owned())
+        .map_err(|error| CommitError::Diagnostic(Diagnostic::new("commit.decodeHead", error)))
 }
 
 fn git_command(repository: &Path) -> Command {
@@ -427,8 +468,10 @@ mod tests {
             commit(
                 without_identity.path(),
                 request(without_identity.path(), false)
-            ),
-            Err(CommitError::IdentityMissing)
+            )
+            .unwrap_err()
+            .classification(),
+            &CommitError::IdentityMissing
         );
 
         let empty = repository(true);
@@ -461,7 +504,10 @@ mod tests {
         // while write_all is still sending, independent of process scheduling.
         input.body = "mensaje largo\n".repeat(512 * 1024);
 
-        assert_eq!(commit(root, input), Err(CommitError::IdentityMissing));
+        assert_eq!(
+            commit(root, input).unwrap_err().classification(),
+            &CommitError::IdentityMissing
+        );
 
         assert_eq!(output(root, &["rev-parse", "HEAD"]), head);
         assert_eq!(fs::read(root.join(".git/index")).unwrap(), index);
@@ -488,8 +534,8 @@ mod tests {
 
         assert!(matches!(
             commit(root, input),
-            Err(CommitError::GitFailed(error))
-                if error.starts_with("No se pudo enviar el mensaje:")
+            Err(CommitError::Diagnostic(diagnostic))
+                if serde_json::to_value(&diagnostic).unwrap()["stage"] == "commit.writeInput"
         ));
         assert!(!root.join(".git/index.lock").exists());
     }
@@ -539,5 +585,61 @@ mod tests {
             fs::read_to_string(temporary.path().join(".git/hook-ejecutado")).unwrap(),
             "ejecutado"
         );
+    }
+    #[test]
+    fn identity_failure_keeps_diagnostic_without_commit_message_or_body() {
+        let temporary = repository(false);
+        let root = temporary.path();
+        git(root, &["config", "user.name", ""]);
+        git(root, &["config", "user.email", ""]);
+        stage(root, "PRIVATE_FILE_CONTENT\n");
+        let mut input = request(root, false);
+        input.summary = "PRIVATE_COMMIT_SUMMARY".into();
+        input.body = "PRIVATE_COMMIT_BODY".into();
+        let error = commit(root, input).unwrap_err();
+        assert_eq!(error.classification(), &CommitError::IdentityMissing);
+        let CommitError::WithDiagnostic(_, diagnostic) = error else {
+            panic!("Missing diagnostic");
+        };
+        let value = serde_json::to_value(diagnostic).unwrap();
+        let text = value.to_string();
+        assert_eq!(value["stage"], "commit.execute");
+        assert_eq!(value["exitCode"], 128);
+        assert!(text.contains("Author identity unknown"));
+        assert!(!text.contains("PRIVATE_COMMIT_SUMMARY"));
+        assert!(!text.contains("PRIVATE_COMMIT_BODY"));
+        assert!(!text.contains("PRIVATE_FILE_CONTENT"));
+        assert!(value.get("stdout").is_none());
+    }
+    #[cfg(unix)]
+    #[test]
+    fn commit_hook_cannot_expose_free_message_inputs_through_stderr() {
+        use std::os::unix::fs::PermissionsExt;
+        let temporary = repository(true);
+        let root = temporary.path();
+        stage(root, "private file contents\n");
+        let hook = root.join(".git/hooks/commit-msg");
+        fs::write(
+            &hook,
+            "#!/bin/sh\ncat \"$1\" >&2\nprintf '\\ncommit message rejected\\n' >&2\nexit 1\n",
+        )
+        .unwrap();
+        fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).unwrap();
+        let mut input = request(root, false);
+        input.summary = "PRIVATE_COMMIT_SUMMARY".into();
+        input.body = "PRIVATE_COMMIT_BODY".into();
+        let error = commit(root, input).unwrap_err();
+        let CommitError::Diagnostic(diagnostic) = error else {
+            panic!("Unexpected classification: {error:?}");
+        };
+        let value = serde_json::to_value(diagnostic).unwrap();
+        assert_eq!(value["exitCode"], 1);
+        assert!(value["stderr"]
+            .as_str()
+            .unwrap()
+            .contains("commit message rejected"));
+        assert!(!value.to_string().contains("PRIVATE_COMMIT_SUMMARY"));
+        assert!(!value.to_string().contains("PRIVATE_COMMIT_BODY"));
+        assert!(value.get("stdout").is_none());
     }
 }

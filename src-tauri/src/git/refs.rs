@@ -7,6 +7,8 @@ use std::process::Output;
 use gix::bstr::ByteSlice;
 use serde::Serialize;
 
+use super::diagnostics::Diagnostic;
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Person {
@@ -33,6 +35,8 @@ pub struct Branch {
     tip: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     upstream: Option<String>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    upstream_missing: bool,
     ahead: usize,
     behind: usize,
     is_head: bool,
@@ -98,15 +102,34 @@ pub struct RefsSnapshot {
     remotes: Vec<Remote>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReadRefsError {
     InvalidEncoding,
-    GitFailed,
-    MalformedOutput,
+    GitFailed(Diagnostic),
+    MalformedOutput(&'static str),
+}
+
+impl std::fmt::Display for ReadRefsError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidEncoding => {
+                formatter.write_str("Las referencias contienen datos no UTF-8")
+            }
+            Self::GitFailed(output) => output.fmt(formatter),
+            Self::MalformedOutput(context) => write!(formatter, "Formato no válido al {context}"),
+        }
+    }
+}
+
+fn git_error(
+    context: impl std::fmt::Display,
+    error: &(dyn std::error::Error + 'static),
+) -> ReadRefsError {
+    ReadRefsError::GitFailed(Diagnostic::cause(&context.to_string(), error))
 }
 
 pub fn read(path: &Path) -> Result<RefsSnapshot, ReadRefsError> {
-    let repo = gix::open(path).map_err(|_| ReadRefsError::GitFailed)?;
+    let repo = gix::open(path).map_err(|error| git_error("abrir repositorio", &error))?;
     let head = read_head(&repo)?;
     let worktrees = read_worktrees(path)?;
     let checked_out = worktrees
@@ -125,26 +148,30 @@ pub fn read(path: &Path) -> Result<RefsSnapshot, ReadRefsError> {
         .and_then(|head| head.referent_name().map(|name| name.as_bstr().to_owned()));
 
     let mut branches = Vec::new();
-    let references = repo.references().map_err(|_| ReadRefsError::GitFailed)?;
+    let references = repo
+        .references()
+        .map_err(|error| git_error("enumerar referencias", &error))?;
     for reference in references
         .local_branches()
-        .map_err(|_| ReadRefsError::GitFailed)?
+        .map_err(|error| git_error("enumerar ramas locales", &error))?
     {
         branches.push(read_branch(
             path,
             &repo,
-            reference.map_err(|_| ReadRefsError::GitFailed)?,
+            reference.map_err(|error| git_error("leer rama local", error.as_ref()))?,
             true,
             head_name.as_ref().map(|name| name.as_slice()),
             &checked_out,
         )?);
     }
-    let references = repo.references().map_err(|_| ReadRefsError::GitFailed)?;
+    let references = repo
+        .references()
+        .map_err(|error| git_error("enumerar referencias", &error))?;
     for reference in references
         .remote_branches()
-        .map_err(|_| ReadRefsError::GitFailed)?
+        .map_err(|error| git_error("enumerar ramas remotas", &error))?
     {
-        let reference = reference.map_err(|_| ReadRefsError::GitFailed)?;
+        let reference = reference.map_err(|error| git_error("leer rama remota", error.as_ref()))?;
         // `refs/remotes/origin/HEAD` es un alias simbólico del remoto, no una
         // rama operable. El panel ya conoce la rama real a la que apunta.
         if reference.try_id().is_none() {
@@ -162,9 +189,17 @@ pub fn read(path: &Path) -> Result<RefsSnapshot, ReadRefsError> {
     branches.sort_by(|left, right| (left.kind, &left.name).cmp(&(right.kind, &right.name)));
 
     let mut tags = Vec::new();
-    let references = repo.references().map_err(|_| ReadRefsError::GitFailed)?;
-    for reference in references.tags().map_err(|_| ReadRefsError::GitFailed)? {
-        if let Some(tag) = read_tag(&repo, reference.map_err(|_| ReadRefsError::GitFailed)?)? {
+    let references = repo
+        .references()
+        .map_err(|error| git_error("enumerar referencias", &error))?;
+    for reference in references
+        .tags()
+        .map_err(|error| git_error("enumerar tags", &error))?
+    {
+        if let Some(tag) = read_tag(
+            &repo,
+            reference.map_err(|error| git_error("leer tag", error.as_ref()))?,
+        )? {
             tags.push(tag);
         }
     }
@@ -174,34 +209,40 @@ pub fn read(path: &Path) -> Result<RefsSnapshot, ReadRefsError> {
         head,
         branches,
         tags,
-        stashes: read_stashes(path)?,
+        stashes: if repo.workdir().is_none() {
+            Vec::new()
+        } else {
+            read_stashes(path)?
+        },
         worktrees,
         remotes: read_remotes(&repo)?,
     })
 }
 
 pub fn names_at(path: &Path, target: gix::ObjectId) -> Result<Vec<String>, ReadRefsError> {
-    let repo = gix::open(path).map_err(|_| ReadRefsError::GitFailed)?;
+    let repo = gix::open(path).map_err(|error| git_error("abrir repositorio", &error))?;
     let mut branches = Vec::new();
-    let references = repo.references().map_err(|_| ReadRefsError::GitFailed)?;
+    let references = repo
+        .references()
+        .map_err(|error| git_error("enumerar referencias", &error))?;
     for reference in references
         .local_branches()
-        .map_err(|_| ReadRefsError::GitFailed)?
+        .map_err(|error| git_error("enumerar ramas locales", &error))?
         .chain(
             repo.references()
-                .map_err(|_| ReadRefsError::GitFailed)?
+                .map_err(|error| git_error("enumerar referencias", &error))?
                 .remote_branches()
-                .map_err(|_| ReadRefsError::GitFailed)?,
+                .map_err(|error| git_error("enumerar ramas remotas", &error))?,
         )
     {
-        let mut reference = reference.map_err(|_| ReadRefsError::GitFailed)?;
+        let mut reference = reference.map_err(|error| git_error("leer rama", error.as_ref()))?;
         if reference.try_id().is_none() {
             continue;
         }
         let name = utf8(reference.name().shorten())?;
         if reference
             .peel_to_commit()
-            .map_err(|_| ReadRefsError::GitFailed)?
+            .map_err(|error| git_error(format!("resolver rama {name}"), &error))?
             .id()
             == target
         {
@@ -211,9 +252,14 @@ pub fn names_at(path: &Path, target: gix::ObjectId) -> Result<Vec<String>, ReadR
     branches.sort();
 
     let mut tags = Vec::new();
-    let references = repo.references().map_err(|_| ReadRefsError::GitFailed)?;
-    for reference in references.tags().map_err(|_| ReadRefsError::GitFailed)? {
-        let mut reference = reference.map_err(|_| ReadRefsError::GitFailed)?;
+    let references = repo
+        .references()
+        .map_err(|error| git_error("enumerar referencias", &error))?;
+    for reference in references
+        .tags()
+        .map_err(|error| git_error("enumerar tags", &error))?
+    {
+        let mut reference = reference.map_err(|error| git_error("leer tag", error.as_ref()))?;
         let name = utf8(reference.name().shorten())?;
         // Igual que la foto P3.1: un tag puede señalar un blob o árbol y no
         // pertenece a las etiquetas del grafo de commits.
@@ -230,7 +276,9 @@ pub fn names_at(path: &Path, target: gix::ObjectId) -> Result<Vec<String>, ReadR
 }
 
 fn read_head(repo: &gix::Repository) -> Result<Head, ReadRefsError> {
-    let head = repo.head().map_err(|_| ReadRefsError::GitFailed)?;
+    let head = repo
+        .head()
+        .map_err(|error| git_error("leer HEAD", &error))?;
     let detached = head.is_detached();
     let branch = head
         .referent_name()
@@ -258,9 +306,7 @@ fn read_branch(
         reference
             .remote_tracking_ref_name(gix::remote::Direction::Fetch)
             .transpose()
-            .map_err(|_| ReadRefsError::GitFailed)?
-            .map(|name| utf8(name.shorten()))
-            .transpose()?
+            .map_err(|error| git_error(format!("leer upstream de {id}"), &error))?
     } else {
         None
     };
@@ -271,14 +317,17 @@ fn read_branch(
     };
     let tip = reference
         .peel_to_commit()
-        .map_err(|_| ReadRefsError::GitFailed)?
+        .map_err(|error| git_error(format!("resolver rama {id}"), &error))?
         .id()
         .to_string();
-    let (ahead, behind) = upstream
-        .as_deref()
-        .map(|upstream| divergence(path, &id, upstream))
+    let counts = upstream
+        .as_ref()
+        .map(|upstream| divergence(path, repo, &tip, upstream.as_ref()))
         .transpose()?
-        .unwrap_or((0, 0));
+        .flatten();
+    let upstream_missing = upstream.is_some() && counts.is_none();
+    let (ahead, behind) = counts.unwrap_or((0, 0));
+    let upstream = upstream.map(|name| utf8(name.shorten())).transpose()?;
     Ok(Branch {
         is_head: head_name.is_some_and(|head| head == id.as_bytes()),
         checked_out_in: checked_out.get(&id).cloned(),
@@ -288,6 +337,7 @@ fn read_branch(
         remote,
         tip,
         upstream,
+        upstream_missing,
         ahead,
         behind,
     })
@@ -312,7 +362,7 @@ fn read_remotes(repo: &gix::Repository) -> Result<Vec<Remote>, ReadRefsError> {
     for name in repo.remote_names() {
         let remote = repo
             .find_remote(name.as_bstr())
-            .map_err(|_| ReadRefsError::GitFailed)?;
+            .map_err(|error| git_error(format!("leer remoto {}", name.to_str_lossy()), &error))?;
         if let Some(fetch) = remote.url(gix::remote::Direction::Fetch) {
             let fetch_url = fetch.to_string();
             let push_url = remote
@@ -329,20 +379,43 @@ fn read_remotes(repo: &gix::Repository) -> Result<Vec<Remote>, ReadRefsError> {
     Ok(remotes)
 }
 
-fn divergence(path: &Path, local: &str, upstream: &str) -> Result<(usize, usize), ReadRefsError> {
-    let range = format!("{local}...{upstream}");
+fn divergence(
+    path: &Path,
+    repo: &gix::Repository,
+    local: &str,
+    upstream: &gix::refs::FullNameRef,
+) -> Result<Option<(usize, usize)>, ReadRefsError> {
+    let name = utf8(upstream.as_bstr())?;
+    let Some(mut reference) = repo
+        .try_find_reference(upstream)
+        .map_err(|error| git_error(format!("leer upstream {name}"), &error))?
+    else {
+        // Fetch/prune may remove a tracking ref without removing branch.*.merge.
+        // Absence is expected; read/peel failures are still real errors.
+        return Ok(None);
+    };
+    let target = reference
+        .peel_to_commit()
+        .map_err(|error| git_error(format!("resolver upstream {name}"), &error))?
+        .id();
+    // OIDs keep short-name collisions and concurrent ref updates out of the count.
+    let range = format!("{local}...{target}");
     let output = git(path, ["rev-list", "--left-right", "--count", &range])?;
-    let text = std::str::from_utf8(&output.stdout).map_err(|_| ReadRefsError::MalformedOutput)?;
+    let malformed = || ReadRefsError::MalformedOutput("leer divergencia de ramas");
+    let text = std::str::from_utf8(&output.stdout).map_err(|_| malformed())?;
     let mut counts = text.split_ascii_whitespace();
     let ahead = counts
         .next()
         .and_then(|value| value.parse().ok())
-        .ok_or(ReadRefsError::MalformedOutput)?;
+        .ok_or_else(malformed)?;
     let behind = counts
         .next()
         .and_then(|value| value.parse().ok())
-        .ok_or(ReadRefsError::MalformedOutput)?;
-    Ok((ahead, behind))
+        .ok_or_else(malformed)?;
+    if counts.next().is_some() {
+        return Err(malformed());
+    }
+    Ok(Some((ahead, behind)))
 }
 
 fn read_tag(
@@ -351,17 +424,19 @@ fn read_tag(
 ) -> Result<Option<Tag>, ReadRefsError> {
     let id = utf8(reference.name().as_bstr())?;
     let name = utf8(reference.name().shorten())?;
-    let object_id = reference.try_id().ok_or(ReadRefsError::MalformedOutput)?;
+    let object_id = reference
+        .try_id()
+        .ok_or(ReadRefsError::MalformedOutput("leer destino del tag"))?;
     let object = repo
         .find_object(object_id)
-        .map_err(|_| ReadRefsError::GitFailed)?;
+        .map_err(|error| git_error(format!("leer objeto del tag {id}"), &error))?;
     let annotated = object.kind == gix::object::Kind::Tag;
     let target = reference
         .peel_to_id()
-        .map_err(|_| ReadRefsError::GitFailed)?;
+        .map_err(|error| git_error(format!("resolver tag {id}"), &error))?;
     if repo
         .find_object(target)
-        .map_err(|_| ReadRefsError::GitFailed)?
+        .map_err(|error| git_error(format!("leer destino del tag {id}"), &error))?
         .kind
         != gix::object::Kind::Commit
     {
@@ -370,10 +445,12 @@ fn read_tag(
     let target = target.to_string();
     let (message, tagger, tagged_at) = if annotated {
         let tag = object.into_tag();
-        let decoded = tag.decode().map_err(|_| ReadRefsError::MalformedOutput)?;
+        let decoded = tag
+            .decode()
+            .map_err(|error| git_error("decodificar tag anotado", &error))?;
         let signature = decoded
             .tagger()
-            .map_err(|_| ReadRefsError::MalformedOutput)?;
+            .map_err(|error| git_error("leer firma del tag", &error))?;
         let tagger = signature
             .map(|signature| {
                 Ok(Person {
@@ -385,7 +462,7 @@ fn read_tag(
         let tagged_at = signature
             .map(|signature| signature.time())
             .transpose()
-            .map_err(|_| ReadRefsError::MalformedOutput)?
+            .map_err(|error| git_error("leer fecha del tag", &error))?
             .map(|time| time.seconds.saturating_mul(1000));
         (Some(utf8(decoded.message.trim_end())?), tagger, tagged_at)
     } else {
@@ -403,35 +480,32 @@ fn read_tag(
 }
 
 fn read_stashes(path: &Path) -> Result<Vec<Stash>, ReadRefsError> {
-    let output = git_allow_missing(
+    let output = git(
         path,
         ["stash", "list", "--format=%gd%x00%H%x00%P%x00%gs%x00%ct"],
     )?;
-    if !output.status.success() {
-        return Ok(Vec::new());
-    }
     let text = std::str::from_utf8(&output.stdout).map_err(|_| ReadRefsError::InvalidEncoding)?;
     text.lines()
         .filter(|line| !line.is_empty())
         .map(|line| {
             let fields = line.split('\0').collect::<Vec<_>>();
             if fields.len() != 5 {
-                return Err(ReadRefsError::MalformedOutput);
+                return Err(ReadRefsError::MalformedOutput("leer campos del stash"));
             }
             let index = fields[0]
                 .strip_prefix("stash@{")
                 .and_then(|value| value.strip_suffix('}'))
                 .and_then(|value| value.parse().ok())
-                .ok_or(ReadRefsError::MalformedOutput)?;
+                .ok_or(ReadRefsError::MalformedOutput("leer selector del stash"))?;
             let base = fields[2]
                 .split_whitespace()
                 .next()
-                .ok_or(ReadRefsError::MalformedOutput)?
+                .ok_or(ReadRefsError::MalformedOutput("leer base del stash"))?
                 .to_owned();
             let (branch, message) = stash_subject(fields[3]);
             let created_at = fields[4]
                 .parse::<i64>()
-                .map_err(|_| ReadRefsError::MalformedOutput)?
+                .map_err(|_| ReadRefsError::MalformedOutput("leer fecha del stash"))?
                 .saturating_mul(1000);
             Ok(Stash {
                 index,
@@ -454,10 +528,11 @@ fn read_stashes(path: &Path) -> Result<Vec<Stash>, ReadRefsError> {
  * necesita esos orígenes para no dibujar una derivación sin nodo de llegada.
  */
 pub(super) fn stash_bases(path: &Path) -> Result<Vec<String>, ReadRefsError> {
-    let output = git_allow_missing(path, ["stash", "list", "--format=%P"])?;
-    if !output.status.success() {
+    let repo = gix::open(path).map_err(|error| git_error("abrir repositorio", &error))?;
+    if repo.workdir().is_none() {
         return Ok(Vec::new());
     }
+    let output = git(path, ["stash", "list", "--format=%P"])?;
     let text = std::str::from_utf8(&output.stdout).map_err(|_| ReadRefsError::InvalidEncoding)?;
     Ok(text
         .lines()
@@ -528,7 +603,8 @@ fn parse_worktree(fields: Vec<&[u8]>, is_main: bool) -> Result<Worktree, ReadRef
             .map(utf8)
             .transpose()
     };
-    let path = value(b"worktree ")?.ok_or(ReadRefsError::MalformedOutput)?;
+    let path =
+        value(b"worktree ")?.ok_or(ReadRefsError::MalformedOutput("leer ruta del worktree"))?;
     let branch = value(b"branch ")?
         .and_then(|branch| branch.strip_prefix("refs/heads/").map(ToOwned::to_owned))
         .unwrap_or_else(|| "HEAD".to_owned());
@@ -558,19 +634,8 @@ fn utf8(value: &[u8]) -> Result<String, ReadRefsError> {
 }
 
 fn git<const N: usize>(path: &Path, args: [&str; N]) -> Result<Output, ReadRefsError> {
-    let output = git_allow_missing(path, args)?;
-    if output.status.success() {
-        Ok(output)
-    } else {
-        Err(ReadRefsError::GitFailed)
-    }
-}
-
-fn git_allow_missing<const N: usize>(
-    path: &Path,
-    args: [&str; N],
-) -> Result<Output, ReadRefsError> {
-    crate::process::command("git")
+    let command = "refs.command";
+    let output = crate::process::command("git")
         .args(args)
         .current_dir(path)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -578,7 +643,16 @@ fn git_allow_missing<const N: usize>(
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C")
         .output()
-        .map_err(|_| ReadRefsError::GitFailed)
+        .map_err(|error| {
+            ReadRefsError::GitFailed(Diagnostic::command_io(command, &args, &error))
+        })?;
+    if output.status.success() {
+        Ok(output)
+    } else {
+        Err(ReadRefsError::GitFailed(Diagnostic::command(
+            command, &args, &output,
+        )))
+    }
 }
 
 #[cfg(test)]
@@ -631,6 +705,7 @@ mod tests {
         let output = Command::new("git")
             .args(args)
             .current_dir(repository)
+            .env("LC_ALL", "C")
             .output()
             .unwrap();
         assert!(output.status.success());
@@ -709,6 +784,7 @@ mod tests {
             .unwrap();
         assert!(main.is_head);
         assert_eq!(main.upstream.as_deref(), Some("origin/main"));
+        assert!(!main.upstream_missing);
         assert_eq!((main.ahead, main.behind), (1, 1));
         let remote_branch = snapshot
             .branches
@@ -769,6 +845,217 @@ mod tests {
         assert_eq!(detached.head.branch, None);
         assert_eq!(detached.head.sha, sha);
         assert!(detached.head.detached);
+    }
+
+    #[test]
+    fn reads_branches_when_their_configured_upstream_was_pruned() {
+        let temporary = repository();
+        let sha = commit(temporary.path(), "base", "base\n");
+        git(
+            temporary.path(),
+            &[
+                "remote",
+                "add",
+                "origin",
+                "https://example.invalid/repo.git",
+            ],
+        );
+        git(
+            temporary.path(),
+            &["update-ref", "refs/remotes/origin/main", &sha],
+        );
+        git(
+            temporary.path(),
+            &["branch", "--set-upstream-to=origin/main", "main"],
+        );
+        git(
+            temporary.path(),
+            &["update-ref", "-d", "refs/remotes/origin/main"],
+        );
+
+        // Git still opens this repository and reports the upstream as gone.
+        assert!(output(temporary.path(), &["status", "--short", "--branch"]).contains("gone"));
+        let snapshot = read(temporary.path()).unwrap();
+        let main = snapshot
+            .branches
+            .iter()
+            .find(|branch| branch.is_head)
+            .unwrap();
+        assert_eq!(main.tip, sha);
+        assert_eq!(main.upstream.as_deref(), Some("origin/main"));
+        assert!(main.upstream_missing);
+        assert_eq!((main.ahead, main.behind), (0, 0));
+        assert_eq!(snapshot.branches.len(), 1);
+        assert_eq!(
+            output(temporary.path(), &["config", "branch.main.merge"]),
+            "refs/heads/main"
+        );
+    }
+
+    #[test]
+    fn divergence_uses_the_full_upstream_ref_when_a_tag_has_the_same_short_name() {
+        let temporary = repository();
+        let base = commit(temporary.path(), "base", "base\n");
+        git(
+            temporary.path(),
+            &[
+                "remote",
+                "add",
+                "origin",
+                "https://example.invalid/repo.git",
+            ],
+        );
+        git(
+            temporary.path(),
+            &["update-ref", "refs/remotes/origin/main", &base],
+        );
+        git(
+            temporary.path(),
+            &["branch", "--set-upstream-to=origin/main", "main"],
+        );
+        let local = commit(temporary.path(), "local", "local\n");
+        git(temporary.path(), &["tag", "origin/main", &local]);
+
+        let snapshot = read(temporary.path()).unwrap();
+        let main = snapshot
+            .branches
+            .iter()
+            .find(|branch| branch.is_head)
+            .unwrap();
+        assert_eq!(main.upstream.as_deref(), Some("origin/main"));
+        assert!(!main.upstream_missing);
+        assert_eq!((main.ahead, main.behind), (1, 0));
+    }
+
+    #[test]
+    fn a_same_named_local_branch_does_not_replace_a_missing_upstream() {
+        let temporary = repository();
+        let sha = commit(temporary.path(), "base", "base\n");
+        git(
+            temporary.path(),
+            &[
+                "remote",
+                "add",
+                "origin",
+                "https://example.invalid/repo.git",
+            ],
+        );
+        git(
+            temporary.path(),
+            &["config", "branch.main.remote", "origin"],
+        );
+        git(
+            temporary.path(),
+            &["config", "branch.main.merge", "refs/heads/main"],
+        );
+        git(temporary.path(), &["branch", "origin/main"]);
+        git(temporary.path(), &["tag", "origin/main"]);
+
+        let snapshot = read(temporary.path()).unwrap();
+        let main = snapshot
+            .branches
+            .iter()
+            .find(|branch| branch.is_head)
+            .unwrap();
+        assert_eq!(main.tip, sha);
+        assert!(main.upstream_missing);
+        let json = serde_json::to_value(snapshot).unwrap();
+        assert!(json["branches"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|branch| branch["name"] == "main" && branch["upstreamMissing"] == true));
+    }
+
+    #[test]
+    fn missing_upstream_objects_are_errors_with_the_exact_ref_in_the_diagnostic() {
+        let temporary = repository();
+        let base = commit(temporary.path(), "base", "base\n");
+        git(
+            temporary.path(),
+            &[
+                "remote",
+                "add",
+                "origin",
+                "https://example.invalid/repo.git",
+            ],
+        );
+        git(temporary.path(), &["switch", "--quiet", "--detach", &base]);
+        let remote = commit(temporary.path(), "remote", "remote\n");
+        git(
+            temporary.path(),
+            &["update-ref", "refs/remotes/origin/main", &remote],
+        );
+        git(temporary.path(), &["switch", "--quiet", "main"]);
+        git(
+            temporary.path(),
+            &["branch", "--set-upstream-to=origin/main", "main"],
+        );
+        fs::remove_file(
+            temporary
+                .path()
+                .join(".git/objects")
+                .join(&remote[..2])
+                .join(&remote[2..]),
+        )
+        .unwrap();
+
+        let error = read(temporary.path()).unwrap_err();
+        assert!(matches!(error, ReadRefsError::GitFailed(_)));
+        assert!(error
+            .to_string()
+            .contains("resolver upstream refs/remotes/origin/main"));
+        assert!(error.to_string().contains(&remote));
+        let ipc_error = tauri::async_runtime::block_on(super::super::git_read_refs(
+            temporary.path().to_string_lossy().into_owned(),
+        ))
+        .unwrap_err();
+        assert_eq!(ipc_error.code, "unknown");
+        assert_eq!(
+            ipc_error.output.as_deref(),
+            Some(error.to_string().as_str())
+        );
+    }
+
+    #[test]
+    fn ancestry_failures_keep_the_git_command_exit_status_and_stderr() {
+        let temporary = repository();
+        let base = commit(temporary.path(), "base", "base\n");
+        git(
+            temporary.path(),
+            &[
+                "remote",
+                "add",
+                "origin",
+                "https://example.invalid/repo.git",
+            ],
+        );
+        commit(temporary.path(), "local", "local\n");
+        git(temporary.path(), &["switch", "--quiet", "--detach", &base]);
+        let remote = commit(temporary.path(), "remote", "remote\n");
+        git(
+            temporary.path(),
+            &["update-ref", "refs/remotes/origin/main", &remote],
+        );
+        git(temporary.path(), &["switch", "--quiet", "main"]);
+        git(
+            temporary.path(),
+            &["branch", "--set-upstream-to=origin/main", "main"],
+        );
+        fs::remove_file(
+            temporary
+                .path()
+                .join(".git/objects")
+                .join(&base[..2])
+                .join(&base[2..]),
+        )
+        .unwrap();
+
+        let error = read(temporary.path()).unwrap_err().to_string();
+        assert!(error.contains("git rev-list --left-right --count"));
+        assert!(error.contains("128"));
+        assert!(error.contains("fatal:"));
+        assert!(error.contains(&base));
     }
 
     #[test]

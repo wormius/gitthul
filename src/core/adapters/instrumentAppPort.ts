@@ -1,7 +1,8 @@
 import type { LogPort } from '@core/ports/LogPort';
-import { redactLogText } from '@core/domain/logPrivacy';
+import { redactKnownLogValues, redactLogText } from '@core/domain/logPrivacy';
+import type { LogMetadata } from '@core/domain/logs';
 import type { TerminalExit } from '@core/ports/TerminalPort';
-import { logOperation } from './logOperation';
+import { logOperation, type OperationSummary } from './logOperation';
 
 const LABELS: Record<string, Record<string, string>> = {
   backup: {
@@ -88,6 +89,7 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
       return (...args: unknown[]) => {
         let request: string | undefined;
         let repository: string | undefined;
+        const requestData: LogMetadata = {};
         if (scope === 'auth' && /^(readAccess|saveAccess|forgetAccess)$/.test(property)) {
           repository = typeof args[0] === 'string' ? args[0] : undefined;
           const access = args[1];
@@ -98,6 +100,7 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
                 ? String(access.url)
                 : '';
           request = `url=${redactLogText(url)}`;
+          requestData['url'] = redactLogText(url);
         }
         if (scope === 'system' && /^(revealPath|resolveChildPath)$/.test(property))
           request = args
@@ -106,9 +109,13 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
             .join(' · ');
         if (scope === 'link' && property === 'openExternal' && typeof args[0] === 'string')
           request = `url=${redactLogText(args[0])}`;
-        if (scope === 'link' && property === 'checkRelease') request = `canal=${String(args[0])}`;
+        if (scope === 'link' && property === 'checkRelease') requestData['releaseKind'] = 'stable';
         if (scope === 'settings' && property === 'patch' && args[0] && typeof args[0] === 'object')
           request = `secciones=${Object.keys(args[0]).join(',')}`;
+        if (scope === 'settings' && property === 'patch' && args[0] && typeof args[0] === 'object')
+          requestData['sections'] = Object.keys(args[0]);
+        if (scope === 'backup' && property === 'schedule' && typeof args[0] === 'string')
+          repository = args[0];
         if (scope === 'terminal') {
           const first = args[0];
           if (property === 'createSession' && first && typeof first === 'object') {
@@ -117,24 +124,41 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
             const lifetime = { closing: false };
             terminalLifetimes.set(sessionId, lifetime);
             request = `sessionId=${String(original['sessionId'])} · cwd=${String(original['cwd'])} · cols=${String(original['cols'])} · rows=${String(original['rows'])}`;
+            Object.assign(requestData, {
+              sessionId,
+              cwd: String(original['cwd']),
+              cols: Number(original['cols']),
+              rows: Number(original['rows']),
+            });
             args[0] = {
               ...original,
               onExit: (exit: TerminalExit) => {
-                log.write(
-                  exit.success || lifetime.closing ? 'info' : 'warn',
-                  'terminal',
-                  lifetime.closing
-                    ? 'El proceso de terminal terminó al cerrar la sesión'
-                    : exit.success
-                      ? 'El proceso de terminal terminó'
-                      : 'El proceso de terminal terminó con estado no exitoso',
-                  undefined,
-                  {
-                    phase: 'event',
-                    request,
-                    result: `code=${exit.code} · signal=${exit.signal ?? 'none'}`,
-                  },
-                );
+                try {
+                  log.write(
+                    exit.success || lifetime.closing ? 'info' : 'warn',
+                    'terminal',
+                    lifetime.closing
+                      ? 'El proceso de terminal terminó al cerrar la sesión'
+                      : exit.success
+                        ? 'El proceso de terminal terminó'
+                        : 'El proceso de terminal terminó con estado no exitoso',
+                    undefined,
+                    {
+                      phase: 'event',
+                      request,
+                      requestData,
+                      result: `code=${exit.code} · signal=${exit.signal ?? 'none'}`,
+                      resultData: {
+                        code: exit.code,
+                        signal: exit.signal,
+                        success: exit.success,
+                        closing: lifetime.closing,
+                      },
+                    },
+                  );
+                } catch {
+                  /* Deliver the terminal exit even if the logger fails. */
+                }
                 if (terminalLifetimes.get(sessionId) === lifetime)
                   terminalLifetimes.delete(sessionId);
                 (original['onExit'] as ((exit: TerminalExit) => void) | undefined)?.(exit);
@@ -142,6 +166,7 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
             };
           } else {
             request = `sessionId=${String(first)}`;
+            requestData['sessionId'] = String(first);
             if (property === 'closeSession') {
               const lifetime = terminalLifetimes.get(String(first));
               if (lifetime) lifetime.closing = true;
@@ -151,13 +176,35 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
         if (scope === 'auth' && property === 'subscribe' && typeof args[0] === 'function') {
           const listener = args[0] as (event: unknown) => void;
           args[0] = (event: unknown) => {
-            if (event && typeof event === 'object' && 'storageError' in event)
-              log.write(
-                'warn',
-                'auth',
-                'La credencial no se pudo guardar en el llavero; se usará solo en esta sesión',
-              );
-            else log.write('debug', 'auth', 'Cambio en la solicitud de autenticación');
+            try {
+              if (event && typeof event === 'object' && 'storageError' in event)
+                log.write(
+                  'warn',
+                  'auth',
+                  'La credencial no se pudo guardar en el llavero; se usará solo en esta sesión',
+                );
+              else if (event && typeof event === 'object') {
+                const challenge = event as Record<string, unknown>;
+                log.write('debug', 'auth', 'Cambio en la solicitud de autenticación', undefined, {
+                  phase: 'event',
+                  ...(typeof challenge['repository'] === 'string'
+                    ? { repository: challenge['repository'] }
+                    : {}),
+                  ...(typeof challenge['operationId'] === 'string'
+                    ? { nativeOperationId: challenge['operationId'] }
+                    : {}),
+                  requestData: {
+                    ...(typeof challenge['kind'] === 'string' ? { kind: challenge['kind'] } : {}),
+                    ...(typeof challenge['url'] === 'string'
+                      ? { url: redactLogText(challenge['url']) }
+                      : {}),
+                    dismissed: typeof challenge['dismiss'] === 'string',
+                  },
+                });
+              }
+            } catch {
+              /* Authentication must survive a broken logger. */
+            }
             listener(event);
           };
         }
@@ -179,24 +226,17 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
         )
           if (typeof args[1] === 'string' || typeof args[0] === 'string')
             secrets.push(String(scope === 'terminal' ? args[1] : args[0]));
-        const sanitize = (text: string) =>
-          secrets.reduce(
-            (safe, secret) =>
-              secret
-                ? safe
-                    .split(secret)
-                    .join('[redacted]')
-                    .split(JSON.stringify(secret).slice(1, -1))
-                    .join('[redacted]')
-                : safe,
-            text,
-          );
+        const sanitize = (text: string) => redactKnownLogValues(text, secrets);
         return logOperation(
           log,
           scope,
           property,
           LABELS[scope]?.[property] ?? `${scope}: ${property}`,
-          { ...(request ? { request } : {}), ...(repository ? { repository } : {}) },
+          {
+            ...(request ? { request } : {}),
+            ...(repository ? { repository } : {}),
+            ...(Object.keys(requestData).length ? { requestData } : {}),
+          },
           () => {
             const pending = Reflect.apply(value, target, args) as Promise<unknown>;
             if (scope !== 'terminal' || !/^(createSession|closeSession)$/.test(property))
@@ -221,7 +261,7 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
           scope === 'terminal' && /^(createSession|closeSession)$/.test(property)
             ? 'info'
             : 'debug',
-          (result) => {
+          (result): string | OperationSummary => {
             if (scope === 'keyring' && property === 'isAvailable' && result === false)
               log.write(
                 'warn',
@@ -229,15 +269,19 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
                 'El llavero del sistema no está disponible; no se podrán guardar secretos',
               );
             return result === null
-              ? 'sin selección o sin datos'
+              ? { text: 'sin selección o sin datos', data: { selected: false } }
               : typeof result === 'boolean'
-                ? String(result)
+                ? { text: String(result), data: { value: result } }
                 : Array.isArray(result)
-                  ? `elementos=${result.length}`
+                  ? { text: `elementos=${result.length}`, data: { count: result.length } }
                   : 'completado';
           },
           sanitize,
           !(scope === 'terminal' && /^(write|resize)$/.test(property)),
+          (scope === 'terminal' && /^(createSession|closeSession)$/.test(property)) ||
+            (scope === 'backup' && property === 'restore')
+            ? 'info'
+            : undefined,
         );
       };
     },

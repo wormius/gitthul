@@ -416,7 +416,7 @@ export function remoteBranchMenu(context: MenuBuildContext, branch: Branch): rea
       ? t('working.menu.remoteBranch.checkoutHint', { branch: source })
       : local.tip === branch.tip
         ? t('working.menu.remoteBranch.checkoutHintExisting', { branch: local.name })
-        : local.ahead === 0 && local.behind > 0
+        : !local.upstreamMissing && local.ahead === 0 && local.behind > 0
           ? t('working.menu.remoteBranch.checkoutHintFastForward', {
               branch: local.name,
               remote: source,

@@ -2733,7 +2733,10 @@ function moveHead(refs: RefsSnapshot, sha: Sha): RefsSnapshot {
         ? {
             ...candidate,
             tip: sha,
-            ahead: candidate.upstream === undefined ? 0 : candidate.ahead + 1,
+            ahead:
+              candidate.upstream === undefined || candidate.upstreamMissing === true
+                ? 0
+                : candidate.ahead + 1,
           }
         : candidate,
     ),
@@ -2905,13 +2908,13 @@ function checkoutIn(
         ...repo.refs,
         branches: repo.refs.branches.map((branch) =>
           branch.kind === 'local' && branch.name === localName
-            ? {
+            ? withoutMissingUpstream({
                 ...branch,
                 tip: remote!.tip,
                 upstream: remote!.name,
                 ahead: 0,
                 behind: 0,
-              }
+              })
             : branch,
         ),
       });
@@ -2984,6 +2987,7 @@ function upstreamIn(repo: MockRepo, local: Branch, upstream: string | null): Ref
       : repo.refs.branches.find((branch) => branch.kind === 'remote' && branch.name === upstream);
 
   const next: Branch = { ...local, ahead: 0, behind: 0 };
+  delete next.upstreamMissing;
 
   if (upstream === null) delete next.upstream;
   else {
@@ -2992,7 +2996,7 @@ function upstreamIn(repo: MockRepo, local: Branch, upstream: string | null): Ref
     if (remote) {
       next.ahead = countAhead(repo.history.byShaLookup, local.tip, remote.tip);
       next.behind = countAhead(repo.history.byShaLookup, remote.tip, local.tip);
-    }
+    } else next.upstreamMissing = true;
   }
 
   return {
@@ -3329,11 +3333,15 @@ function recount(branches: readonly Branch[], history: History, branch: Branch, 
           (candidate) => candidate.kind === 'remote' && candidate.name === branch.upstream,
         );
 
-  if (!remote) return { ...branch, tip, ahead: 0, behind: 0 };
+  const next = withoutMissingUpstream({ ...branch, tip, ahead: 0, behind: 0 });
+
+  if (!remote) {
+    if (branch.upstream !== undefined) next.upstreamMissing = true;
+    return next;
+  }
 
   return {
-    ...branch,
-    tip,
+    ...next,
     ahead: countAhead(history.byShaLookup, tip, remote.tip),
     behind: countAhead(history.byShaLookup, remote.tip, tip),
   };
@@ -3768,7 +3776,7 @@ function redoIn(repo: MockRepo): MockRepo {
 /** Cuántos commits hay al otro lado esperando: es lo que el fetch va a traer. */
 function incoming(repo: MockRepo): number {
   return repo.refs.branches
-    .filter((branch) => branch.kind === 'local')
+    .filter((branch) => branch.kind === 'local' && branch.upstreamMissing !== true)
     .reduce((total, branch) => total + branch.behind, 0);
 }
 
@@ -3851,7 +3859,7 @@ function pushIn(repo: MockRepo, name: string, remote: string): MockRepo {
 
   const branches = repo.refs.branches.map((branch) =>
     branch === local
-      ? { ...branch, upstream, ahead: 0, behind: 0 }
+      ? withoutMissingUpstream({ ...branch, upstream, ahead: 0, behind: 0 })
       : branch === tracked
         ? { ...branch, tip: local.tip }
         : branch,
@@ -3946,6 +3954,7 @@ function removeRemoteIn(repo: MockRepo, name: string): MockRepo {
       if (branch.kind === 'local' && branch.upstream?.startsWith(prefix)) {
         const detached = { ...branch };
         delete detached.upstream;
+        delete detached.upstreamMissing;
         detached.ahead = 0;
         detached.behind = 0;
         return [detached];
@@ -3976,6 +3985,12 @@ function withoutCheckout(branch: Branch): Branch {
 
   delete next.checkedOutIn;
 
+  return next;
+}
+
+function withoutMissingUpstream(branch: Branch): Branch {
+  const next = { ...branch };
+  delete next.upstreamMissing;
   return next;
 }
 

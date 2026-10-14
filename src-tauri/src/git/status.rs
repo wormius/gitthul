@@ -10,11 +10,14 @@ use std::process::Output;
 
 use serde::{Deserialize, Serialize};
 
-use super::stash::{self, StashRecoveryKind};
+use super::{
+    diagnostics::Diagnostic,
+    stash::{self, StashRecoveryKind},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ReadStatusError {
-    GitFailed,
+    Diagnostic(Diagnostic),
     InvalidPathEncoding,
     MalformedOutput,
 }
@@ -155,7 +158,8 @@ pub fn read(repository: &Path) -> Result<WorkingStatus, ReadStatusError> {
     let unstaged_stats = parse_numstat(&git_output(
         repository,
         &["diff", "--numstat", "-z", "--find-renames", "--"],
-    )?)?;
+    )?)
+    .map_err(|error| parse_error("status.parseUnstagedStats", error))?;
     let staged_stats = parse_numstat(&git_output(
         repository,
         &[
@@ -166,9 +170,11 @@ pub fn read(repository: &Path) -> Result<WorkingStatus, ReadStatusError> {
             "--find-renames",
             "--",
         ],
-    )?)?;
+    )?)
+    .map_err(|error| parse_error("status.parseStagedStats", error))?;
 
-    let mut parsed = parse_status(&status.stdout, &staged_stats, &unstaged_stats)?;
+    let mut parsed = parse_status(&status.stdout, &staged_stats, &unstaged_stats)
+        .map_err(|error| parse_error("status.parsePorcelain", error))?;
     let commit = commit_precondition(repository);
     parsed.reset_precondition = Some(ResetPrecondition {
         head: commit.head.clone(),
@@ -334,11 +340,27 @@ fn git_output(repository: &Path, args: &[&str]) -> Result<Output, ReadStatusErro
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C")
         .output()
-        .map_err(|_| ReadStatusError::GitFailed)?;
+        .map_err(|error| {
+            ReadStatusError::Diagnostic(Diagnostic::command_io("status.command", args, &error))
+        })?;
     if output.status.success() {
         Ok(output)
     } else {
-        Err(ReadStatusError::GitFailed)
+        Err(ReadStatusError::Diagnostic(Diagnostic::command(
+            "status.command",
+            args,
+            &output,
+        )))
+    }
+}
+
+fn parse_error(stage: &str, error: ReadStatusError) -> ReadStatusError {
+    match error {
+        ReadStatusError::MalformedOutput => ReadStatusError::Diagnostic(Diagnostic::new(
+            stage,
+            "Git returned malformed structured output",
+        )),
+        error => error,
     }
 }
 
@@ -869,5 +891,20 @@ mod tests {
             read(temporary.path()),
             Err(ReadStatusError::InvalidPathEncoding)
         );
+    }
+    #[test]
+    fn a_damaged_index_preserves_the_command_exit_and_native_error() {
+        let temporary = repository();
+        fs::write(temporary.path().join(".git/index"), b"broken index").unwrap();
+        let error = read(temporary.path()).unwrap_err();
+        let ReadStatusError::Diagnostic(diagnostic) = error else {
+            panic!("expected diagnostic, got {error:?}")
+        };
+        let value = serde_json::to_value(diagnostic).unwrap();
+        assert_eq!(value["stage"], "status.command");
+        assert_eq!(value["command"]["args"][0], "status");
+        assert_ne!(value["exitCode"], 0);
+        assert!(value["stderr"].as_str().unwrap().contains("index"));
+        assert!(!value.to_string().contains("stdout"));
     }
 }

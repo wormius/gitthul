@@ -1,6 +1,30 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { LogEntry } from '@core/domain/logs';
+import { logOperation } from '../logOperation';
 
 import { createMockLogPort } from './mockLogPort';
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+async function blobEntries(blob: Blob): Promise<LogEntry[]> {
+  const reader = new FileReader();
+  const text = await new Promise<string>((resolve, reject) => {
+    reader.onerror = () => reject(new Error('could not read exported blob'));
+    reader.onload = () => {
+      if (typeof reader.result === 'string') resolve(reader.result);
+      else reject(new Error('expected exported JSONL text'));
+    };
+    reader.readAsText(blob);
+  });
+  return text
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line) as LogEntry);
+}
 
 describe('createMockLogPort', () => {
   it('guarda lo escrito y lo devuelve en orden', async () => {
@@ -66,5 +90,62 @@ describe('createMockLogPort', () => {
     await log.clear();
 
     expect(await log.read()).toEqual([]);
+  });
+
+  it('exporta todas las filas o sólo incidencias con resumen INFO y secretos redactados', async () => {
+    const blobs: Blob[] = [];
+    vi.stubGlobal('URL', {
+      createObjectURL: (blob: Blob) => {
+        blobs.push(blob);
+        return 'blob:report';
+      },
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const log = createMockLogPort({ debugEnabled: true, capacity: 8 });
+    log.write('debug', 'git.read', 'read completed');
+    log.write('info', 'app', 'started');
+    log.write('warn', 'git.read', 'needs attention');
+    log.write('error', 'git.read', 'failed', 'https://name:password@host/repo', {
+      method: 'readRefs',
+      error: { diagnostic: { stage: 'read_refs', stderr: 'Bearer hidden-token' } },
+    });
+    const before = await log.read();
+    const listener = vi.fn();
+    log.subscribe(listener);
+    vi.useFakeTimers();
+    await expect(log.export()).resolves.toBe(true);
+    await expect(log.export(true)).resolves.toBe(true);
+    vi.runAllTimers();
+    vi.useRealTimers();
+    const all = await blobEntries(blobs[0]!);
+    const incidents = await blobEntries(blobs[1]!);
+    expect(all.slice(1)).toEqual(before);
+    expect(incidents.map((entry) => entry.level)).toEqual(['info', 'warn', 'error']);
+    expect(incidents[0]?.context?.report).toMatchObject({
+      mode: 'incidents',
+      entriesRetained: 4,
+      entriesExported: 2,
+      retention: { capacityEntries: 8 },
+    });
+    expect(all[0]?.scope).toBe('diagnostic.report');
+    expect(JSON.stringify(all)).not.toContain('name:password');
+    expect(JSON.stringify(all)).not.toContain('hidden-token');
+    expect(await log.read()).toEqual(before);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('vaciar los registros elimina también las pistas anteriores adjuntas al siguiente error', async () => {
+    const log = createMockLogPort();
+    await logOperation(log, 'git.read', 'readStatus', 'leer estado', { repository: 'repo' }, () =>
+      Promise.resolve(),
+    );
+    await log.clear();
+    await expect(
+      logOperation(log, 'git.read', 'readRefs', 'leer refs', { repository: 'repo' }, () =>
+        Promise.reject(new Error('corrupt ref')),
+      ),
+    ).rejects.toThrow();
+    expect((await log.read())[0]?.context?.recentOperations).toEqual([]);
   });
 });

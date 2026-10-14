@@ -1,3 +1,4 @@
+import type { LogValue } from '@core/domain/logs';
 import {
   GIT_ERROR_CODES,
   GitOperationError,
@@ -62,6 +63,7 @@ export function decodeTauriGitError(value: unknown): GitOperationError {
   const output = typeof value.output === 'string' ? value.output : undefined;
   return new GitOperationError(value.code, value.params as GitErrorParams[typeof value.code], {
     ...(output === undefined ? {} : { output }),
+    ...(isRecord(value.diagnostic) ? { diagnostic: value.diagnostic as LogValue } : {}),
     cause: value,
   });
 }

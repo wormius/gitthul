@@ -6,6 +6,7 @@ use std::process::Output;
 
 use serde::{Deserialize, Serialize};
 
+use super::diagnostics::Diagnostic;
 use super::refs::{self, RefsSnapshot};
 use super::status::{self, ResetPrecondition, WorkingStatus};
 
@@ -48,15 +49,31 @@ pub enum StashError {
         stash: String,
         branch: String,
         count: usize,
+        diagnostic: Diagnostic,
     },
     BlockedByWip {
         stash: String,
         branch: String,
         count: usize,
+        diagnostic: Diagnostic,
     },
     RecoveryMissing,
     StillConflicted(usize),
     GitFailed,
+    Diagnostic(Diagnostic),
+}
+
+struct CommandOutput {
+    output: Output,
+    diagnostic: Diagnostic,
+}
+
+impl std::ops::Deref for CommandOutput {
+    type Target = Output;
+
+    fn deref(&self) -> &Self::Target {
+        &self.output
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -94,13 +111,13 @@ pub fn create(
 
     let output = command(repository, &args)?;
     if !output.status.success() {
-        return Err(StashError::GitFailed);
+        return Err(StashError::Diagnostic(output.diagnostic));
     }
     let after = resolve(repository, "refs/stash");
     if after.is_none() || after == before {
         return Err(StashError::NothingToStash);
     }
-    refs::read(repository).map_err(|_| StashError::GitFailed)
+    refs::read(repository).map_err(|error| StashError::Diagnostic(refs_diagnostic(error)))
 }
 
 pub fn apply(
@@ -128,13 +145,19 @@ pub fn apply(
         output = command(repository, &["stash", "apply", RECOVERY_TARGET])?;
     }
     if !output.status.success() {
-        let current = status::read(repository).map_err(|_| StashError::GitFailed)?;
+        let current = status::read(repository).map_err(|error| {
+            StashError::Diagnostic(match error {
+                status::ReadStatusError::Diagnostic(diagnostic) => diagnostic,
+                error => Diagnostic::new("stash.readStatus", format!("{error:?}")),
+            })
+        })?;
         let count = current.conflicted_count();
         if count > 0 {
             return Err(StashError::Conflict {
                 stash: selector,
                 branch: branch(repository),
                 count,
+                diagnostic: output.diagnostic,
             });
         }
         let changed = current.change_count();
@@ -149,22 +172,33 @@ pub fn apply(
                 stash: selector,
                 branch: branch(repository),
                 count: changed,
+                diagnostic: output.diagnostic,
             });
         }
-        return Err(StashError::GitFailed);
+        return Err(StashError::Diagnostic(output.diagnostic));
     }
     if options.drop == Some(true) {
         drop_stash_oid(repository, &options.expected_stash)?;
     }
     clear_recovery(repository)?;
-    status::read(repository).map_err(|_| StashError::GitFailed)
+    status::read(repository).map_err(|error| {
+        StashError::Diagnostic(match error {
+            status::ReadStatusError::Diagnostic(diagnostic) => diagnostic,
+            error => Diagnostic::new("stash.readStatus", format!("{error:?}")),
+        })
+    })
 }
 
 /** Termina una aplicación conflictiva; Pop retira el stash solo en este punto. */
 pub fn finish_recovery(repository: &Path) -> Result<(), StashError> {
     let recovery = read_recovery(repository)?;
     let conflicts = status::read(repository)
-        .map_err(|_| StashError::GitFailed)?
+        .map_err(|error| {
+            StashError::Diagnostic(match error {
+                status::ReadStatusError::Diagnostic(diagnostic) => diagnostic,
+                error => Diagnostic::new("stash.readStatus", format!("{error:?}")),
+            })
+        })?
         .conflicted_count();
     if conflicts > 0 {
         return Err(StashError::StillConflicted(conflicts));
@@ -184,7 +218,7 @@ pub fn abort_recovery(repository: &Path) -> Result<(), StashError> {
 
     let reset = command(repository, &["reset", "--hard", RECOVERY_HEAD])?;
     if !reset.status.success() {
-        return Err(StashError::GitFailed);
+        return Err(StashError::Diagnostic(reset.diagnostic));
     }
 
     let mut untracked = untracked_paths(repository, &recovery.target)?;
@@ -194,7 +228,7 @@ pub fn abort_recovery(repository: &Path) -> Result<(), StashError> {
     if recovery.before != recovery.head {
         let restored = command(repository, &["stash", "apply", "--index", RECOVERY_BEFORE])?;
         if !restored.status.success() {
-            return Err(StashError::GitFailed);
+            return Err(StashError::Diagnostic(restored.diagnostic));
         }
     }
     clear_recovery(repository)
@@ -251,7 +285,7 @@ fn prepare_recovery(repository: &Path, target: &str, pop: bool) -> Result<(), St
         ],
     )?;
     if !status.status.success() {
-        return Err(StashError::GitFailed);
+        return Err(StashError::Diagnostic(status.diagnostic));
     }
     // With a clean index/worktree there is nothing to stash temporarily.
     // HEAD already provides the exact state needed to abort a conflicted pop.
@@ -271,7 +305,7 @@ fn prepare_recovery(repository: &Path, target: &str, pop: bool) -> Result<(), St
             ],
         )?;
         if !snapshot.status.success() {
-            return Err(StashError::GitFailed);
+            return Err(StashError::Diagnostic(snapshot.diagnostic));
         }
         resolve(repository, "refs/stash")
             .filter(|current| Some(current) != previous_top.as_ref())
@@ -288,7 +322,7 @@ fn prepare_recovery(repository: &Path, target: &str, pop: bool) -> Result<(), St
     if before != head {
         let restored = command(repository, &["stash", "apply", "--index", RECOVERY_BEFORE])?;
         if !restored.status.success() {
-            return Err(StashError::GitFailed);
+            return Err(StashError::Diagnostic(restored.diagnostic));
         }
         drop_stash_oid(repository, &before)?;
     }
@@ -321,7 +355,7 @@ fn clear_recovery(repository: &Path) -> Result<(), StashError> {
     ] {
         let output = command(repository, &["update-ref", "-d", reference])?;
         if !output.status.success() {
-            return Err(StashError::GitFailed);
+            return Err(StashError::Diagnostic(output.diagnostic));
         }
     }
     Ok(())
@@ -332,17 +366,17 @@ fn update_ref(repository: &Path, reference: &str, oid: &str) -> Result<(), Stash
     if output.status.success() {
         Ok(())
     } else {
-        Err(StashError::GitFailed)
+        Err(StashError::Diagnostic(output.diagnostic))
     }
 }
 
 fn drop_stash_oid(repository: &Path, oid: &str) -> Result<(), StashError> {
     let output = command(repository, &["stash", "list", "--format=%H"])?;
     if !output.status.success() {
-        return Err(StashError::GitFailed);
+        return Err(StashError::Diagnostic(output.diagnostic));
     }
-    let Some(index) = String::from_utf8(output.stdout)
-        .map_err(|_| StashError::GitFailed)?
+    let Some(index) = String::from_utf8(output.output.stdout)
+        .map_err(|error| StashError::Diagnostic(Diagnostic::new("stash.decodeList", error)))?
         .lines()
         .position(|candidate| candidate == oid)
     else {
@@ -353,7 +387,7 @@ fn drop_stash_oid(repository: &Path, oid: &str) -> Result<(), StashError> {
     if dropped.status.success() {
         Ok(())
     } else {
-        Err(StashError::GitFailed)
+        Err(StashError::Diagnostic(dropped.diagnostic))
     }
 }
 
@@ -364,13 +398,16 @@ fn untracked_paths(repository: &Path, stash_oid: &str) -> Result<BTreeSet<String
     };
     let output = command(repository, &["ls-tree", "-r", "-z", "--name-only", &tree])?;
     if !output.status.success() {
-        return Err(StashError::GitFailed);
+        return Err(StashError::Diagnostic(output.diagnostic));
     }
     output
         .stdout
         .split(|byte| *byte == 0)
         .filter(|path| !path.is_empty())
-        .map(|path| String::from_utf8(path.to_vec()).map_err(|_| StashError::GitFailed))
+        .map(|path| {
+            String::from_utf8(path.to_vec())
+                .map_err(|error| StashError::Diagnostic(Diagnostic::new("stash.decodeList", error)))
+        })
         .collect()
 }
 
@@ -388,7 +425,7 @@ fn clean_paths(repository: &Path, paths: &BTreeSet<String>) -> Result<(), StashE
     if output.status.success() {
         Ok(())
     } else {
-        Err(StashError::GitFailed)
+        Err(StashError::Diagnostic(output.diagnostic))
     }
 }
 
@@ -401,9 +438,9 @@ pub fn drop(
     verify_stash(repository, &selector, expected_stash)?;
     let output = command(repository, &["stash", "drop", "--quiet", &selector])?;
     if !output.status.success() {
-        return Err(StashError::GitFailed);
+        return Err(StashError::Diagnostic(output.diagnostic));
     }
-    refs::read(repository).map_err(|_| StashError::GitFailed)
+    refs::read(repository).map_err(|error| StashError::Diagnostic(refs_diagnostic(error)))
 }
 
 pub fn rename(
@@ -416,13 +453,16 @@ pub fn rename(
     verify_stash(repository, &selector, expected_stash)?;
     let output = command(repository, &["stash", "list", "-z", "--format=%H%x00%gs"])?;
     if !output.status.success() {
-        return Err(StashError::GitFailed);
+        return Err(StashError::Diagnostic(output.diagnostic));
     }
     let fields = output
         .stdout
         .split(|byte| *byte == 0)
         .filter(|field| !field.is_empty())
-        .map(|field| String::from_utf8(field.to_vec()).map_err(|_| StashError::GitFailed))
+        .map(|field| {
+            String::from_utf8(field.to_vec())
+                .map_err(|error| StashError::Diagnostic(Diagnostic::new("stash.decodeList", error)))
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let mut entries = fields
         .chunks_exact(2)
@@ -435,15 +475,22 @@ pub fn rename(
 
     let cleared = command(repository, &["stash", "clear"])?;
     if !cleared.status.success() {
-        return Err(StashError::GitFailed);
+        return Err(StashError::Diagnostic(cleared.diagnostic));
     }
     for (sha, subject) in entries.iter().rev() {
         let stored = command(repository, &["stash", "store", "-m", subject, sha])?;
         if !stored.status.success() {
-            return Err(StashError::GitFailed);
+            return Err(StashError::Diagnostic(stored.diagnostic));
         }
     }
-    refs::read(repository).map_err(|_| StashError::GitFailed)
+    refs::read(repository).map_err(|error| StashError::Diagnostic(refs_diagnostic(error)))
+}
+
+fn refs_diagnostic(error: refs::ReadRefsError) -> Diagnostic {
+    match error {
+        refs::ReadRefsError::GitFailed(diagnostic) => diagnostic,
+        error => Diagnostic::new("stash.refreshRefs", error),
+    }
 }
 
 fn renamed_subject(current: &str, message: &str) -> String {
@@ -477,7 +524,12 @@ fn resolve(repository: &Path, reference: &str) -> Option<String> {
     if !output.status.success() {
         return None;
     }
-    Some(String::from_utf8(output.stdout).ok()?.trim().to_owned())
+    Some(
+        String::from_utf8(output.output.stdout)
+            .ok()?
+            .trim()
+            .to_owned(),
+    )
 }
 
 fn branch(repository: &Path) -> String {
@@ -485,26 +537,30 @@ fn branch(repository: &Path) -> String {
     output
         .ok()
         .filter(|output| output.status.success())
-        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .and_then(|output| String::from_utf8(output.output.stdout).ok())
         .map(|name| name.trim().to_owned())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "HEAD".to_owned())
 }
 
-fn command(repository: &Path, args: &[&str]) -> Result<Output, StashError> {
-    crate::process::command("git")
+fn command(repository: &Path, args: &[&str]) -> Result<CommandOutput, StashError> {
+    let output = crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C")
         .output()
-        .map_err(|_| StashError::GitFailed)
+        .map_err(|error| {
+            StashError::Diagnostic(Diagnostic::command_io("stash.spawn", args, &error))
+        })?;
+    let diagnostic = Diagnostic::command("stash.execute", args, &output);
+    Ok(CommandOutput { output, diagnostic })
 }
 
 /** La captura privada no depende de que el repositorio tenga identidad para commits. */
-fn recovery_snapshot(repository: &Path, args: &[&str]) -> Result<Output, StashError> {
-    crate::process::command("git")
+fn recovery_snapshot(repository: &Path, args: &[&str]) -> Result<CommandOutput, StashError> {
+    let output = crate::process::command("git")
         .args(args)
         .current_dir(repository)
         .env("GIT_CONFIG_NOSYSTEM", "1")
@@ -514,7 +570,11 @@ fn recovery_snapshot(repository: &Path, args: &[&str]) -> Result<Output, StashEr
         .env("GIT_COMMITTER_NAME", "GitThul recovery")
         .env("GIT_COMMITTER_EMAIL", "recovery@gitthul.invalid")
         .output()
-        .map_err(|_| StashError::GitFailed)
+        .map_err(|error| {
+            StashError::Diagnostic(Diagnostic::command_io("stash.spawn", args, &error))
+        })?;
+    let diagnostic = Diagnostic::command("stash.execute", args, &output);
+    Ok(CommandOutput { output, diagnostic })
 }
 
 #[cfg(test)]
@@ -607,7 +667,7 @@ mod tests {
         let content = fs::read(path.join("tracked.txt")).unwrap();
         assert!(matches!(
             prepare_recovery(path, &target, true),
-            Err(StashError::GitFailed)
+            Err(StashError::GitFailed | StashError::Diagnostic(_))
         ));
         assert!(recovery_kind(path).is_none());
         assert_eq!(fs::read(path.join(".git/index")).unwrap(), index);
@@ -933,5 +993,42 @@ mod tests {
 
         assert_eq!(git(path, &["stash", "list", "--format=%H"]), before);
         assert!(git(path, &["stash", "list", "--format=%gs"]).contains("nuevo nombre"));
+    }
+    #[test]
+    fn silent_stash_failure_preserves_exit_and_command_without_free_inputs() {
+        let temporary = repository();
+        let root = temporary.path();
+        fs::write(root.join("tracked.txt"), "PRIVATE_FILE_CONTENT\n").unwrap();
+        let options = create_options(root);
+        fs::write(root.join(".git/refs/stash.lock"), "held").unwrap();
+        let error = create(root, "PRIVATE_STASH_MESSAGE", &options).unwrap_err();
+        let StashError::Diagnostic(diagnostic) = error else {
+            panic!("Unexpected classification: {error:?}");
+        };
+        let value = serde_json::to_value(diagnostic).unwrap();
+        assert_eq!(value["command"]["args"][0], "stash");
+        assert!(value["exitCode"].as_i64().unwrap() != 0);
+        assert_eq!(value["stderr"], "");
+        assert!(!value.to_string().contains("PRIVATE_STASH_MESSAGE"));
+        assert!(!value.to_string().contains("PRIVATE_FILE_CONTENT"));
+        assert!(value.get("stdout").is_none());
+    }
+    #[test]
+    fn stash_command_preserves_index_lock_error_without_stdout() {
+        let temporary = repository();
+        let root = temporary.path();
+        fs::write(root.join("tracked.txt"), "PRIVATE_FILE_CONTENT\n").unwrap();
+        fs::write(root.join(".git/index.lock"), "held").unwrap();
+        let output = command(
+            root,
+            &["stash", "push", "--quiet", "-m", "PRIVATE_STASH_MESSAGE"],
+        )
+        .unwrap();
+        let value = serde_json::to_value(output.diagnostic).unwrap();
+        assert_eq!(value["exitCode"], 1);
+        assert!(value["stderr"].as_str().unwrap().contains("index.lock"));
+        assert!(!value.to_string().contains("PRIVATE_STASH_MESSAGE"));
+        assert!(!value.to_string().contains("PRIVATE_FILE_CONTENT"));
+        assert!(value.get("stdout").is_none());
     }
 }

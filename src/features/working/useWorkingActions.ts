@@ -354,7 +354,11 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
           ? remote.name.slice(remoteName.length + 1)
           : remote.name;
 
-        if (local && local.tip !== remote.tip && (local.ahead > 0 || local.behind === 0)) {
+        if (
+          local &&
+          local.tip !== remote.tip &&
+          (local.upstreamMissing || local.ahead > 0 || local.behind === 0)
+        ) {
           store().openDialog({ kind: 'remoteBranchAhead', local, remote });
           return;
         }

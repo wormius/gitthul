@@ -1187,4 +1187,30 @@ describe('tauriGitPort', () => {
       code: 'unknown',
     });
   });
+
+  it('conserva diagnóstico estructurado nativo, causa y código al cruzar IPC', async () => {
+    const diagnostic = {
+      diagnosticId: 'native-42',
+      stage: 'refs.command',
+      exitCode: 128,
+      command: { program: 'git', args: ['rev-list', '--count', 'HEAD'] },
+      stderr: 'fatal: bad object',
+      causes: [],
+    };
+    const nativeError = Object.assign(new Error('native command failure'), {
+      code: 'unknown',
+      params: {},
+      output: 'refs.command\nexitCode=128',
+      diagnostic,
+    });
+    const port = createTauriGitPort(createMockGitPort(), () => Promise.reject(nativeError));
+    const error = await port.readRefs('/repo').catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(GitOperationError);
+    expect(error).toMatchObject({
+      code: 'unknown',
+      diagnostic,
+      output: nativeError.output,
+      cause: nativeError,
+    });
+  });
 });

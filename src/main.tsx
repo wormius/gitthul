@@ -9,7 +9,7 @@ import { restoreShellSession } from '@app/shellStore';
 import { createPaneSettingsStore } from '@app/paneSettingsStore';
 import { PortsContext } from '@app/PortsContext';
 import { createSectionSettingsStore } from '@app/sectionSettingsStore';
-import { errorDetail } from '@core/adapters/logOperation';
+import { errorDetail, errorDiagnostic } from '@core/adapters/logOperation';
 import { selectPorts } from '@core/adapters/selectPorts';
 import { DEFAULT_SETTINGS, type Settings } from '@core/domain/settings';
 import { ThemeProvider } from '@design/ThemeProvider';
@@ -30,13 +30,23 @@ window.addEventListener('error', (event) => {
     'error',
     'runtime',
     event.message || 'error no controlado en la interfaz',
-    event.error instanceof Error ? event.error.stack : String(event.error ?? ''),
+    errorDetail(event.error ?? event.message),
+    {
+      method: 'window.error',
+      phase: 'failure',
+      error: errorDiagnostic(event.error ?? event.message),
+      requestData: { filename: event.filename, line: event.lineno, column: event.colno },
+    },
   );
 });
 
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason as unknown;
-  ports.log.write('error', 'runtime', 'promesa rechazada sin control', errorDetail(reason));
+  ports.log.write('error', 'runtime', 'promesa rechazada sin control', errorDetail(reason), {
+    method: 'window.unhandledrejection',
+    phase: 'failure',
+    error: errorDiagnostic(reason),
+  });
 });
 
 /**
@@ -59,6 +69,12 @@ async function loadSettings(): Promise<Settings> {
       'settings',
       'no se pudieron leer los ajustes; se arranca con los de fábrica',
       errorDetail(error),
+      {
+        method: 'loadSettings',
+        phase: 'event',
+        error: errorDiagnostic(error),
+        resultData: { defaults: true },
+      },
     );
 
     return DEFAULT_SETTINGS;
@@ -76,11 +92,21 @@ try {
     'session',
     'no se pudo leer la sesión; se arranca en Repositorios',
     errorDetail(error),
+    {
+      method: 'restoreSession',
+      phase: 'event',
+      error: errorDiagnostic(error),
+      resultData: { restored: false },
+    },
   );
 }
 
 const onWriteError = (error: unknown) => {
-  ports.log.write('error', 'settings', 'no se pudo guardar un ajuste', errorDetail(error));
+  ports.log.write('error', 'settings', 'no se pudo guardar un ajuste', errorDetail(error), {
+    method: 'writeSettings',
+    phase: 'failure',
+    error: errorDiagnostic(error),
+  });
 };
 
 const paneStore = createPaneSettingsStore(ports.settings, settings, onWriteError);
@@ -95,6 +121,12 @@ createRoot(container, {
       'runtime.react',
       'Error de renderizado controlado',
       `${errorDetail(error)}\n${info.componentStack ?? ''}`,
+      {
+        method: 'react.onCaughtError',
+        phase: 'failure',
+        error: errorDiagnostic(error),
+        requestData: { componentStack: info.componentStack ?? '' },
+      },
     ),
   onUncaughtError: (error, info) =>
     ports.log.write(
@@ -102,6 +134,12 @@ createRoot(container, {
       'runtime.react',
       'Error de renderizado sin control; la vista puede dejar de responder',
       `${errorDetail(error)}\n${info.componentStack ?? ''}`,
+      {
+        method: 'react.onUncaughtError',
+        phase: 'failure',
+        error: errorDiagnostic(error),
+        requestData: { componentStack: info.componentStack ?? '' },
+      },
     ),
 }).render(
   <StrictMode>

@@ -551,6 +551,7 @@ export const de: Messages = {
   'working.refPanel.emptyStashes': 'Keine Stashes',
   'working.refPanel.emptyWorktrees': 'Keine weiteren Worktrees',
   'working.refRow.tracking': '{ahead} Commits vor und {behind} hinter dem Upstream-Branch',
+  'working.upstreamMissing': 'Der Upstream-Branch {upstream} existiert nicht mehr.',
 
   // GitActionBar — lokale/Netzwerk-Aktionen und kontextueller Terminal-Zugriff.
   'working.actionBar.label': 'Aktionsleiste von GitWorking',
@@ -806,6 +807,10 @@ export const de: Messages = {
     'Die gewählten Commits liegen nicht hintereinander: sie werden in der Reihenfolge des Verlaufs angewendet, vom ältesten zum neuesten.',
   'working.dialog.branch.createTitle': 'Branch von {from} erstellen',
   'working.dialog.remoteBranchAhead.title': '{branch} hat eigene lokale Commits',
+  'working.dialog.remoteBranchAhead.titleUnknown':
+    '{branch} und der Remote-Branch haben verschiedene Spitzen',
+  'working.dialog.remoteBranchAhead.descriptionUnknown':
+    'Der Upstream-Branch {upstream} von {local} existiert nicht mehr. Die Anzahl der Commits vor oder hinter {remote} ist daher unbekannt. Du kannst {local} an den Remote-Branch angleichen, dort einen neuen Branch erstellen oder nichts tun.',
   'working.dialog.remoteBranchAhead.description':
     '{local} enthält {ahead} Commits, die nicht in {remote} liegen, und liegt {behind} Commits zurück. Du kannst {local} an den Remote-Branch angleichen, dort einen neuen Branch erstellen oder nichts tun.',
   'working.dialog.remoteBranchAhead.reset': '{branch} an Remote angleichen',
@@ -1661,6 +1666,10 @@ export const de: Messages = {
   'error.branch.exists.title': 'Ein Branch namens {branch} existiert bereits',
   'error.branch.exists.cause':
     'Zwei Branches können sich im selben Repository keinen Namen teilen.',
+  'error.branch.checkoutBlocked.title':
+    'Der Wechsel zu {branch} würde lokale Dateien überschreiben. Erstelle zuerst einen Stash oder Commit mit deinen Änderungen',
+  'error.branch.checkoutBlocked.cause':
+    'Git hat den Branch-Wechsel gestoppt, weil lokale Dateien oder Änderungen überschrieben würden. Nimm betroffene unversionierte Dateien in den Stash auf oder füge sie zum Staging hinzu und erstelle einen Commit. Versuche es dann erneut.',
   'error.branch.current.title': '{branch} ist der aktuelle Branch',
   'error.branch.current.cause':
     'Git kann den verwendeten Branch nicht löschen. Wechsle zu einem anderen Branch und versuche es erneut.',

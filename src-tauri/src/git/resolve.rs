@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
+use super::diagnostics::Diagnostic;
 use super::{diff, encoding};
 
 #[derive(Clone, Default)]
@@ -56,11 +57,23 @@ pub enum ResolveError {
     UnsupportedEncoding(String),
     Unrepresentable { path: String, encoding: String },
     GitFailed,
+    Diagnostic(Diagnostic),
+    WithDiagnostic(Box<ResolveError>, Diagnostic),
     InvalidPath,
     InvalidPathEncoding,
     NotConflicted(String),
     Stale(String),
     WriteFailed(String),
+}
+
+impl ResolveError {
+    fn write_failure(self, path: &str) -> Self {
+        let diagnostic = match self {
+            Self::Diagnostic(diagnostic) | Self::WithDiagnostic(_, diagnostic) => diagnostic,
+            error => Diagnostic::new("resolve.write", format!("{error:?}")),
+        };
+        Self::WithDiagnostic(Box::new(Self::WriteFailed(path.to_owned())), diagnostic)
+    }
 }
 
 /// La comprobación se ejecuta dentro del bloqueo de escritura del repositorio.
@@ -433,16 +446,36 @@ fn write_regular_file(
     ensure_parent_within_repository(repository, &target, path)?;
     if let Ok(metadata) = fs::symlink_metadata(&target) {
         if metadata.file_type().is_symlink() {
-            fs::remove_file(&target).map_err(|_| ResolveError::WriteFailed(path.to_owned()))?;
+            fs::remove_file(&target).map_err(|error| {
+                ResolveError::WithDiagnostic(
+                    Box::new(ResolveError::WriteFailed(path.to_owned())),
+                    Diagnostic::io("resolve.writeFile", &error),
+                )
+            })?;
         } else if !metadata.is_file() {
             return Err(ResolveError::WriteFailed(path.to_owned()));
         }
     }
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|_| ResolveError::WriteFailed(path.to_owned()))?;
+        fs::create_dir_all(parent).map_err(|error| {
+            ResolveError::WithDiagnostic(
+                Box::new(ResolveError::WriteFailed(path.to_owned())),
+                Diagnostic::io("resolve.writeFile", &error),
+            )
+        })?;
     }
-    fs::write(&target, contents).map_err(|_| ResolveError::WriteFailed(path.to_owned()))?;
-    set_mode(&target, mode).map_err(|_| ResolveError::WriteFailed(path.to_owned()))
+    fs::write(&target, contents).map_err(|error| {
+        ResolveError::WithDiagnostic(
+            Box::new(ResolveError::WriteFailed(path.to_owned())),
+            Diagnostic::io("resolve.writeFile", &error),
+        )
+    })?;
+    set_mode(&target, mode).map_err(|error| {
+        ResolveError::WithDiagnostic(
+            Box::new(ResolveError::WriteFailed(path.to_owned())),
+            Diagnostic::io("resolve.writeFile", &error),
+        )
+    })
 }
 
 #[cfg(unix)]
@@ -468,7 +501,7 @@ fn checkout_stage(repository: &Path, path: &str, stage: u8) -> Result<(), Resolv
         &["checkout-index", "--force", &stage, "--", path],
         None,
     )
-    .map_err(|_| ResolveError::WriteFailed(path.to_owned()))
+    .map_err(|error| error.write_failure(path))
 }
 
 fn remove_worktree_path(repository: &Path, path: &str) -> Result<(), ResolveError> {
@@ -476,7 +509,12 @@ fn remove_worktree_path(repository: &Path, path: &str) -> Result<(), ResolveErro
     ensure_parent_within_repository(repository, &target, path)?;
     match fs::symlink_metadata(&target) {
         Ok(metadata) if metadata.is_file() || metadata.file_type().is_symlink() => {
-            fs::remove_file(target).map_err(|_| ResolveError::WriteFailed(path.to_owned()))
+            fs::remove_file(target).map_err(|error| {
+                ResolveError::WithDiagnostic(
+                    Box::new(ResolveError::WriteFailed(path.to_owned())),
+                    Diagnostic::io("resolve.writeFile", &error),
+                )
+            })
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         _ => Err(ResolveError::WriteFailed(path.to_owned())),
@@ -488,16 +526,22 @@ fn ensure_parent_within_repository(
     target: &Path,
     path: &str,
 ) -> Result<(), ResolveError> {
-    let root = repository
-        .canonicalize()
-        .map_err(|_| ResolveError::WriteFailed(path.to_owned()))?;
+    let root = repository.canonicalize().map_err(|error| {
+        ResolveError::WithDiagnostic(
+            Box::new(ResolveError::WriteFailed(path.to_owned())),
+            Diagnostic::io("resolve.writeFile", &error),
+        )
+    })?;
     let mut ancestor = target.parent().ok_or(ResolveError::InvalidPath)?;
     while !ancestor.exists() {
         ancestor = ancestor.parent().ok_or(ResolveError::InvalidPath)?;
     }
-    let ancestor = ancestor
-        .canonicalize()
-        .map_err(|_| ResolveError::WriteFailed(path.to_owned()))?;
+    let ancestor = ancestor.canonicalize().map_err(|error| {
+        ResolveError::WithDiagnostic(
+            Box::new(ResolveError::WriteFailed(path.to_owned())),
+            Diagnostic::io("resolve.writeFile", &error),
+        )
+    })?;
     if ancestor.starts_with(root) {
         Ok(())
     } else {
@@ -506,8 +550,7 @@ fn ensure_parent_within_repository(
 }
 
 fn stage(repository: &Path, path: &str) -> Result<(), ResolveError> {
-    run_git(repository, &["add", "-A", "--", path], None)
-        .map_err(|_| ResolveError::WriteFailed(path.to_owned()))
+    run_git(repository, &["add", "-A", "--", path], None).map_err(|error| error.write_failure(path))
 }
 
 fn restore_stages(
@@ -526,7 +569,7 @@ fn restore_stages(
         &["update-index", "-z", "--index-info"],
         Some(&input),
     )
-    .map_err(|_| ResolveError::WriteFailed(path.to_owned()))
+    .map_err(|error| error.write_failure(path))
 }
 
 fn validate_path(path: &str) -> Result<(), ResolveError> {
@@ -534,36 +577,55 @@ fn validate_path(path: &str) -> Result<(), ResolveError> {
 }
 
 fn git_output(repository: &Path, args: &[&str]) -> Result<Output, ResolveError> {
-    let output = git_command(repository, args)
-        .output()
-        .map_err(|_| ResolveError::GitFailed)?;
+    let output = git_command(repository, args).output().map_err(|error| {
+        ResolveError::Diagnostic(Diagnostic::command_io("resolve.read", args, &error))
+    })?;
     if output.status.success() {
         Ok(output)
     } else {
-        Err(ResolveError::GitFailed)
+        Err(ResolveError::Diagnostic(Diagnostic::command(
+            "resolve.read",
+            args,
+            &output,
+        )))
     }
 }
 
 fn run_git(repository: &Path, args: &[&str], input: Option<&[u8]>) -> Result<(), ResolveError> {
     let mut command = git_command(repository, args);
-    command.stdout(Stdio::null()).stderr(Stdio::null());
+    command.stdout(Stdio::null()).stderr(Stdio::piped());
     if input.is_some() {
         command.stdin(Stdio::piped());
     }
-    let mut child = command.spawn().map_err(|_| ResolveError::GitFailed)?;
-    if let Some(input) = input {
+    let mut child = command.spawn().map_err(|error| {
+        ResolveError::Diagnostic(Diagnostic::command_io("resolve.spawn", args, &error))
+    })?;
+    let input_result = if let Some(input) = input {
         child
             .stdin
             .take()
-            .ok_or(ResolveError::GitFailed)?
-            .write_all(input)
-            .map_err(|_| ResolveError::GitFailed)?;
-    }
-    if child.wait().map_err(|_| ResolveError::GitFailed)?.success() {
-        Ok(())
+            .ok_or_else(|| {
+                ResolveError::Diagnostic(Diagnostic::new("resolve.input", "Git did not open stdin"))
+            })
+            .and_then(|mut pipe| {
+                pipe.write_all(input).map_err(|error| {
+                    ResolveError::Diagnostic(Diagnostic::command_io("resolve.input", args, &error))
+                })
+            })
     } else {
-        Err(ResolveError::GitFailed)
+        Ok(())
+    };
+    let output = child.wait_with_output().map_err(|error| {
+        ResolveError::Diagnostic(Diagnostic::command_io("resolve.wait", args, &error))
+    })?;
+    if !output.status.success() {
+        return Err(ResolveError::Diagnostic(Diagnostic::command(
+            "resolve.execute",
+            args,
+            &output,
+        )));
     }
+    input_result
 }
 
 fn git_command(repository: &Path, args: &[&str]) -> Command {

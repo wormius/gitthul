@@ -81,6 +81,12 @@ Preservar la serialización por repositorio, la revalidación previa a escritura
 las protecciones frente a cambios concurrentes, worktrees y pérdida de datos.
 
 No sustituir errores significativos por éxito ni confundir cancelación con fallo.
+La lectura de referencias conserva el upstream configurado aunque su referencia
+se haya eliminado: Branch.upstreamMissing indica esa ausencia y los conteos
+ahead/behind no representan divergencia calculada en ese caso. Resolver el upstream
+por su referencia completa y calcular entre OIDs, sin ambigüedades de nombres cortos.
+La ausencia no impide abrir el repositorio; los fallos de lectura, objetos dañados
+y errores de Git conservan su contexto y salida original en el diagnóstico.
 Cuando cambie un puerto, actualizar dominio, mock, adaptador Tauri, backend y
 consumidores afectados. Los secretos recordados usan el llavero; las llaves SSH
 privadas permanecen en los archivos seleccionados por el usuario, fuera del repo.
@@ -232,6 +238,15 @@ portable-pty con PSEUDOCONSOLE_INHERIT_CURSOR; en la aplicación responde xterm.
 Los logs conservan errores útiles y redactan secretos antes de persistir o notificar;
 no registrar contenido libre de archivos, credenciales, mensajes de commit, PTY o
 portapapeles. Un fallo del logger no cambia el resultado de una operación Git.
+El formato 3 conserva diagnóstico estructurado, causas, etapa, argumentos protegidos,
+exitCode/signal o ioKind/osCode y correlación frontend/nativa. Mantener los códigos
+de error y cancelación existentes al añadir evidencia; los sondeos negativos esperados
+no son fallos. Los errores de parsers pueden contener bytes privados: filtrar también
+las fuentes internas. No capturar stdout de Git como diagnóstico genérico.
+Los fallos incluyen un contexto previo acotado sin datos libres, incluso en modo normal.
+Limpiar registros elimina también ese contexto. La exportación JSONL agrega una
+primera entrada diagnostic.report con entorno y resumen; conserva las entradas
+seleccionadas y hace explícitos los límites, recortes y pérdidas conocidas.
 
 ## Convenciones
 
@@ -327,6 +342,10 @@ del paquete: no incluir libwayland-client, no forzar X11 y cargar módulos GIO
 del AppImage. CI genera y comprueba el AppImage en cada ejecución Linux, aunque
 los demás instaladores se generen solo para Release. Verificar el arranque nativo
 en un Linux reciente además de construir en el runner de compatibilidad Ubuntu 22.04.
+Los AppImages para Ubuntu 22.04/24.04 se compilan y empaquetan completos en
+Ubuntu 22.04. Trasladar solo el ejecutable no basta: el empaquetador incorpora
+bibliotecas de su entorno. Comprobar que todos los ELF del paquete requieren
+como máximo GLIBC 2.35 y probar el arranque con un perfil aislado en Ubuntu 24.04.
 
 .github/workflows/release.yml se activa con tags vX.Y.Z o manualmente con un tag
 existente. Resuelve su commit, exige coincidencia con la versión y notas en

@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use super::diagnostics::Diagnostic;
+
 use gix::bstr::ByteSlice;
 use serde::{Deserialize, Serialize};
 
@@ -88,9 +90,11 @@ impl Repository {
     }
 }
 
-pub fn discover(path: impl AsRef<Path>) -> Result<Repository, ()> {
-    let selected = fs::canonicalize(path).map_err(|_| ())?;
-    let repo = gix::discover(&selected).map_err(|_| ())?;
+pub fn discover(path: impl AsRef<Path>) -> Result<Repository, Diagnostic> {
+    let selected = fs::canonicalize(path)
+        .map_err(|error| Diagnostic::io("repository.canonicalize", &error))?;
+    let repo = gix::discover(&selected)
+        .map_err(|error| Diagnostic::cause("repository.discover", &error))?;
     let root = canonical_root(&repo)?;
     let head = head_name(&repo);
     let worktree_of = linked_worktree_parent(&repo);
@@ -194,9 +198,9 @@ fn git_succeeds<'a>(directory: &Path, args: impl IntoIterator<Item = &'a str>) -
         .is_ok_and(|output| output.status.success())
 }
 
-fn canonical_root(repo: &gix::Repository) -> Result<PathBuf, ()> {
+fn canonical_root(repo: &gix::Repository) -> Result<PathBuf, Diagnostic> {
     let root = repo.workdir().unwrap_or_else(|| repo.git_dir());
-    fs::canonicalize(root).map_err(|_| ())
+    fs::canonicalize(root).map_err(|error| Diagnostic::io("repository.canonicalRoot", &error))
 }
 
 fn repository_name(root: &Path, bare: bool) -> String {
@@ -539,5 +543,18 @@ mod tests {
             CreateError::InvalidDestination
         );
         assert!(!temporary.path().join("nuevo").exists());
+    }
+    #[test]
+    fn discovery_distinguishes_filesystem_failure_from_non_repository_metadata() {
+        let temporary = TempDir::new().unwrap();
+        let missing = discover(temporary.path().join("missing")).unwrap_err();
+        let value = serde_json::to_value(missing).unwrap();
+        assert_eq!(value["stage"], "repository.canonicalize");
+        assert_eq!(value["ioKind"], "NotFound");
+        assert!(value["osCode"].is_number());
+        let ordinary = discover(temporary.path()).unwrap_err();
+        let value = serde_json::to_value(ordinary).unwrap();
+        assert_eq!(value["stage"], "repository.discover");
+        assert!(!value["causes"].as_array().unwrap().is_empty());
     }
 }

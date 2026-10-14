@@ -8,6 +8,7 @@ mod auth;
 mod git;
 mod keyring;
 mod library;
+mod log_privacy;
 mod logging;
 mod process;
 mod releases;
