@@ -1,6 +1,11 @@
 import type { Messages } from './es-MX';
 
 export const de: Messages = {
+  'startup.failed': 'GitThul konnte nicht gestartet werden',
+  'startup.desktopUnavailable':
+    'Die Verbindung zur Desktop-Umgebung ist fehlgeschlagen. Schließe GitThul und öffne die Desktop-Anwendung erneut.',
+  'startup.retry':
+    'Schließe GitThul und öffne es erneut. Prüfe die Installation, falls das Problem weiterhin besteht.',
   'settings.profiles.saveError': 'Das Profil konnte nicht gespeichert werden. Versuche es erneut.',
   'settings.profiles.applyError': 'Das Profil konnte nicht auf das Repository angewendet werden.',
   'access.title': 'Remote-Zugriff',
@@ -1175,6 +1180,7 @@ export const de: Messages = {
   'undo.fetch': 'Fetch ausführen',
   'undo.pull': 'Pull ausführen',
   'undo.remote': 'Remote-Konfiguration ändern',
+  'undo.upstream': 'Upstream konfigurieren',
   'undo.resolve': 'Konflikte lösen',
   'undo.quit': 'Änderungen der Integration in der Staging-Area belassen',
   'undo.continue': 'Integration fortsetzen',
@@ -1197,6 +1203,7 @@ export const de: Messages = {
   'error.undo.snapshotUnavailable.cause':
     'Prüfe Berechtigungen und freien Speicherplatz. Vollständige Sicherungen unterstützen keine Submodule oder Spezialdateien. Lokale Änderungskopien sind auf 64 MiB und reguläre Dateien begrenzt.',
   'undo.stage': 'Änderungen zur Staging-Area hinzufügen',
+  'undo.ignore': 'Dateien ignorieren',
   'undo.unstage': 'Änderungen aus der Staging-Area entfernen',
   'undo.discard': 'Änderungen verwerfen',
   'undo.empty': 'Keine wiederherstellbaren Vorgänge',

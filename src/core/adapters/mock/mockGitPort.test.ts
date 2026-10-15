@@ -946,6 +946,28 @@ describe('preparar y descartar', () => {
 });
 
 describe('ignorar rutas', () => {
+  function untrackedPaths(paths: readonly string[]): void {
+    const world = fixtureWorld.buildWorld();
+    const repo = world.repos.get('gitthul');
+    if (!repo) throw new Error('El fixture requiere gitthul');
+    vi.spyOn(fixtureWorld, 'buildWorld').mockReturnValue({
+      ...world,
+      repos: new Map(world.repos).set('gitthul', {
+        ...repo,
+        status: {
+          ...repo.status,
+          unstaged: paths.map((path) => ({
+            path,
+            change: 'untracked' as const,
+            binary: false,
+            insertions: 1,
+            deletions: 0,
+          })),
+        },
+      }),
+    });
+  }
+
   it('esconde lo que no tenía seguimiento y anota el cambio de .gitignore', async () => {
     const status = await git.ignorePath('gitthul', UNTRACKED);
 
@@ -960,6 +982,73 @@ describe('ignorar rutas', () => {
 
     expect(at(status, 'unstaged', ROLES)).toBeUndefined();
     expect(at(status, 'staged', ROLES)).toMatchObject({ change: 'deleted' });
+    expect(await git.ignorePath('gitthul', ROLES, { untrack: true })).toBe(status);
+  });
+
+  it('deja de seguir coincidencias aunque el patrón ya se hubiera añadido', async () => {
+    await git.ignorePath('gitthul', ROLES);
+    const status = await git.ignorePath('gitthul', ROLES, { untrack: true });
+
+    expect(at(status, 'unstaged', ROLES)).toBeUndefined();
+    expect(at(status, 'staged', ROLES)).toMatchObject({ change: 'deleted' });
+  });
+
+  it('añadir una regla deja .gitignore pendiente aunque su versión anterior esté en Stage', async () => {
+    await git.ignorePath('gitthul', ROLES);
+    const staged = await git.stage('gitthul', ['.gitignore']);
+    expect(at(staged, 'unstaged', '.gitignore')).toBeUndefined();
+
+    const status = await git.ignorePath('gitthul', UNTRACKED);
+
+    expect(at(status, 'staged', '.gitignore')).toEqual(at(staged, 'staged', '.gitignore'));
+    expect(at(status, 'unstaged', '.gitignore')).toMatchObject({ change: 'modified' });
+  });
+
+  it('dejar de seguir con una regla existente no modifica .gitignore ya preparado', async () => {
+    await git.ignorePath('gitthul', ROLES);
+    const staged = await git.stage('gitthul', ['.gitignore']);
+
+    const status = await git.ignorePath('gitthul', ROLES, { untrack: true });
+
+    expect(at(status, 'staged', ROLES)).toMatchObject({ change: 'deleted' });
+    expect(at(status, 'staged', '.gitignore')).toEqual(at(staged, 'staged', '.gitignore'));
+    expect(at(status, 'unstaged', '.gitignore')).toBeUndefined();
+  });
+
+  it.each(['*.log', '[draft].txt', '!note.txt', ' note.txt '])(
+    'trata %s como una ruta literal de la raíz sin abarcar vecinos',
+    async (path) => {
+      const neighbors = ['app.log', 'draft.txt', 'note.txt', `nested/${path}`];
+      untrackedPaths([path, ...neighbors]);
+
+      const status = await git.ignorePath('gitthul', path);
+
+      expect(at(status, 'unstaged', path)).toBeUndefined();
+      for (const neighbor of neighbors) {
+        expect(at(status, 'unstaged', neighbor)).toBeDefined();
+      }
+    },
+  );
+
+  it('ignora una carpeta literal desde la raíz y conserva carpetas homónimas anidadas', async () => {
+    untrackedPaths(['cache/result.txt', 'nested/cache/result.txt', 'cache-old/result.txt']);
+
+    const status = await git.ignorePath('gitthul', 'cache/');
+
+    expect(at(status, 'unstaged', 'cache/result.txt')).toBeUndefined();
+    expect(at(status, 'unstaged', 'nested/cache/result.txt')).toBeDefined();
+    expect(at(status, 'unstaged', 'cache-old/result.txt')).toBeDefined();
+  });
+
+  it('distingue la extensión de una ruta literal idéntica y la aplica a nombres en cualquier carpeta', async () => {
+    untrackedPaths(['*.log', 'app.log', 'nested/app.log', 'app.txt', 'folder.log/keep.txt']);
+    await git.ignorePath('gitthul', '*.log');
+    const status = await git.ignorePath('gitthul', '*.log', { patternKind: 'extension' });
+
+    expect(at(status, 'unstaged', 'app.log')).toBeUndefined();
+    expect(at(status, 'unstaged', 'nested/app.log')).toBeUndefined();
+    expect(at(status, 'unstaged', 'app.txt')).toBeDefined();
+    expect(at(status, 'unstaged', 'folder.log/keep.txt')).toBeUndefined();
   });
 
   /*
@@ -970,7 +1059,7 @@ describe('ignorar rutas', () => {
     const first = await git.ignorePath('gitthul', UNTRACKED);
 
     expect(await git.ignorePath('gitthul', UNTRACKED)).toBe(first);
-    expect(await git.ignorePath('gitthul', '   ')).toBe(first);
+    expect(await git.ignorePath('gitthul', '')).toBe(first);
   });
 });
 

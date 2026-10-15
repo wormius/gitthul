@@ -333,11 +333,15 @@ export interface GitPort {
    */
   autoResolve: (id: RepoId, query?: GitQuery) => Promise<AutoResolveResult>;
 
-  /** Suma el patrón a `.gitignore`; con `untrack`, además hace `git rm --cached` sobre `path`. */
+  /**
+   * Suma el patrón a `.gitignore`, que queda pendiente sin pasar al Stage.
+   * Con `untrack`, retira del índice sus coincidencias y conserva los archivos locales.
+   * `path` identifica una ruta literal desde la raíz; `extension`, un patrón `*.ext`.
+   */
   ignorePath: (
     id: RepoId,
     pattern: string,
-    options?: { untrack?: boolean },
+    options?: { untrack?: boolean; patternKind?: 'path' | 'extension' },
     query?: GitQuery,
   ) => Promise<WorkingStatus>;
 
@@ -371,6 +375,7 @@ export interface GitPort {
     options?: { force?: boolean; expectedTip?: Sha },
     query?: GitQuery,
   ) => Promise<RefsSnapshot>;
+  /** Configura una rama remota de seguimiento ya conocida; `null` lo quita. No contacta al remoto. */
   setUpstream: (
     id: RepoId,
     branch: string,

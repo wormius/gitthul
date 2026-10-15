@@ -606,6 +606,320 @@ pub fn rename_branch(
     Err(WriteRefError::Diagnostic(output.diagnostic))
 }
 
+/// Change tracking configuration without checking out or updating either branch.
+pub fn set_upstream(
+    repository: &Path,
+    branch: &str,
+    upstream: Option<&str>,
+) -> Result<(), WriteRefError> {
+    let repo = gix::open(repository).map_err(|error| {
+        WriteRefError::Diagnostic(Diagnostic::cause("setUpstream.openRepository", &error))
+    })?;
+    if branch.is_empty() || branch.starts_with('-') || branch.chars().any(char::is_control) {
+        return Err(
+            WriteRefError::InvalidBranchName.with_diagnostic(Diagnostic::new(
+                "setUpstream.validateBranch",
+                "Expected a literal local branch name",
+            )),
+        );
+    }
+    let branch_ref = format!("refs/heads/{branch}");
+    let validation = upstream_command(
+        repository,
+        &["check-ref-format", "--branch", branch],
+        "setUpstream.validateBranch",
+    )?;
+    // --branch can expand @{-1}; the API accepts literal names, never revisions.
+    if !validation.status.success() || validation.stdout.trim_ascii_end() != branch.as_bytes() {
+        return Err(WriteRefError::InvalidBranchName.with_diagnostic(validation.diagnostic));
+    }
+    if !upstream_reference_exists(repository, &branch_ref)? {
+        return Err(WriteRefError::Stale.with_diagnostic(Diagnostic::new(
+            "setUpstream.readBranch",
+            "The selected local branch no longer exists",
+        )));
+    }
+    let selected = upstream
+        .map(|name| resolve_upstream(repository, &repo, name))
+        .transpose()?;
+    let current = configured_upstream(repository, &branch_ref)?;
+    let remote_key = format!("branch.{branch}.remote");
+    let merge_key = format!("branch.{branch}.merge");
+    let remote_values = upstream_config_values(repository, None, &remote_key)?;
+    let merge_values = upstream_config_values(repository, None, &merge_key)?;
+    if remote_values.len() > 1 || merge_values.len() > 1 {
+        return Err(WriteRefError::Diagnostic(Diagnostic::new(
+            "setUpstream.multipleUpstreams",
+            "This branch has multiple remote or merge values; select a single upstream explicitly in Git configuration first",
+        )));
+    }
+    if remote_values.is_empty() != merge_values.is_empty()
+        || remote_values.iter().chain(&merge_values).any(Vec::is_empty)
+    {
+        return Err(WriteRefError::Diagnostic(Diagnostic::new(
+            "setUpstream.incompleteConfiguration",
+            "This branch has incomplete remote or merge configuration; Git branch cannot safely remove that partial configuration",
+        )));
+    }
+    if (selected.is_some() && current == selected)
+        || (selected.is_none() && remote_values.is_empty() && merge_values.is_empty())
+    {
+        return Ok(());
+    }
+    // `git branch` writes common config even when worktreeConfig is enabled.
+    // Do not partly change common config when worktree entries would survive
+    // an unset or override the requested relation. Equivalent changes above
+    // remain genuine no-ops and preserve both files byte for byte.
+    let worktree_config = upstream_command(
+        repository,
+        &["config", "--bool", "--get", "extensions.worktreeConfig"],
+        "setUpstream.readWorktreeConfig",
+    )?;
+    if !worktree_config.status.success() && worktree_config.status.code() != Some(1) {
+        return Err(WriteRefError::Diagnostic(worktree_config.diagnostic));
+    }
+    if worktree_config.status.success()
+        && worktree_config.stdout.trim_ascii_end() == b"true"
+        && [&remote_key, &merge_key]
+            .into_iter()
+            .try_fold(false, |present, key| {
+                upstream_config_values(repository, Some("--worktree"), key)
+                    .map(|values| present || !values.is_empty())
+            })?
+    {
+        return Err(WriteRefError::Diagnostic(Diagnostic::new(
+            "setUpstream.worktreeOverride",
+            "This branch has worktree-specific upstream settings; Git branch cannot safely replace or remove them from common config",
+        )));
+    }
+    if remote_values != upstream_config_values(repository, Some("--local"), &remote_key)?
+        || merge_values != upstream_config_values(repository, Some("--local"), &merge_key)?
+    {
+        return Err(WriteRefError::Diagnostic(Diagnostic::new(
+            "setUpstream.inheritedConfiguration",
+            "The branch upstream is configured outside common repository config; Git branch cannot safely replace or remove those inherited values",
+        )));
+    }
+    let option = selected
+        .as_ref()
+        .map(|reference| format!("--set-upstream-to={reference}"));
+    let output = upstream_command(
+        repository,
+        &[
+            "branch",
+            option.as_deref().unwrap_or("--unset-upstream"),
+            "--",
+            branch,
+        ],
+        "setUpstream.write",
+    )?;
+    if !output.status.success() {
+        return Err(WriteRefError::Diagnostic(output.diagnostic));
+    }
+    if configured_upstream(repository, &branch_ref)? != selected
+        || (selected.is_none()
+            && (!upstream_config_values(repository, None, &remote_key)?.is_empty()
+                || !upstream_config_values(repository, None, &merge_key)?.is_empty()))
+    {
+        return Err(WriteRefError::Diagnostic(Diagnostic::new(
+            "setUpstream.verify",
+            "The effective upstream differs from the requested branch after Git updated its configuration",
+        )));
+    }
+    Ok(())
+}
+
+fn resolve_upstream(
+    repository: &Path,
+    repo: &gix::Repository,
+    name: &str,
+) -> Result<String, WriteRefError> {
+    if name.is_empty() || name.starts_with('-') || name.chars().any(char::is_control) {
+        return Err(
+            WriteRefError::RevisionNotFound(name.to_owned()).with_diagnostic(Diagnostic::new(
+                "setUpstream.validateUpstream",
+                "Expected a literal upstream branch name",
+            )),
+        );
+    }
+    let candidates = if name.starts_with("refs/heads/") || name.starts_with("refs/remotes/") {
+        vec![name.to_owned()]
+    } else if name.starts_with("refs/") {
+        Vec::new()
+    } else {
+        vec![format!("refs/heads/{name}"), format!("refs/remotes/{name}")]
+    };
+    let mut found = None;
+    for candidate in candidates {
+        let validation = upstream_command(
+            repository,
+            &["check-ref-format", &candidate],
+            "setUpstream.validateUpstream",
+        )?;
+        if !validation.status.success() {
+            return Err(WriteRefError::RevisionNotFound(name.to_owned())
+                .with_diagnostic(validation.diagnostic));
+        }
+        if upstream_reference_exists(repository, &candidate)? {
+            if found.is_some() {
+                return Err(WriteRefError::Diagnostic(Diagnostic::new(
+                    "setUpstream.resolveUpstream",
+                    "The upstream name matches both a local and a remote branch; use its full reference name",
+                )));
+            }
+            found = Some(candidate);
+        }
+    }
+    let mut reference = found.ok_or_else(|| {
+        WriteRefError::RevisionNotFound(name.to_owned()).with_diagnostic(Diagnostic::new(
+            "setUpstream.resolveUpstream",
+            "The requested upstream branch does not exist locally; no network request was made",
+        ))
+    })?;
+    // A remote HEAD alias denotes its target branch, rather than a distinct upstream.
+    for _ in 0..5 {
+        if reference.starts_with("refs/heads/") {
+            return Err(WriteRefError::Diagnostic(Diagnostic::new(
+                "setUpstream.unsupportedLocalUpstream",
+                "This operation sets remote-tracking upstream branches; local-branch upstreams may be removed but are not created by this API",
+            )));
+        }
+        if !reference.starts_with("refs/remotes/") {
+            return Err(WriteRefError::Diagnostic(Diagnostic::new(
+                "setUpstream.resolveUpstream",
+                "The upstream alias does not resolve to a remote-tracking branch",
+            )));
+        }
+        let symbolic = upstream_command(
+            repository,
+            &["symbolic-ref", "--quiet", &reference],
+            "setUpstream.resolveSymbolicUpstream",
+        )?;
+        if symbolic.status.code() == Some(1) {
+            history::resolve_commit(repo, &reference).map_err(|error| {
+                revision_failure(error, WriteRefError::RevisionNotFound(name.to_owned()))
+            })?;
+            return Ok(reference);
+        }
+        if !symbolic.status.success() {
+            return Err(WriteRefError::Diagnostic(symbolic.diagnostic));
+        }
+        reference = String::from_utf8(symbolic.output.stdout)
+            .map_err(|error| {
+                WriteRefError::Diagnostic(Diagnostic::new("setUpstream.decodeReference", error))
+            })?
+            .trim_end_matches(['\r', '\n'])
+            .to_owned();
+    }
+    Err(WriteRefError::Diagnostic(Diagnostic::new(
+        "setUpstream.resolveSymbolicUpstream",
+        "The symbolic upstream reference could not be resolved safely",
+    )))
+}
+
+fn upstream_reference_exists(repository: &Path, reference: &str) -> Result<bool, WriteRefError> {
+    let output = upstream_command(
+        repository,
+        &["show-ref", "--verify", "--quiet", reference],
+        "setUpstream.readReference",
+    )?;
+    match output.status.code() {
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => Err(WriteRefError::Diagnostic(output.diagnostic)),
+    }
+}
+
+fn configured_upstream(
+    repository: &Path,
+    reference: &str,
+) -> Result<Option<String>, WriteRefError> {
+    let output = upstream_command(
+        repository,
+        &[
+            "for-each-ref",
+            "--format=%(refname)%00%(upstream)",
+            "--",
+            reference,
+        ],
+        "setUpstream.readUpstream",
+    )?;
+    if !output.status.success() {
+        return Err(WriteRefError::Diagnostic(output.diagnostic));
+    }
+    for line in output.stdout.split(|byte| *byte == b'\n') {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        let Some(separator) = line.iter().position(|byte| *byte == 0) else {
+            continue;
+        };
+        if &line[..separator] == reference.as_bytes() {
+            return if line[separator + 1..].is_empty() {
+                Ok(None)
+            } else {
+                String::from_utf8(line[separator + 1..].to_vec())
+                    .map(Some)
+                    .map_err(|error| {
+                        WriteRefError::Diagnostic(Diagnostic::new(
+                            "setUpstream.decodeUpstream",
+                            error,
+                        ))
+                    })
+            };
+        }
+    }
+    Err(WriteRefError::Stale.with_diagnostic(Diagnostic::new(
+        "setUpstream.readUpstream",
+        "The selected local branch disappeared while reading its upstream",
+    )))
+}
+
+fn upstream_config_values(
+    repository: &Path,
+    scope: Option<&str>,
+    key: &str,
+) -> Result<Vec<Vec<u8>>, WriteRefError> {
+    let mut args = vec!["config"];
+    args.extend(scope);
+    if scope.is_some() {
+        // Included files are separate configuration sources, not safe write
+        // targets for `git branch` updating the common repository config.
+        args.push("--no-includes");
+    }
+    args.extend(["--null", "--get-all", key]);
+    let output = upstream_command(repository, &args, "setUpstream.readConfiguration")?;
+    match output.status.code() {
+        Some(0) => output
+            .stdout
+            .strip_suffix(&[0])
+            .map(|bytes| bytes.split(|byte| *byte == 0).map(Vec::from).collect())
+            .ok_or_else(|| {
+                WriteRefError::Diagnostic(Diagnostic::new(
+                    "setUpstream.decodeConfiguration",
+                    "Git returned malformed configuration values",
+                ))
+            }),
+        Some(1) => Ok(Vec::new()),
+        _ => Err(WriteRefError::Diagnostic(output.diagnostic)),
+    }
+}
+
+fn upstream_command(
+    repository: &Path,
+    args: &[&str],
+    stage: &str,
+) -> Result<CommandOutput, WriteRefError> {
+    let output = crate::process::command("git")
+        .args(args)
+        .current_dir(repository)
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("LC_ALL", "C")
+        .output()
+        .map_err(|error| WriteRefError::Diagnostic(Diagnostic::command_io(stage, args, &error)))?;
+    let diagnostic = Diagnostic::command(stage, args, &output);
+    Ok(CommandOutput { output, diagnostic })
+}
+
 fn update_ref_delete(
     repository: &Path,
     reference: &str,

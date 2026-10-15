@@ -73,7 +73,7 @@ describe('instrumentGitPort', () => {
     const output =
       'leer remoto origin: URL inválida https://user:private@example.invalid/repo?token=hidden';
     const call = vi.fn().mockRejectedValue({ code: 'unknown', params: {}, output });
-    const git = instrumentGitPort(createTauriGitPort(createMockGitPort(), call), log);
+    const git = instrumentGitPort(createTauriGitPort(call), log);
 
     await expect(git.readRefs('repo')).rejects.toMatchObject({ code: 'unknown', output });
     expect(call).toHaveBeenCalledWith('git_read_refs', { id: 'repo' });
@@ -176,7 +176,7 @@ describe('instrumentGitPort', () => {
       diagnostic,
     });
     await expect(
-      instrumentGitPort(createTauriGitPort(createMockGitPort(), call), log).readCommits('repo'),
+      instrumentGitPort(createTauriGitPort(call), log).readCommits('repo'),
     ).rejects.toThrow();
     expect((await log.read())[0]?.context).toMatchObject({
       nativeOperationId: 'native-42',

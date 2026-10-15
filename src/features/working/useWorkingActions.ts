@@ -602,9 +602,9 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
         });
       },
 
-      ignorePath: (pattern, untrack) => {
+      ignorePath: (pattern, untrack, patternKind = 'path') => {
         write(async () => {
-          applyStatus(await git.ignorePath(repoId, pattern, { untrack }));
+          applyStatus(await git.ignorePath(repoId, pattern, { untrack, patternKind }));
           shell().setStatus({
             tone: 'success',
             key: untrack ? 'working.status.ignoredAndUntracked' : 'working.status.ignored',

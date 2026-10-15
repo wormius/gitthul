@@ -57,6 +57,14 @@ adaptadores Tauri. Los adaptadores mock permiten desarrollar y probar la interfa
 sin repositorios reales. Mantener ese contrato compartido, sin accesos directos
 al sistema desde las vistas ni permisos globales del WebView para suplirlo.
 
+El adaptador Git nativo implementa GitPort completo sin recibir ni extender un
+mock: una operación omitida debe fallar al compilar. El simulador se carga solo
+en las pruebas o en el modo explícito de desarrollo `npm run dev:mock`; nunca
+como respaldo de un comando nativo. La producción exige el puente de Tauri y
+muestra un error de arranque si falta. La compilación rechaza módulos del
+simulador y de la galería en los chunks finales. PortsContext no crea servicios
+al importarse; main construye una sola instancia de los puertos de producción.
+
 ## Antes de trabajar
 
 Leer el estado Git, el diff y las instrucciones vigentes. Respetar cambios ajenos
@@ -103,6 +111,20 @@ workingRange compara esa revisión con el estado actual completo del árbol de t
 WorkingView invalida las lecturas anteriores al comenzar una escritura. Los avisos
 del watcher recibidos durante la operación se acumulan y se consultan al terminar;
 una respuesta tardía no puede reemplazar el estado devuelto por stash, POP o Stage.
+
+Ignorar desde GitWorking usa git_ignore_path para escribir el .gitignore de la
+raíz, que queda pendiente sin pasar al Stage. Distinguir rutas literales de patrones
+de extensión mediante options.patternKind; una ruta con comodines en su nombre no
+puede ampliar la selección. Ignorar y dejar de seguir retira solo las coincidencias
+del índice y conserva los archivos locales. La recuperación incluye .gitignore y el
+índice del worktree; nunca delegar esta operación al mock en escritorio.
+
+git_set_upstream configura una rama remota de seguimiento ya disponible en refs
+locales, o la retira con upstream=null, sin contactar al remoto ni hacer checkout.
+Serializar por common-dir y proteger la configuración con un checkpoint. Rechazar
+sin escribir configuraciones ambiguas, heredadas o de worktree que Git branch no
+pueda cambiar con seguridad; el seguimiento hacia otra rama local sigue fuera del
+setter y debe producir un diagnóstico explícito. Mantener su menú deshabilitado.
 
 El diff de un stash usa DiffSource.stash: la instantánea rastreada y el tercer padre
 para las rutas sin seguimiento. El visor de archivo lee el blob que resolvió el diff,
@@ -228,6 +250,9 @@ los logs, recovery y backups usan sus directorios de datos. Resolverlos con Taur
 personales fijas ni almacenamiento dentro del repositorio fuente. Una configuración
 ilegible suspende la depuración automática y permite arrancar; conservar sus bytes
 antes de repararla y mantener la suspensión al escribir otras preferencias.
+La recuperación de ajustes nativos exige un observador del error original para
+registrar el fallo de lectura. La base editable desactiva también los respaldos;
+no presentar una lectura fallida como una carga normal ni fingir persistencia.
 
 ## Acceso al sistema
 
@@ -351,8 +376,11 @@ Al crear o clonar, usar el nombre de destino relativo al padre ya validado y
 establecido como cwd. Git for Windows rechaza los destinos canónicos con prefijo
 verbatim; conservar las rutas canónicas para identidad y comprobaciones de seguridad.
 
-Instalar con npm ci. npm run dev usa mocks fuera de Tauri; npm run tauri dev
-ejecuta el escritorio. El puerto fijo es 5183 y la galería está en /dev/tokens.
+Instalar con npm ci. npm run tauri dev ejecuta el escritorio con Git real;
+npm run dev inicia solo su servidor web y requiere el puente nativo. Usar
+npm run dev:mock para trabajar en navegador con datos simulados y abrir la
+galería en /dev/tokens. El puerto fijo es 5183. La galería y los mocks quedan
+fuera de las compilaciones de producción, incluido --mode mock al construir.
 
 Desde la raíz: npm run typecheck, npm run lint, npm run format:check,
 npm test y npm run build. Desde src-tauri: cargo fmt --all -- --check,

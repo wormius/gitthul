@@ -69,11 +69,9 @@ export function decodeTauriGitError(value: unknown): GitOperationError {
 }
 
 /**
- * El adaptador nativo conserva en el falso únicamente las superficies que aún
- * no han cruzado su corte vertical, como el detalle y los diffs entre commits.
+ * Transporta las operaciones a Rust y conserva los errores del contrato de dominio.
  */
 export function createTauriGitPort(
-  fallback: GitPort,
   call: Invoke = tauriInvoke,
   makeChannel: ChannelFactory = tauriChannel,
   makeWatchChannel: WatchChannelFactory = tauriWatchChannel,
@@ -114,7 +112,6 @@ export function createTauriGitPort(
   };
 
   return {
-    ...fallback,
     integrationWritesAvailable: true,
     listRepositories: (options) =>
       query<readonly RepoSummary[]>('git_list_repositories', undefined, options),
@@ -437,6 +434,8 @@ export function createTauriGitPort(
         { id, from, to, options: options ?? {} },
         queryOptions,
       ),
+    setUpstream: (id, branch, upstream, options) =>
+      mutation<RefsSnapshot>('git_set_upstream', { id, branch, upstream }, options),
     createTag: (id, name, at, options, queryOptions) =>
       mutation<RefsSnapshot>(
         'git_create_tag',
@@ -581,6 +580,12 @@ export function createTauriGitPort(
     keepSide: (id, path, side, options) =>
       mutation<WorkingStatus>('git_keep_side', { id, path, side }, options),
     autoResolve: (id, options) => mutation<AutoResolveResult>('git_auto_resolve', { id }, options),
+    ignorePath: (id, pattern, options, queryOptions) =>
+      mutation<WorkingStatus>(
+        'git_ignore_path',
+        { id, pattern, options: options ?? {} },
+        queryOptions,
+      ),
     continueOperation: (id, options) =>
       mutation<Repository>('git_continue_operation', { id }, options),
     abortOperation: (id, options) => mutation<Repository>('git_abort_operation', { id }, options),

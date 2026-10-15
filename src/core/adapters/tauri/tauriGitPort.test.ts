@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createMockGitPort } from '@core/adapters/mock/mockGitPort';
 import { GitOperationError, OperationCancelledError } from '@core/domain/errors';
 import type { CommitDetails } from '@core/domain/commit';
 import type { FileDiff } from '@core/domain/diff';
@@ -11,11 +10,17 @@ import type { ConflictContents, WorkingStatus } from '@core/domain/status';
 import { createTauriGitPort, decodeTauriGitError } from './tauriGitPort';
 
 describe('tauriGitPort', () => {
+  it('expone el puerto nativo sin las funciones auxiliares del simulador', () => {
+    const call = vi.fn();
+    const port = createTauriGitPort(call);
+
+    expect(port).not.toHaveProperty('failNext');
+    expect(call).not.toHaveBeenCalled();
+  });
+
   it('gestiona worktrees mediante comandos nativos sin usar el simulador', async () => {
-    const fallback = createMockGitPort();
-    const simulated = vi.spyOn(fallback, 'createWorktree');
     const call = vi.fn().mockResolvedValue({});
-    const port = createTauriGitPort(fallback, call);
+    const port = createTauriGitPort(call);
     const branch = { kind: 'branch' as const, name: 'topic' };
     await port.createWorktree('/repo', '/linked', branch);
     await port.lockWorktree('/repo', '/linked', true);
@@ -27,7 +32,6 @@ describe('tauriGitPort', () => {
       ['git_lock_worktree', { id: '/repo', path: '/linked', locked: false }],
       ['git_remove_worktree', { id: '/repo', path: '/linked', options: undefined }],
     ]);
-    expect(simulated).not.toHaveBeenCalled();
   });
 
   it('delega el ciclo de vida a los comandos nativos', async () => {
@@ -45,7 +49,7 @@ describe('tauriGitPort', () => {
     const call = vi.fn((command: string) =>
       Promise.resolve(command === 'git_list_repositories' ? [repository] : repository),
     );
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(port.listRepositories()).resolves.toEqual([repository]);
     await expect(port.openRepository('/repos/uno')).resolves.toEqual(repository);
@@ -74,7 +78,7 @@ describe('tauriGitPort', () => {
       code: 'repo.notARepository',
       params: { path: '/tmp/vacia' },
     });
-    const port = createTauriGitPort(createMockGitPort(), () => Promise.reject(nativeError));
+    const port = createTauriGitPort(() => Promise.reject(nativeError));
 
     const error = await port.openRepository('/tmp/vacia').catch((caught: unknown) => caught);
 
@@ -87,7 +91,7 @@ describe('tauriGitPort', () => {
 
   it('descarta una respuesta que llegó después de cancelar', async () => {
     const controller = new AbortController();
-    const port = createTauriGitPort(createMockGitPort(), () => {
+    const port = createTauriGitPort(() => {
       controller.abort();
       return Promise.resolve([]);
     });
@@ -114,7 +118,7 @@ describe('tauriGitPort', () => {
       clean: false,
     };
     const call = vi.fn(() => Promise.resolve(status));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(port.readStatus('/repos/uno')).resolves.toEqual(status);
     expect(call).toHaveBeenCalledWith('git_read_status', { id: '/repos/uno' });
@@ -134,7 +138,7 @@ describe('tauriGitPort', () => {
       tooLarge: false,
     };
     const call = vi.fn(() => Promise.resolve(conflict));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(port.readConflict('/repos/uno', conflict.path)).resolves.toEqual(conflict);
     expect(call).toHaveBeenCalledWith('git_read_conflict', {
@@ -170,7 +174,7 @@ describe('tauriGitPort', () => {
       ],
     };
     const call = vi.fn(() => Promise.resolve(refs));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(port.readRefs('/repos/uno')).resolves.toEqual(refs);
     expect(call).toHaveBeenCalledWith('git_read_refs', { id: '/repos/uno' });
@@ -187,7 +191,7 @@ describe('tauriGitPort', () => {
     const call = vi.fn((command: string) =>
       Promise.resolve(command === 'git_read_reflog' ? [entry] : refs),
     );
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(port.readReflog('/repos/uno')).resolves.toEqual([entry]);
     await expect(
@@ -210,7 +214,7 @@ describe('tauriGitPort', () => {
   it('transporta alta, edición y baja de remoto con sus precondiciones exactas', async () => {
     const refs = { remotes: [] } as unknown as RefsSnapshot;
     const call = vi.fn(() => Promise.resolve(refs));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const remote = {
       name: 'upstream',
       fetchUrl: 'https://example.invalid/read.git',
@@ -237,7 +241,7 @@ describe('tauriGitPort', () => {
       head: { branch: 'nueva', sha: 'a'.repeat(40), detached: false },
     } as RefsSnapshot;
     const call = vi.fn(() => Promise.resolve(refs));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const from = { kind: 'tag', name: 'v1' } as const;
 
     await expect(
@@ -254,7 +258,7 @@ describe('tauriGitPort', () => {
   it('borra una rama local en Rust con la punta observada', async () => {
     const refs = { head: { branch: 'main', sha: 'a'.repeat(40), detached: false } } as RefsSnapshot;
     const call = vi.fn(() => Promise.resolve(refs));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const expectedTip = 'b'.repeat(40);
 
     await expect(
@@ -272,7 +276,7 @@ describe('tauriGitPort', () => {
       head: { branch: 'principal', sha: 'a'.repeat(40), detached: false },
     } as RefsSnapshot;
     const call = vi.fn(() => Promise.resolve(refs));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const expectedTip = 'b'.repeat(40);
 
     await expect(
@@ -286,10 +290,78 @@ describe('tauriGitPort', () => {
     });
   });
 
+  it('establece y quita el upstream mediante el comando nativo', async () => {
+    const refs = { head: { branch: 'main', sha: 'a'.repeat(40), detached: false } } as RefsSnapshot;
+    const call = vi.fn().mockResolvedValue(refs);
+    const port = createTauriGitPort(call);
+
+    await expect(port.setUpstream('/repos/uno', 'main', 'origin/dev')).resolves.toBe(refs);
+    await expect(port.setUpstream('/repos/uno', 'main', null)).resolves.toBe(refs);
+
+    expect(call.mock.calls).toEqual([
+      ['git_set_upstream', { id: '/repos/uno', branch: 'main', upstream: 'origin/dev' }],
+      ['git_set_upstream', { id: '/repos/uno', branch: 'main', upstream: null }],
+    ]);
+  });
+
+  it('conserva el error y diagnóstico nativos al configurar el upstream', async () => {
+    const nativeError = {
+      code: 'ref.stale',
+      params: { ref: 'main' },
+      diagnostic: { stage: 'upstream.precondition' },
+    };
+    const call = vi.fn().mockRejectedValue(nativeError);
+    const port = createTauriGitPort(call);
+
+    const error = await port
+      .setUpstream('/repos/uno', 'main', 'origin/dev')
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(GitOperationError);
+    expect(error).toMatchObject(nativeError);
+    expect(call).toHaveBeenCalledOnce();
+  });
+
+  it('no cambia el upstream si la señal ya estaba cancelada', async () => {
+    const controller = new AbortController();
+    const call = vi.fn();
+    const port = createTauriGitPort(call);
+    controller.abort();
+
+    await expect(
+      port.setUpstream('/repos/uno', 'main', null, { signal: controller.signal }),
+    ).rejects.toBeInstanceOf(OperationCancelledError);
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it('conserva el upstream devuelto si la señal se cancela durante la escritura', async () => {
+    const controller = new AbortController();
+    const refs = { head: { branch: 'main', sha: 'a'.repeat(40), detached: false } } as RefsSnapshot;
+    const call = vi.fn(() => {
+      controller.abort();
+      return Promise.resolve(refs);
+    });
+    const port = createTauriGitPort(call);
+
+    await expect(
+      port.setUpstream('/repos/uno', 'main', 'origin/dev', { signal: controller.signal }),
+    ).resolves.toBe(refs);
+    expect(call).toHaveBeenCalledOnce();
+  });
+
+  it('conserva una cancelación que el comando de upstream devuelve desde Rust', async () => {
+    const call = vi.fn().mockRejectedValue({ code: 'operation.cancelled', params: {} });
+    const port = createTauriGitPort(call);
+
+    await expect(port.setUpstream('/repos/uno', 'main', null)).rejects.toBeInstanceOf(
+      OperationCancelledError,
+    );
+  });
+
   it('crea un tag local en Rust con destino y mensaje exactos', async () => {
     const refs = { head: { branch: 'main', sha: 'a'.repeat(40), detached: false } } as RefsSnapshot;
     const call = vi.fn(() => Promise.resolve(refs));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const at = { kind: 'commit', sha: 'b'.repeat(40) } as const;
 
     await expect(port.createTag('/repos/uno', 'v1', at, { message: 'Lista' })).resolves.toEqual(
@@ -306,7 +378,7 @@ describe('tauriGitPort', () => {
   it('borra un tag local en Rust con el destino observado', async () => {
     const refs = { head: { branch: 'main', sha: 'a'.repeat(40), detached: false } } as RefsSnapshot;
     const call = vi.fn(() => Promise.resolve(refs));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const expectedTip = 'b'.repeat(40);
 
     await expect(port.deleteTag('/repos/uno', 'v1', { expectedTip })).resolves.toEqual(refs);
@@ -320,7 +392,7 @@ describe('tauriGitPort', () => {
   it('cambia de referencia en Rust y conserva la opción de guardado automático', async () => {
     const refs = { head: { branch: 'dev', sha: 'a'.repeat(40), detached: false } } as RefsSnapshot;
     const call = vi.fn(() => Promise.resolve(refs));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const target = { kind: 'branch', name: 'dev' } as const;
 
     await expect(port.checkout('/repos/uno', target, { autoStash: true })).resolves.toEqual(refs);
@@ -336,7 +408,7 @@ describe('tauriGitPort', () => {
     const call = vi.fn((_command: string, _args?: Record<string, unknown>) =>
       Promise.resolve(page),
     );
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(
       port.readCommits('/repos/uno', { start: 'main', since: 42, skip: 3, limit: 4 }),
@@ -371,7 +443,7 @@ describe('tauriGitPort', () => {
     const call = vi.fn((_command: string, _args?: Record<string, unknown>) =>
       Promise.resolve(preview),
     );
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(
       port.previewIntegration('/repos/uno', 'merge', 'feature', 'main'),
@@ -399,7 +471,7 @@ describe('tauriGitPort', () => {
       }
       return Promise.resolve(undefined);
     });
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const reading = port.previewIntegration('/repos/uno', 'merge', 'feature', 'main', {
       signal: controller.signal,
     });
@@ -419,7 +491,7 @@ describe('tauriGitPort', () => {
   it('inicia merge y rebase con las puntas exactas de la vista previa', async () => {
     const repository = { id: '/repos/uno', path: '/repos/uno' } as Repository;
     const call = vi.fn(() => Promise.resolve(repository));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const precondition = {
       sourceRef: 'feature',
       targetRef: 'main',
@@ -448,7 +520,7 @@ describe('tauriGitPort', () => {
   it('inicia cherry-pick y revert con la punta exacta que confirmó el diálogo', async () => {
     const repository = { id: '/repos/uno', path: '/repos/uno' } as Repository;
     const call = vi.fn(() => Promise.resolve(repository));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const shas = ['a'.repeat(40), 'b'.repeat(40)];
     const precondition = { targetRef: 'main', targetOid: 'c'.repeat(40) };
 
@@ -474,7 +546,7 @@ describe('tauriGitPort', () => {
   it('ejecuta reset con la rama y las tres huellas que mostró el diálogo', async () => {
     const repository = { id: '/repos/uno', path: '/repos/uno' } as Repository;
     const call = vi.fn(() => Promise.resolve(repository));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const precondition = {
       head: 'a'.repeat(40),
       indexTree: 'b'.repeat(40),
@@ -499,7 +571,7 @@ describe('tauriGitPort', () => {
 
   it('transporta el stash y el árbol exactos a guardar, aplicar y descartar', async () => {
     const call = vi.fn(() => Promise.resolve({}));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const precondition = {
       head: 'a'.repeat(40),
       indexTree: 'b'.repeat(40),
@@ -546,7 +618,7 @@ describe('tauriGitPort', () => {
       }
       return Promise.resolve(undefined);
     });
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const reading = port.readCommits('/repos/uno', { limit: 500 }, { signal: controller.signal });
     await vi.waitFor(() => expect(call).toHaveBeenCalled());
 
@@ -580,7 +652,7 @@ describe('tauriGitPort', () => {
       controller.abort();
       return Promise.resolve(details);
     });
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(port.readCommit('/repos/uno', details.commit.sha)).resolves.toEqual(details);
     await expect(
@@ -594,7 +666,7 @@ describe('tauriGitPort', () => {
 
   it('passes encoding overrides to all native byte reads and conflict saves', async () => {
     const call = vi.fn().mockResolvedValue({});
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     await port.readDiff('/repo', {
       path: 'file.txt',
       source: { kind: 'index' },
@@ -634,7 +706,7 @@ describe('tauriGitPort', () => {
 
   it('reads an exact index blob instead of the worktree file', async () => {
     const call = vi.fn().mockResolvedValue({});
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const blob = 'a'.repeat(40);
     await port.readFile('/repo', 'mixed.txt', undefined, { blob, encoding: 'utf-8' });
     expect(call).toHaveBeenCalledWith('git_read_file', {
@@ -663,7 +735,7 @@ describe('tauriGitPort', () => {
       }
       return Promise.resolve([]);
     });
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await port.readFile('/repos/uno', 'src/app.ts', 'a'.repeat(40));
     await port.readTree('/repos/uno');
@@ -704,7 +776,7 @@ describe('tauriGitPort', () => {
     const call = vi.fn((_command: string, _args?: Record<string, unknown>) =>
       Promise.resolve(nativeDiff),
     );
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(
       port.readDiff('/repos/uno', {
@@ -787,7 +859,7 @@ describe('tauriGitPort', () => {
       { path: 'changed.txt', change: 'modified', binary: false, insertions: 2, deletions: 1 },
     ];
     const call = vi.fn().mockResolvedValue(files);
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     for (const source of [
       { kind: 'range', from: 'abc1234', to: 'def5678' },
       { kind: 'workingRange', from: 'abc1234' },
@@ -814,7 +886,7 @@ describe('tauriGitPort', () => {
       }
       return Promise.resolve(undefined);
     });
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const reading = port.readDiffFiles(
       '/repos/uno',
       { kind: 'range', from: 'abc1234', to: 'def5678' },
@@ -840,7 +912,7 @@ describe('tauriGitPort', () => {
       }
       return Promise.resolve(undefined);
     });
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
     const reading = port.readDiff(
       '/repos/uno',
       { path: 'archivo.txt', source: { kind: 'commit', sha: 'abc1234' } },
@@ -873,7 +945,7 @@ describe('tauriGitPort', () => {
     };
     const targets = [{ path: 'archivo.txt', precondition }];
     const call = vi.fn(() => Promise.resolve(status));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await port.stage('/repos/uno', ['archivo.txt']);
     await port.unstage('/repos/uno', ['archivo.txt']);
@@ -914,10 +986,80 @@ describe('tauriGitPort', () => {
     ]);
   });
 
+  it('ignora archivos, extensiones y carpetas en Rust sin consultar el simulador', async () => {
+    const status: WorkingStatus = { staged: [], unstaged: [], conflicted: [], clean: true };
+    const call = vi.fn().mockResolvedValue(status);
+    const port = createTauriGitPort(call);
+
+    await expect(port.ignorePath('/repos/uno', 'archivo nuevo.txt')).resolves.toBe(status);
+    await expect(
+      port.ignorePath('/repos/uno', '*.log', { untrack: false, patternKind: 'extension' }),
+    ).resolves.toBe(status);
+    await expect(port.ignorePath('/repos/uno', 'logs/', { untrack: true })).resolves.toBe(status);
+
+    expect(call.mock.calls).toEqual([
+      ['git_ignore_path', { id: '/repos/uno', pattern: 'archivo nuevo.txt', options: {} }],
+      [
+        'git_ignore_path',
+        {
+          id: '/repos/uno',
+          pattern: '*.log',
+          options: { untrack: false, patternKind: 'extension' },
+        },
+      ],
+      ['git_ignore_path', { id: '/repos/uno', pattern: 'logs/', options: { untrack: true } }],
+    ]);
+  });
+
+  it('conserva el error nativo de ignorar con su diagnóstico', async () => {
+    const nativeError = {
+      code: 'repo.locked',
+      params: { repo: 'uno' },
+      diagnostic: { stage: 'ignore.write', ioKind: 'PermissionDenied' },
+    };
+    const call = vi.fn().mockRejectedValue(nativeError);
+    const port = createTauriGitPort(call);
+
+    const error = await port
+      .ignorePath('/repos/uno', 'archivo.txt')
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(GitOperationError);
+    expect(error).toMatchObject(nativeError);
+  });
+
+  it('no inicia ignorar si la señal ya estaba cancelada', async () => {
+    const controller = new AbortController();
+    const call = vi.fn();
+    const port = createTauriGitPort(call);
+    controller.abort();
+
+    await expect(
+      port.ignorePath('/repos/uno', 'archivo.txt', undefined, { signal: controller.signal }),
+    ).rejects.toBeInstanceOf(OperationCancelledError);
+
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it('conserva el estado de ignorar si se cancela después de iniciar la escritura', async () => {
+    const controller = new AbortController();
+    const status: WorkingStatus = { staged: [], unstaged: [], conflicted: [], clean: true };
+    const call = vi.fn(() => {
+      controller.abort();
+      return Promise.resolve(status);
+    });
+    const port = createTauriGitPort(call);
+
+    await expect(
+      port.ignorePath('/repos/uno', 'archivo.txt', undefined, { signal: controller.signal }),
+    ).resolves.toBe(status);
+    expect(call).toHaveBeenCalledOnce();
+  });
+
   it('publica el estado de una escritura aunque la señal se aborte durante Git', async () => {
     const controller = new AbortController();
     const status: WorkingStatus = { staged: [], unstaged: [], conflicted: [], clean: true };
-    const port = createTauriGitPort(createMockGitPort(), () => {
+    const port = createTauriGitPort(() => {
       controller.abort();
       return Promise.resolve(status);
     });
@@ -934,7 +1076,7 @@ describe('tauriGitPort', () => {
       precondition: { head: 'a'.repeat(40), indexTree: 'b'.repeat(40) },
     };
     const call = vi.fn(() => Promise.resolve('c'.repeat(40)));
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(port.commit('/repos/uno', request)).resolves.toBe('c'.repeat(40));
     expect(call).toHaveBeenCalledWith('git_commit', { id: '/repos/uno', request });
@@ -947,7 +1089,6 @@ describe('tauriGitPort', () => {
       Promise.resolve(undefined),
     );
     const port = createTauriGitPort(
-      createMockGitPort(),
       call,
       () => Promise.resolve('clone-channel'),
       (handler) => {
@@ -980,7 +1121,6 @@ describe('tauriGitPort', () => {
       command === 'git_watch_repository' ? starting : Promise.resolve(undefined),
     );
     const port = createTauriGitPort(
-      createMockGitPort(),
       call,
       () => Promise.resolve('clone-channel'),
       () => Promise.resolve('watch-channel'),
@@ -1016,7 +1156,7 @@ describe('tauriGitPort', () => {
     const call = vi.fn((command: string) =>
       Promise.resolve(command === 'git_read_undo_stack' ? stack : repository),
     );
-    const port = createTauriGitPort(createMockGitPort(), call);
+    const port = createTauriGitPort(call);
 
     await expect(port.readUndoStack('/repos/uno')).resolves.toEqual(stack);
     await expect(port.undo('/repos/uno')).resolves.toEqual(repository);
@@ -1041,7 +1181,7 @@ describe('tauriGitPort', () => {
       }
       return Promise.resolve(undefined);
     });
-    const port = createTauriGitPort(createMockGitPort(), call, (handler) => {
+    const port = createTauriGitPort(call, (handler) => {
       channelHandler = handler;
       return Promise.resolve('canal-red');
     });
@@ -1086,7 +1226,7 @@ describe('tauriGitPort', () => {
       }
       return Promise.resolve(undefined);
     });
-    const port = createTauriGitPort(createMockGitPort(), call, (handler) => {
+    const port = createTauriGitPort(call, (handler) => {
       channelHandler = handler;
       return Promise.resolve('canal-pull');
     });
@@ -1129,7 +1269,7 @@ describe('tauriGitPort', () => {
       }
       return Promise.resolve(undefined);
     });
-    const port = createTauriGitPort(createMockGitPort(), call, (handler) => {
+    const port = createTauriGitPort(call, (handler) => {
       channelHandler = handler;
       return Promise.resolve('canal-push');
     });
@@ -1175,7 +1315,7 @@ describe('tauriGitPort', () => {
       }
       return Promise.resolve(undefined);
     });
-    const port = createTauriGitPort(createMockGitPort(), call, (handler) => {
+    const port = createTauriGitPort(call, (handler) => {
       channelHandler = handler;
       return Promise.resolve('canal');
     });
@@ -1217,7 +1357,7 @@ describe('tauriGitPort', () => {
       output: 'refs.command\nexitCode=128',
       diagnostic,
     });
-    const port = createTauriGitPort(createMockGitPort(), () => Promise.reject(nativeError));
+    const port = createTauriGitPort(() => Promise.reject(nativeError));
     const error = await port.readRefs('/repo').catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(GitOperationError);
     expect(error).toMatchObject({

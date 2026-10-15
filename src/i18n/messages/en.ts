@@ -1,6 +1,10 @@
 import type { Messages } from './es-MX';
 
 export const en: Messages = {
+  'startup.failed': 'GitThul could not start',
+  'startup.desktopUnavailable':
+    'Could not connect to the desktop environment. Close GitThul and reopen the desktop application.',
+  'startup.retry': 'Close GitThul and reopen it. If the problem persists, check the installation.',
   'settings.profiles.saveError': 'Could not save the profile. Try again.',
   'settings.profiles.applyError': 'Could not apply the profile to the repository.',
   'access.title': 'Remote access',
@@ -1155,6 +1159,7 @@ export const en: Messages = {
   'undo.fetch': 'Fetch remote references',
   'undo.pull': 'Pull',
   'undo.remote': 'Change remote configuration',
+  'undo.upstream': 'Configure upstream',
   'undo.resolve': 'Resolve conflicts',
   'undo.quit': 'Leave integration staged',
   'undo.continue': 'Continue integration',
@@ -1176,6 +1181,7 @@ export const en: Messages = {
   'error.undo.snapshotUnavailable.cause':
     'Check permissions and free disk space. Full checkpoints do not support submodules or special files. Local change snapshots are limited to 64 MiB and regular files.',
   'undo.stage': 'Stage changes',
+  'undo.ignore': 'Ignore files',
   'undo.unstage': 'Unstage changes',
   'undo.discard': 'Discard changes',
   'undo.empty': 'No recoverable operations',

@@ -17,6 +17,9 @@ mod diff;
 mod encoding;
 mod files;
 mod history;
+mod ignore;
+#[cfg(test)]
+mod ignore_tests;
 mod integration;
 mod network;
 mod operation;
@@ -39,6 +42,8 @@ mod text_changes_tests;
 mod undo;
 mod undo_checkpoint;
 mod undo_local;
+#[cfg(test)]
+mod upstream_tests;
 mod watch;
 pub mod worktrees;
 mod write;
@@ -2892,6 +2897,87 @@ fn map_rename_branch_error(
 }
 
 #[tauri::command]
+pub async fn git_set_upstream(
+    id: String,
+    branch: String,
+    upstream: Option<String>,
+    locks: State<'_, GitWriteLocks>,
+) -> Result<refs::RefsSnapshot, GitCommandError> {
+    run_set_upstream(id, branch, upstream, locks.inner().clone()).await
+}
+
+async fn run_set_upstream(
+    id: String,
+    branch: String,
+    upstream: Option<String>,
+    locks: GitWriteLocks,
+) -> Result<refs::RefsSnapshot, GitCommandError> {
+    existing_repository(&id)?;
+    let repository_lock = locks.repository(&id);
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = repository_lock
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let repository = existing_repository(&id)?;
+        with_ref_checkpoint(&id, &repository, &locks.undo, "undo.upstream", || {
+            ref_write::set_upstream(&repository, &branch, upstream.as_deref())
+                .map_err(|error| map_set_upstream_error(error, &branch))?;
+            refs::read(&repository).map_err(|error| {
+                GitCommandError::new("unknown", json!({}))
+                    .with_diagnostic(refs_write_diagnostic(error))
+            })
+        })
+    })
+    .await
+    .map_err(|error| {
+        GitCommandError::internal("El cambio de upstream se interrumpió").with_diagnostic(
+            diagnostics::Diagnostic::task("git_set_upstream.task", &error),
+        )
+    })?
+}
+
+fn map_set_upstream_error(error: ref_write::WriteRefError, branch: &str) -> GitCommandError {
+    match error {
+        ref_write::WriteRefError::WithDiagnostic(error, diagnostic) => {
+            map_set_upstream_error(*error, branch).with_diagnostic(diagnostic)
+        }
+        ref_write::WriteRefError::InvalidBranchName => {
+            GitCommandError::new("create.invalidBranch", json!({ "branch": branch }))
+        }
+        ref_write::WriteRefError::Stale => {
+            GitCommandError::new("ref.stale", json!({ "ref": branch }))
+        }
+        ref_write::WriteRefError::RevisionNotFound(revision) => {
+            GitCommandError::new("history.startNotFound", json!({ "start": revision }))
+        }
+        ref_write::WriteRefError::GitFailed(output) => {
+            GitCommandError::git("unknown", json!({}), output)
+        }
+        ref_write::WriteRefError::Diagnostic(diagnostic) => {
+            GitCommandError::new("unknown", json!({})).with_diagnostic(diagnostic)
+        }
+        _ => GitCommandError::internal("Error inesperado al cambiar el upstream"),
+    }
+}
+
+#[tauri::command]
+pub async fn git_ignore_path(
+    id: String,
+    pattern: String,
+    options: ignore::IgnoreOptions,
+    locks: State<'_, GitWriteLocks>,
+) -> Result<status::WorkingStatus, GitCommandError> {
+    run_local_write(
+        id,
+        locks.inner().clone(),
+        "undo.ignore",
+        vec![".gitignore".to_owned()],
+        move |repository| ignore::ignore(repository, &pattern, &options),
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn git_stage(
     id: String,
     paths: Vec<String>,
@@ -3476,6 +3562,8 @@ where
             .unwrap_or_else(|error| error.into_inner());
         let paths = if label == "undo.discard" {
             write::recovery_paths(&path, &paths)?
+        } else if label == "undo.ignore" {
+            paths // Ignore writes .gitignore as well as the index when untracking.
         } else {
             Vec::new() // Stage/unstage write only the index.
         };
