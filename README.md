@@ -2,11 +2,73 @@
 
 # GitThul™
 
-**Cliente gráfico de Git multiplataforma, de código abierto y claro.**
+**A free, open-source graphical Git client.**
 
 Linux · Windows · macOS — MIT
 
+[Website](https://gitthul.com/en/) · [Download](https://gitthul.com/en/downloads/) ·
+[English](#english) · [Español](#qué-es)
+
 </div>
+
+## English
+
+GitThul brings your commit history, staging, conflict resolution and terminal into one desktop
+application. Review changes, choose the files or lines to include in each commit, and work with
+your repositories from the graph or the terminal.
+
+### History and staging
+
+[![GitThul showing branches, commit history, changed files and staging](docs/assets/product-graph-1.1.2-en.jpg)](docs/assets/product-graph-1.1.2-en.jpg)
+
+Screenshots were captured in the GitThul 1.1.2 development preview, using demonstration repositories
+and simulated terminal output. The interface is in English; sample repository content is in Spanish.
+
+### What you can do
+
+- **Review and commit:** browse branches and history, inspect diffs, stage selected files or lines,
+  and amend the last commit.
+- **Manage ignored files:** add ignore rules from the file menu, or ignore and untrack files while
+  keeping their local copies.
+- **Resolve conflicts:** compare both versions and edit the result in a three-panel view.
+- **Keep your terminal close:** use terminal tabs and split panels alongside the repository graph.
+- **Organize your work:** group repositories in Spaces and create or open worktrees.
+- **Recover supported local operations:** Undo and Redo cover recoverable operations from the current
+  session. See [how recovery works](#deshacer-y-rehacer) for its scope and limits.
+
+The current release is **1.1.3**. The application does not send usage statistics. Network connections
+are made for actions you request, such as clone, fetch, pull and push, and for startup update checks
+if you enable them; startup checks are off by default.
+
+### Download and get started
+
+1. [Choose the installer for your system](https://gitthul.com/en/downloads/).
+2. Make sure Git is installed and available on your computer. Check the
+   [installation guide and dependencies](docs/instalacion.md).
+3. Open or clone a repository, review its changes and choose what belongs in your next commit.
+
+[Release notes for 1.1.3](docs/releases/1.1.3.md) · [User guides](docs/README.md) ·
+[Report a problem](https://github.com/wormius/gitthul/issues)
+
+The linked user guides and detailed product description below are currently in Spanish.
+Dedicated controls for submodules, Git LFS, commit signing, bisect and blame are still pending.
+
+<details>
+<summary>More screenshots · Más capturas</summary>
+
+### Conflict resolution · Resolución de conflictos
+
+Compare both versions and edit the combined result.
+
+[![GitThul conflict resolver with both versions above and the combined result below](docs/assets/product-resolver-1.1.2-en.jpg)](docs/assets/product-resolver-1.1.2-en.jpg)
+
+### Integrated terminal · Terminal integrada
+
+Terminal panels and the repository graph in the same view.
+
+[![GitThul with two terminal panels on the left and the repository graph on the right](docs/assets/product-terminal-1.1.2-en.jpg)](docs/assets/product-terminal-1.1.2-en.jpg)
+
+</details>
 
 ## Qué es
 
@@ -14,7 +76,10 @@ GitThul es una aplicación de escritorio que vuelve visibles el estado y las ope
 Git. Combina una experiencia gráfica completa con una terminal integrada, de modo que tanto el
 trabajo cotidiano como las operaciones complejas pueden realizarse sin perder contexto.
 
-La versión actual es **1.1.2**. No incluye telemetría ni una función de IA. Las conexiones de red
+[Sitio web](https://gitthul.com/es/) · [Descargar GitThul](https://gitthul.com/es/downloads/) ·
+[Guías de uso](docs/README.md)
+
+La versión actual es **1.1.3**. No incluye telemetría ni una función de IA. Las conexiones de red
 ocurren por acciones del usuario, como clonar, fetch, pull, push o abrir un enlace confirmado,
 y por la consulta de versiones al iniciar si activas esa opción, desactivada por defecto.
 
@@ -82,7 +147,7 @@ para conocer su alcance y las condiciones necesarias para una copia completa.
 ## Instalación y ayuda
 
 Los paquetes publicados están en [GitHub Releases](https://github.com/wormius/gitthul/releases).
-Consulta las [notas de 1.1.2](docs/releases/1.1.2.md) y la
+Consulta las [notas de 1.1.3](docs/releases/1.1.3.md) y la
 [guía de instalación](docs/instalacion.md) para elegir el paquete de tu sistema.
 Revisa las [dependencias](docs/instalacion.md#dependencias), incluido Git instalado
 y disponible en el sistema.
@@ -110,8 +175,7 @@ GitThul ofrece un enlace para descargarla e instalarla fuera de la aplicación.
 
 ## Marca
 
-GitThul™ y su logotipo se utilizan como marcas no registradas del proyecto. El símbolo ™
-identifica ese uso de marca; no afirma que exista un registro.
+GitThul™ y su logotipo son marcas del proyecto GitThul.
 
 La licencia MIT no concede derechos de marca. El uso del nombre o del logotipo no debe sugerir
 que una versión derivada es oficial, está afiliada al proyecto o cuenta con su respaldo sin
