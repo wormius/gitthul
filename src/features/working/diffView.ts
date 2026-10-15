@@ -10,7 +10,7 @@
  */
 
 import { shortSha } from '@core/domain/commit';
-import type { DiffLine, DiffSource, Hunk, WordSpan } from '@core/domain/diff';
+import type { DiffLine, DiffSource, Hunk, TextChanges, WordSpan } from '@core/domain/diff';
 import type { LineRef } from '@core/ports/GitPort';
 import type { CodeLineMark, CodeWordMark } from '@ui/codeSurfaceUtils';
 import type { MarkerTone, ScrollMarker } from '@ui/markerScrollbarUtils';
@@ -63,6 +63,8 @@ export interface DiffRow {
   oldLine: number | null;
   newLine: number | null;
   words: readonly WordSpan[];
+  /** La fila vacía del editor tras un salto final no es una línea de un parche Git. */
+  displayOnly?: boolean;
 }
 
 /**
@@ -123,13 +125,36 @@ export function hunkRows(hunk: Hunk): readonly DiffRow[] {
 }
 
 /** Un bloque por hunk: lo que se enseña con «solo los hunks». */
-export function hunkBlocks(hunks: readonly Hunk[]): readonly DiffBlock[] {
+export function hunkBlocks(
+  hunks: readonly Hunk[],
+  finalNewline?: TextChanges['finalNewline'],
+): readonly DiffBlock[] {
   return hunks.map((hunk, index) => ({
     key: hunk.id,
     hunk,
     number: index + 1,
-    rows: hunkRows(hunk),
+    rows: [
+      ...hunkRows(hunk),
+      ...(finalNewline && index === hunks.length - 1
+        ? [finalLineRow(hunk.oldStart + hunk.oldLines, hunk.newStart + hunk.newLines, finalNewline)]
+        : []),
+    ],
   }));
+}
+
+function finalLineRow(
+  oldLine: number,
+  newLine: number,
+  presence: NonNullable<TextChanges['finalNewline']>,
+): DiffRow {
+  return {
+    kind: presence.after ? 'added' : 'removed',
+    text: '',
+    oldLine: presence.before ? oldLine : null,
+    newLine: presence.after ? newLine : null,
+    words: [],
+    displayOnly: true,
+  };
 }
 
 /**
@@ -186,17 +211,23 @@ export function workingRows(blocks: readonly DiffBlock[]): readonly DiffRow[] {
 export function fileBlocks(
   fileLines: readonly string[],
   hunks: readonly Hunk[],
+  finalNewline?: TextChanges['finalNewline'],
 ): readonly DiffBlock[] {
   const blocks: DiffBlock[] = [];
 
-  walkFile(fileLines, hunks, {
-    context: (from, rows) => {
-      blocks.push({ key: `context-${String(from)}`, hunk: null, number: 0, rows });
+  walkFile(
+    fileLines,
+    hunks,
+    {
+      context: (from, rows) => {
+        blocks.push({ key: `context-${String(from)}`, hunk: null, number: 0, rows });
+      },
+      hunk: (hunk, number, rows) => {
+        blocks.push({ key: hunk.id, hunk, number, rows });
+      },
     },
-    hunk: (hunk, number, rows) => {
-      blocks.push({ key: hunk.id, hunk, number, rows });
-    },
-  });
+    finalNewline,
+  );
 
   return blocks;
 }
@@ -210,13 +241,22 @@ export function fileBlocks(
  * tramo la selección no puede cruzar de un tramo al siguiente, porque cada
  * editor tiene la suya y ninguno se entera de los demás.
  */
-export function fileRows(fileLines: readonly string[], hunks: readonly Hunk[]): readonly DiffRow[] {
+export function fileRows(
+  fileLines: readonly string[],
+  hunks: readonly Hunk[],
+  finalNewline?: TextChanges['finalNewline'],
+): readonly DiffRow[] {
   const rows: DiffRow[] = [];
 
-  walkFile(fileLines, hunks, {
-    context: (_from, block) => rows.push(...block),
-    hunk: (_hunk, _number, block) => rows.push(...block),
-  });
+  walkFile(
+    fileLines,
+    hunks,
+    {
+      context: (_from, block) => rows.push(...block),
+      hunk: (_hunk, _number, block) => rows.push(...block),
+    },
+    finalNewline,
+  );
 
   return rows;
 }
@@ -237,6 +277,7 @@ function walkFile(
     context: (from: number, rows: readonly DiffRow[]) => void;
     hunk: (hunk: Hunk, number: number, rows: readonly DiffRow[]) => void;
   },
+  finalNewline?: TextChanges['finalNewline'],
 ): void {
   const ordered = [...hunks].sort((a, b) => a.newStart - b.newStart);
 
@@ -274,7 +315,16 @@ function walkFile(
     delta = hunk.oldStart + hunk.oldLines - cursor;
   }
 
-  context(cursor, fileLines.length);
+  // split('\n') ya incluye la fila vacía nueva; el parche Git no la cuenta.
+  // Se rotula solo en el lado cuyo texto realmente termina con un salto.
+  const realLines =
+    fileLines.length - Number(finalNewline?.after === true && fileLines.at(-1) === '');
+  context(cursor, realLines);
+  if (finalNewline) {
+    visit.context(realLines + 1, [
+      finalLineRow(realLines + delta + 1, realLines + 1, finalNewline),
+    ]);
+  }
 }
 
 /**
@@ -420,8 +470,9 @@ export function stageableLines(
 
   for (let index = low; index <= high; index += 1) {
     const row = rows[index - 1];
-    if (!row || (row.kind !== 'added' && row.kind !== 'removed')) continue;
+    if (!row || row.displayOnly || (row.kind !== 'added' && row.kind !== 'removed')) continue;
     for (const selected of [counterpart?.[index - 1], row]) {
+      if (selected?.displayOnly) continue;
       if (selected?.kind === 'added' && selected.newLine !== null) {
         lines.push({ side: 'new', line: selected.newLine });
       }

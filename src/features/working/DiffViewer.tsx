@@ -208,7 +208,12 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
     async (query: GitQuery): Promise<DiffData> => {
       const file = await git.readDiff(repoId, { path, source, ignoreWhitespace, encoding }, query);
 
-      if (!wholeFile || file.content.kind === 'binary') return { file, contents: null };
+      const needsFinalLine =
+        file.content.kind === 'text' &&
+        file.content.hunks.length === 0 &&
+        file.content.textChanges?.finalNewline !== undefined;
+      if ((!wholeFile && !needsFinalLine) || file.content.kind === 'binary')
+        return { file, contents: null };
 
       const oneSided = oneSidedContents(file);
       if (oneSided !== null) return { file, contents: oneSided };
@@ -344,30 +349,120 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
       )}
 
       {data.status === 'ready' && (
-        <DiffBody
-          data={data.data}
-          options={options}
-          path={path}
-          source={source}
-          encoding={
-            data.data.file.content.kind === 'text' ? data.data.file.content.encoding : encoding
-          }
-          direction={
-            data.data.file.content.kind === 'text' &&
-            data.data.file.content.supportsPartial === false
-              ? null
-              : stageDirectionOf(source)
-          }
-          tone={diffMarkerTone}
-          selection={selection}
-          onSelection={setSelection}
-          viewport={viewport}
-          onViewport={setViewport}
-          scrollRef={scrollRef}
-          actions={actions}
-        />
+        <>
+          <DiffMetadata file={data.data.file} />
+          <DiffBody
+            data={data.data}
+            options={options}
+            path={path}
+            source={source}
+            encoding={
+              data.data.file.content.kind === 'text' ? data.data.file.content.encoding : encoding
+            }
+            direction={
+              data.data.file.content.kind === 'text' &&
+              data.data.file.content.supportsPartial === false
+                ? null
+                : stageDirectionOf(source)
+            }
+            tone={diffMarkerTone}
+            selection={selection}
+            onSelection={setSelection}
+            viewport={viewport}
+            onViewport={setViewport}
+            scrollRef={scrollRef}
+            actions={actions}
+          />
+        </>
       )}
     </section>
+  );
+}
+
+/** Explain changes whose bytes or mode differ while their visible text matches. */
+function DiffMetadata({ file }: { file: FileDiff }) {
+  const { t } = useI18n();
+  const { before, after } = file.precondition;
+  const messages: string[] = [];
+  if (before !== null && after !== null && before.mode !== after.mode) {
+    const key =
+      before.mode === '100644' && after.mode === '100755'
+        ? 'working.diff.mode.executableAdded'
+        : before.mode === '100755' && after.mode === '100644'
+          ? 'working.diff.mode.executableRemoved'
+          : 'working.diff.mode.changed';
+    messages.push(t(key, { before: before.mode, after: after.mode }));
+  }
+  if (file.previousPath && (file.change === 'renamed' || file.change === 'copied')) {
+    const identical = before !== null && after !== null && before.oid === after.oid;
+    const key =
+      file.change === 'renamed'
+        ? identical
+          ? 'working.diff.rename.identical'
+          : 'working.diff.rename.changed'
+        : identical
+          ? 'working.diff.copy.identical'
+          : 'working.diff.copy.changed';
+    messages.push(t(key, { before: file.previousPath, after: file.path }));
+  }
+  const endings = file.content.kind === 'text' ? file.content.lineEndingChange : undefined;
+  const endingLabel = (value: 'lf' | 'crlf' | 'mixed') =>
+    value === 'mixed' ? t('working.diff.lineEndings.mixed') : value.toUpperCase();
+  if (endings)
+    messages.push(
+      t('working.diff.lineEndings.changed', {
+        before: endingLabel(endings.before),
+        after: endingLabel(endings.after),
+      }),
+    );
+  const changes = file.content.kind === 'text' ? file.content.textChanges : undefined;
+  if (changes?.encoding)
+    messages.push(
+      t('working.diff.encoding.changed', {
+        before: changes.encoding.before.toUpperCase(),
+        after: changes.encoding.after.toUpperCase(),
+      }),
+    );
+  if (changes?.bom)
+    messages.push(
+      t('working.diff.bom.changed', {
+        before: changes.bom.before?.toUpperCase() ?? t('working.diff.bom.none'),
+        after: changes.bom.after?.toUpperCase() ?? t('working.diff.bom.none'),
+      }),
+    );
+  if (changes?.unicodeNormalization)
+    messages.push(
+      t('working.diff.unicode.normalization', {
+        before:
+          changes.unicodeNormalization.before === 'mixed'
+            ? t('working.diff.unicode.mixed')
+            : changes.unicodeNormalization.before,
+        after:
+          changes.unicodeNormalization.after === 'mixed'
+            ? t('working.diff.unicode.mixed')
+            : changes.unicodeNormalization.after,
+      }),
+    );
+  if (changes?.invisibleCharacters?.length)
+    messages.push(
+      t('working.diff.unicode.invisible', {
+        characters: changes.invisibleCharacters
+          .map(
+            (character) =>
+              `${character.codePoint} (${String(character.before)} → ${String(character.after)})`,
+          )
+          .join(', '),
+      }),
+    );
+  if (messages.length === 0) return null;
+  return (
+    <div className={styles.metadataList}>
+      {messages.map((message) => (
+        <p key={message} className={styles.metadata} role="status">
+          {message}
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -418,13 +513,17 @@ function DiffBody({
   );
 
   const hunks = file.content.kind === 'text' ? file.content.hunks : NO_HUNKS;
+  const finalNewline =
+    file.content.kind === 'text' && !file.content.truncated
+      ? file.content.textChanges?.finalNewline
+      : undefined;
   const fileLines = useMemo(() => (contents?.text ?? '').split('\n'), [contents]);
   // Para un borrado `oneSidedContents` reconstruye la versión anterior, que se
   // necesita en el modo Archivo. El diff debe recorrer una versión nueva vacía;
   // usar aquí la anterior repetía todo el texto como contexto sin sombrear.
   const diffFileLines = file.change === 'deleted' ? NO_FILE_LINES : fileLines;
 
-  const whole = options.scope === 'file';
+  const whole = options.scope === 'file' || (hunks.length === 0 && finalNewline !== undefined);
   const splitOwnsScroll =
     whole &&
     options.columns === 'split' &&
@@ -433,8 +532,9 @@ function DiffBody({
     file.change !== 'deleted';
 
   const blocks = useMemo(
-    () => (whole ? fileBlocks(diffFileLines, hunks) : hunkBlocks(hunks)),
-    [diffFileLines, hunks, whole],
+    () =>
+      whole ? fileBlocks(diffFileLines, hunks, finalNewline) : hunkBlocks(hunks, finalNewline),
+    [diffFileLines, finalNewline, hunks, whole],
   );
 
   /*
@@ -448,8 +548,10 @@ function DiffBody({
    */
   const continuous = useMemo<DiffBlock | null>(
     () =>
-      whole ? { key: 'file', hunk: null, number: 0, rows: fileRows(diffFileLines, hunks) } : null,
-    [diffFileLines, hunks, whole],
+      whole
+        ? { key: 'file', hunk: null, number: 0, rows: fileRows(diffFileLines, hunks, finalNewline) }
+        : null,
+    [diffFileLines, finalNewline, hunks, whole],
   );
 
   // Un commit de merge puede producir decenas de hunks por archivo. Montar un

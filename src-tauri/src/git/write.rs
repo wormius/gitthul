@@ -1469,6 +1469,86 @@ mod tests {
     }
 
     #[test]
+    fn stages_only_the_selected_line_ending_conversion() {
+        let temporary = repository();
+        let root = temporary.path();
+        commit_file(root, ".gitattributes", "*.bat -text\n");
+        commit_file(root, "gradlew.bat", "@echo off\r\ncall java\r\n");
+        fs::write(root.join("gradlew.bat"), b"@echo off\ncall java\n").unwrap();
+        let mut request = partial(root, "gradlew.bat", DiffSource::Worktree);
+        request.lines = vec![
+            LineRef {
+                side: LineSide::Old,
+                line: 1,
+            },
+            LineRef {
+                side: LineSide::New,
+                line: 1,
+            },
+        ];
+        stage_partial(root, request).unwrap();
+        assert_eq!(
+            output(root, &["show", ":gradlew.bat"]),
+            "@echo off\ncall java\r\n"
+        );
+        assert_eq!(
+            fs::read(root.join("gradlew.bat")).unwrap(),
+            b"@echo off\ncall java\n"
+        );
+        let staged = output(root, &["diff", "--cached", "--", "gradlew.bat"]);
+        let unstaged = output(root, &["diff", "--", "gradlew.bat"]);
+        assert!(staged.contains("-@echo off\r\n+@echo off\n"));
+        assert!(unstaged.contains("-call java\r\n+call java\n"));
+    }
+
+    #[test]
+    fn invisible_notices_do_not_normalize_partial_staging_bytes() {
+        for (before, after) in [
+            ("total = 12\n", "total = 12 \t\n"),
+            ("    total = 12\n", "\ttotal = 12\n"),
+            ("same\n", "same"),
+            ("same\n", "\u{feff}same\n"),
+            ("café\n", "cafe\u{301}\n"),
+            ("same text\n", "same\u{200b} text\n"),
+        ] {
+            let temporary = repository();
+            let root = temporary.path();
+            commit_file(root, "invisible.txt", before);
+            fs::write(root.join("invisible.txt"), after.as_bytes()).unwrap();
+            let file = diff::current(
+                root,
+                "invisible.txt".to_owned(),
+                DiffSource::Worktree,
+                false,
+            )
+            .unwrap();
+            let DiffContent::Text { hunks, .. } = file.content else {
+                panic!("expected text");
+            };
+            let mut request = partial(root, "invisible.txt", DiffSource::Worktree);
+            request.hunk_ids = hunks.into_iter().map(|hunk| hunk.id).collect();
+            stage_partial(root, request).unwrap();
+            assert_eq!(
+                output(root, &["show", ":invisible.txt"]).as_bytes(),
+                after.as_bytes()
+            );
+            assert!(output(root, &["diff", "--", "invisible.txt"]).is_empty());
+            assert!(!output(root, &["diff", "--cached", "--", "invisible.txt"]).is_empty());
+            unstage(root, &["invisible.txt".to_owned()]).unwrap();
+            assert_eq!(
+                output(root, &["show", ":invisible.txt"]).as_bytes(),
+                before.as_bytes()
+            );
+            assert_eq!(
+                fs::read(root.join("invisible.txt")).unwrap(),
+                after.as_bytes()
+            );
+            assert!(output(root, &["diff", "--cached", "--", "invisible.txt"]).is_empty());
+            assert!(!output(root, &["diff", "--", "invisible.txt"]).is_empty());
+        }
+    }
+
+    #[test]
     fn conserva_la_ausencia_de_newline_final() {
         let temporary = repository();
         commit_file(temporary.path(), "sin-final.txt", "uno\ndos");

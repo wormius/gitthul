@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isMerge, type Commit } from '@core/domain/commit';
 import { GitOperationError, isCancelled, isGitOperationError } from '@core/domain/errors';
 import type { TransferProgress } from '@core/domain/repository';
+import type { FileDiff } from '@core/domain/diff';
 import {
   CONFLICT_TEXT_LIMIT,
   exceedsConflictLimit,
@@ -23,6 +24,42 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+it('preserva los metadatos de cambios invisibles en fixtures explícitos', async () => {
+  const fixture: FileDiff = {
+    path: 'unicode.txt',
+    source: { kind: 'worktree' },
+    change: 'modified',
+    precondition: { before: { oid: 'a', mode: '100644' }, after: { oid: 'b', mode: '100644' } },
+    content: {
+      kind: 'text',
+      hunks: [],
+      truncated: false,
+      encoding: 'utf-8',
+      textChanges: {
+        unicodeNormalization: { before: 'NFC', after: 'NFD' },
+        invisibleCharacters: [{ codePoint: 'U+200B', before: 0, after: 1 }],
+      },
+    },
+  };
+  const port = createMockGitPort({ latency: NO_LATENCY, diffFixtures: [fixture] });
+  await expect(
+    port.readDiff('gitthul', { path: fixture.path, source: fixture.source }),
+  ).resolves.toEqual(fixture);
+  const encoded = await port.readDiff('gitthul', {
+    path: fixture.path,
+    source: fixture.source,
+    encoding: 'windows-1252',
+  });
+  expect(encoded.content.kind === 'text' && encoded.content.textChanges).toEqual(
+    fixture.content.kind === 'text' && fixture.content.textChanges,
+  );
+  const other = await port.readDiff('gitthul', { path: fixture.path, source: { kind: 'index' } });
+  expect(other).not.toEqual(fixture);
+  await expect(
+    port.readDiff('missing', { path: fixture.path, source: fixture.source }),
+  ).rejects.toBeInstanceOf(GitOperationError);
 });
 
 describe('repositorios', () => {

@@ -33,6 +33,9 @@ mod reset;
 mod resolve;
 mod stash;
 mod status;
+mod text_changes;
+#[cfg(test)]
+mod text_changes_tests;
 mod undo;
 mod undo_checkpoint;
 mod undo_local;

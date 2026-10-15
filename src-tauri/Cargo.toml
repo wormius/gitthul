@@ -1,6 +1,6 @@
 [package]
 name = "gitthul"
-version = "1.1.1"
+version = "1.1.2"
 description = "Cliente gráfico de Git multiplataforma, de código abierto y claro."
 authors = ["GitThul"]
 license = "MIT"
@@ -18,6 +18,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 encoding_rs = "=0.8.35"
 chardetng = "=0.1.17"
+unicode-normalization = "=0.1.25"
 getrandom = "=0.2.17"
 sha2 = "=0.10.9"
 flate2 = "=1.1.9"

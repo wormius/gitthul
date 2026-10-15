@@ -73,7 +73,31 @@ pub fn read_file_encoded(
         let object = format!("{revision}:{path}");
         git(repository, &["cat-file", "blob", &object])?.stdout
     } else {
-        fs::read(repository.join(&path)).map_err(|error| {
+        let absolute = repository.join(&path);
+        let read = || -> std::io::Result<Vec<u8>> {
+            if fs::symlink_metadata(&absolute)?.file_type().is_symlink() {
+                let target = fs::read_link(&absolute)?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::ffi::OsStrExt;
+                    return Ok(target.as_os_str().as_bytes().to_vec());
+                }
+                #[cfg(not(unix))]
+                {
+                    return target
+                        .to_str()
+                        .map(|text| text.as_bytes().to_vec())
+                        .ok_or_else(|| {
+                            std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "Symlink target is not UTF-8",
+                            )
+                        });
+                }
+            }
+            fs::read(&absolute)
+        };
+        read().map_err(|error| {
             let diagnostic = Diagnostic::io("file.readWorktree", &error);
             if error.kind() == std::io::ErrorKind::NotFound {
                 ReadFileError::WithDiagnostic(Box::new(ReadFileError::PathNotFound), diagnostic)
@@ -336,6 +360,30 @@ mod tests {
         git_ok(path, &["add", "--all"]);
         git_ok(path, &["commit", "--quiet", "-m", message]);
         git_ok(path, &["rev-parse", "HEAD"])
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_file_view_reads_the_link_identity_instead_of_its_target() {
+        use std::os::unix::fs::symlink;
+        let temporary = repository();
+        let root = temporary.path();
+        fs::write(root.join("target.txt"), "different destination contents\n").unwrap();
+        symlink("target.txt", root.join("link.txt")).unwrap();
+        let head = commit(root, "link");
+        for revision in [None, Some(head.as_str())] {
+            let contents = read_file(root, "link.txt".to_owned(), revision).unwrap();
+            assert_eq!(contents.text.as_deref(), Some("target.txt"));
+            assert_eq!(contents.size, "target.txt".len());
+        }
+        fs::remove_file(root.join("target.txt")).unwrap();
+        assert_eq!(
+            read_file(root, "link.txt".to_owned(), None)
+                .unwrap()
+                .text
+                .as_deref(),
+            Some("target.txt")
+        );
     }
 
     #[test]

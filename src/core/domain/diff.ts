@@ -44,6 +44,22 @@ export interface TextDiff {
   detectedEncoding?: string;
   decodingErrors?: boolean;
   supportsPartial?: boolean;
+  /** Text matches after normalizing CRLF to LF; Git still sees different blobs. */
+  lineEndingChange?: {
+    before: 'lf' | 'crlf' | 'mixed';
+    after: 'lf' | 'crlf' | 'mixed';
+  };
+  /** Explanations from the two original sides; patches retain their original bytes. */
+  textChanges?: TextChanges;
+}
+
+export interface TextChanges {
+  encoding?: { before: string; after: string };
+  bom?: { before: string | null; after: string | null };
+  finalNewline?: { before: boolean; after: boolean };
+  whitespace?: 'trailing' | 'indentation' | 'spacesAndTabs';
+  unicodeNormalization?: { before: 'NFC' | 'NFD' | 'mixed'; after: 'NFC' | 'NFD' | 'mixed' };
+  invisibleCharacters?: readonly { codePoint: string; before: number; after: number }[];
 }
 
 /**

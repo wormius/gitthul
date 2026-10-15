@@ -29,6 +29,26 @@
   overflow-y: auto;
 }
 
+.metadataList {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 40%;
+  overflow-y: auto;
+}
+
+.metadata {
+  flex: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border-warning);
+  border-inline-start: 3px solid var(--text-warning);
+  background-color: var(--surface-warning);
+  color: var(--text-warning);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
 /* El cuerpo aloja la barra de marcas, que se coloca fuera del flujo sobre su
    borde derecho; por eso está posicionado y por eso el scroll es de dentro. */
 .body {

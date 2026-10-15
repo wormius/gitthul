@@ -72,6 +72,8 @@ export interface MockGitPortOptions {
   latency?: LatencyRange;
   /** Fixture explícito para un choque al reaplicar WIP después del cambio de rama. */
   autoStashConflicts?: readonly string[];
+  /** Explicit read fixtures, keyed by path and source, for metadata previews. */
+  diffFixtures?: readonly FileDiff[];
 }
 
 /** Las operaciones a las que se les puede encargar un fallo. */
@@ -541,7 +543,14 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
     readDiff: async (id, request, query) => {
       await settle(query);
 
-      const file = diffOf(find(id), request);
+      const repo = find(id);
+      const file =
+        options.diffFixtures?.find(
+          (fixture) =>
+            fixture.path === request.path &&
+            fixture.source.kind === request.source.kind &&
+            sourceKey(fixture.source) === sourceKey(request.source),
+        ) ?? diffOf(repo, request);
       if (!request.encoding || request.encoding === 'auto' || file.content.kind !== 'text')
         return file;
       let decodingErrors = false;

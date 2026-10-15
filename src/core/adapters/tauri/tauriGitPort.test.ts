@@ -685,7 +685,21 @@ describe('tauriGitPort', () => {
         before: { oid: 'a'.repeat(40), mode: '100644' },
         after: { oid: 'b'.repeat(40), mode: '100644' },
       },
-      content: { kind: 'text', hunks: [], truncated: false, encoding: 'utf-8' },
+      content: {
+        kind: 'text',
+        hunks: [],
+        truncated: false,
+        encoding: 'utf-8',
+        lineEndingChange: { before: 'crlf', after: 'lf' },
+        textChanges: {
+          finalNewline: { before: false, after: true },
+          bom: { before: null, after: 'utf-8' },
+          encoding: { before: 'utf-8', after: 'utf-16le' },
+          whitespace: 'trailing',
+          unicodeNormalization: { before: 'NFC', after: 'NFD' },
+          invisibleCharacters: [{ codePoint: 'U+200B', before: 0, after: 1 }],
+        },
+      },
     };
     const call = vi.fn((_command: string, _args?: Record<string, unknown>) =>
       Promise.resolve(nativeDiff),

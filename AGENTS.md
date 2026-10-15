@@ -109,6 +109,25 @@ para las rutas sin seguimiento. El visor de archivo lee el blob que resolvió el
 también para archivos truncados; no buscar esos archivos en disco ni en el árbol
 rastreado del stash. DiffSource.commit conserva la comparación contra el primer padre.
 
+TextDiff.lineEndingChange explica CRLF/LF cuando los textos decodificados coinciden
+al normalizar sus finales y Git registra blobs distintos. No normalizar los hunks
+ni sus bytes de escritura; omitir el aviso si Git ya normaliza la conversión o
+hay errores de decodificación. Los cambios de modo también deben verse sin hunks.
+TextDiff.textChanges conserva datos de espacios y salto final, y avisos de BOM/codificación
+detectada, normalización canónica NFC/NFD y caracteres invisibles con sus puntos
+de código. Analizar solo blobs distintos y decodificaciones sin errores; no usar
+NFKC ni equiparar ediciones semánticas. Los avisos no añaden afirmaciones de contenido
+idéntico o equivalente. Los renombrados/copias muestran ambas rutas e indican si
+también cambió el contenido según los OIDs. La lista de
+avisos tiene desplazamiento propio para conservar visible el editor.
+No mostrar avisos de espacios/tabuladores ni salto final: CodeSurface superpone
+␣ a los espacios y una flecha del ancho nativo a los tabuladores dentro de los
+tramos por palabra cambiados, sin sustituir el documento ni el texto copiado.
+El salto final se representa con una fila vacía numerada solo en el lado que
+lo tiene; las filas displayOnly no son referencias de línea Git para Stage.
+La vista completa de un enlace simbólico muestra los bytes de su destino textual,
+igual que el blob Git; no seguir el enlace para leer el contenido del archivo destino.
+
 Las pruebas de escritura usan repositorios descartables. No experimentar con
 reset, limpieza o recuperación destructiva sobre repositorios del usuario.
 
