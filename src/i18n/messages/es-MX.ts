@@ -11,6 +11,11 @@
  *   parámetros `{repo}`, `{branch}`, `{tab}` — nunca «aquí» ni «esta rama».
  */
 export const esMX = {
+  'startup.failed': 'GitThul no pudo iniciar',
+  'startup.desktopUnavailable':
+    'No se pudo conectar con el entorno de escritorio. Cierra GitThul y vuelve a abrir la aplicación de escritorio.',
+  'startup.retry':
+    'Cierra GitThul y vuelve a abrirlo. Si el problema continúa, revisa la instalación.',
   'settings.profiles.saveError': 'No se pudo guardar el perfil. Intenta de nuevo.',
   'settings.profiles.applyError': 'No se pudo aplicar el perfil al repositorio.',
   'access.title': 'Acceso al remoto',
@@ -1197,6 +1202,7 @@ export const esMX = {
   'undo.fetch': 'Hacer fetch',
   'undo.pull': 'Hacer pull',
   'undo.remote': 'Modificar la configuración de remotos',
+  'undo.upstream': 'Configurar upstream',
   'undo.resolve': 'Resolver conflictos',
   'undo.quit': 'Dejar los cambios de la integración en el staging',
   'undo.continue': 'Continuar la integración',
@@ -1219,6 +1225,7 @@ export const esMX = {
   'error.undo.snapshotUnavailable.cause':
     'Comprueba los permisos y el espacio libre. Las copias completas no admiten submódulos ni archivos especiales. Las copias locales de cambios están limitadas a 64 MiB y archivos normales.',
   'undo.stage': 'Agregar cambios al staging',
+  'undo.ignore': 'Ignorar archivos',
   'undo.unstage': 'Quitar cambios del staging',
   'undo.discard': 'Descartar cambios',
   'undo.empty': 'No hay operaciones recuperables',

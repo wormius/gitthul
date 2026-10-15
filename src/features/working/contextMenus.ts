@@ -88,7 +88,7 @@ export interface WorkingMenuActions {
   previewIntegration: (kind: 'merge' | 'rebase', source: string, target: string) => void;
   /** Comparar dos extremos —ramas, tags o commits— en el panel derecho. */
   compare: (source: CompareSide, target: CompareSide) => void;
-  ignorePath: (pattern: string, untrack: boolean) => void;
+  ignorePath: (pattern: string, untrack: boolean, patternKind?: 'path' | 'extension') => void;
   viewFileHistory: (path: string, at?: Sha) => void;
   /** Abre el visor de diff sobre un archivo, con el origen que toque — CU-5. */
   openDiff: (path: string, source: DiffSource) => void;
@@ -784,7 +784,7 @@ function ignoreItems(
       key: 'extension',
       label: t('working.menu.file.ignoreExtension', { pattern: extension }),
       onSelect: () => {
-        actions.ignorePath(extension, untrack);
+        actions.ignorePath(extension, untrack, 'extension');
       },
     });
   }

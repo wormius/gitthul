@@ -77,8 +77,8 @@ export interface MockRepo {
     target: Sha;
     before: MockRepo;
   };
-  /** Los patrones que ya están en `.gitignore`: repetir uno no escribe nada. */
-  ignored: readonly string[];
+  /** Patrones por alcance: repetir uno del mismo tipo no escribe nada. */
+  ignored: readonly { pattern: string; kind: 'path' | 'extension' }[];
   staging: ReadonlyMap<string, StagedPart>;
   /**
    * El texto con el que se resolvió cada conflicto.

@@ -16,8 +16,7 @@ import type { SettingsPort } from '@core/ports/SettingsPort';
  * paneles. Un archivo de texto en la carpeta de siempre se puede además copiar,
  * versionar y editar a mano.
  *
- * El módulo de Tauri entra con `import()` dentro de cada llamada, como en los
- * demás adaptadores: el paquete del navegador de desarrollo no lo incluye.
+ * El módulo de Tauri se carga al invocarlo, como en los demás adaptadores.
  */
 async function invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke: call } = await import('@tauri-apps/api/core');
@@ -27,7 +26,10 @@ async function invoke<T>(command: string, args?: Record<string, unknown>): Promi
 
 type SettingsCall = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
-export function createTauriSettingsPort(call: SettingsCall = invoke): SettingsPort {
+export function createTauriSettingsPort(
+  onReadError: (error: unknown) => void,
+  call: SettingsCall = invoke,
+): SettingsPort {
   let current: Settings | null = null;
   // `settings_write` reemplaza el archivo entero. Dos parches disparados muy
   // cerca (por ejemplo renombrar WIP y plegar un panel) no pueden escribir en
@@ -39,15 +41,18 @@ export function createTauriSettingsPort(call: SettingsCall = invoke): SettingsPo
     try {
       const saved = await call('settings_read');
       current ??= normalizeSettings(saved);
-    } catch {
+    } catch (error) {
       // Conserva una base editable si el archivo no se puede leer. No volver a
       // cargar el mismo archivo fallido en cada parche: la persona necesita
       // poder guardar ajustes válidos. La recuperación nativa mantiene su aviso
-      // y la depuración suspendida hasta que esa escritura se confirme.
+      // y la depuración y los respaldos suspendidos hasta que esa escritura se
+      // confirme. El observador conserva el fallo original en el diagnóstico.
       current ??= normalizeSettings({
         ...DEFAULT_SETTINGS,
         recovery: { ...DEFAULT_SETTINGS.recovery, autoCleanup: false },
+        backup: { ...DEFAULT_SETTINGS.backup, enabled: false },
       });
+      onReadError(error);
     }
 
     return current;

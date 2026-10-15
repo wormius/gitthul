@@ -12,7 +12,7 @@ describe('createTauriSettingsPort', () => {
       disk = structuredClone(args?.['settings']);
       return Promise.resolve(undefined);
     });
-    const port = createTauriSettingsPort(call);
+    const port = createTauriSettingsPort(vi.fn(), call);
     expect((await port.read()).updates).toEqual({
       ...DEFAULT_SETTINGS.updates,
       checkOnStartup: true,
@@ -20,7 +20,9 @@ describe('createTauriSettingsPort', () => {
     await port.patch({ updates: { checkOnStartup: false } });
     expect(disk).toMatchObject({ updates: { checkOnStartup: false } });
     expect((disk as { updates: unknown }).updates).not.toHaveProperty('channel');
-    expect((await createTauriSettingsPort(call).read()).updates).toEqual(DEFAULT_SETTINGS.updates);
+    expect((await createTauriSettingsPort(vi.fn(), call).read()).updates).toEqual(
+      DEFAULT_SETTINGS.updates,
+    );
   });
 
   it('conserva un aplazamiento de una semana y la supresión al volver a abrir los ajustes', async () => {
@@ -30,16 +32,16 @@ describe('createTauriSettingsPort', () => {
       disk = structuredClone(args?.['settings']);
       return Promise.resolve(undefined);
     });
-    const port = createTauriSettingsPort(call);
+    const port = createTauriSettingsPort(vi.fn(), call);
     await port.read();
     const nextPromptAt = Date.UTC(2026, 9, 20);
     await port.patch({ updates: { nextPromptAt } });
-    expect((await createTauriSettingsPort(call).read()).updates).toEqual({
+    expect((await createTauriSettingsPort(vi.fn(), call).read()).updates).toEqual({
       ...DEFAULT_SETTINGS.updates,
       nextPromptAt,
     });
     await port.patch({ updates: { promptDismissed: true, nextPromptAt: 0 } });
-    expect((await createTauriSettingsPort(call).read()).updates).toEqual({
+    expect((await createTauriSettingsPort(vi.fn(), call).read()).updates).toEqual({
       ...DEFAULT_SETTINGS.updates,
       promptDismissed: true,
     });
@@ -48,37 +50,42 @@ describe('createTauriSettingsPort', () => {
   it('una lectura fallida deja ajustes editables con depuración suspendida hasta activarla explícitamente', async () => {
     let disk: unknown = null;
     const written: unknown[] = [];
+    const originalError = new Error('settings.json is not valid JSON');
+    const onReadError = vi.fn();
     const call = vi.fn((command: string, args?: Record<string, unknown>) => {
       if (command === 'settings_read')
         return disk === null
-          ? Promise.reject(new Error('settings.json is not valid JSON'))
+          ? Promise.reject(originalError)
           : Promise.resolve(structuredClone(disk));
       disk = structuredClone(args?.['settings']);
       written.push(disk);
       return Promise.resolve(undefined);
     });
-    const port = createTauriSettingsPort(call);
+    const port = createTauriSettingsPort(onReadError, call);
     expect(await port.read()).toEqual({
       ...DEFAULT_SETTINGS,
       recovery: { ...DEFAULT_SETTINGS.recovery, autoCleanup: false },
+      backup: { ...DEFAULT_SETTINGS.backup, enabled: false },
     });
     expect((await port.read()).recovery.autoCleanup).toBe(false);
     expect(call).toHaveBeenCalledOnce();
+    expect(onReadError).toHaveBeenCalledExactlyOnceWith(originalError);
     await port.patch({ appearance: { theme: 'abismo' } });
     expect(written[0]).toMatchObject({
       appearance: { theme: 'abismo' },
       recovery: { autoCleanup: false },
+      backup: { enabled: false },
     });
     await port.patch({ recovery: { autoCleanup: true } });
     expect(written[1]).toMatchObject({
       recovery: { autoCleanup: true, maxCheckpoints: 100, maxAgeDays: 30, maxMiB: 1024 },
     });
-    expect((await createTauriSettingsPort(call).read()).recovery.autoCleanup).toBe(true);
+    expect((await createTauriSettingsPort(vi.fn(), call).read()).recovery.autoCleanup).toBe(true);
   });
 
   it('una escritura sin permisos falla explícitamente y conserva la política suspendida', async () => {
     const call = vi.fn((_command: string) => Promise.reject(new Error('Permission denied')));
-    const port = createTauriSettingsPort(call);
+    const port = createTauriSettingsPort(vi.fn(), call);
     expect((await port.read()).recovery.autoCleanup).toBe(false);
     await expect(port.patch({ recovery: { autoCleanup: true } })).rejects.toThrow(
       'Permission denied',
@@ -86,6 +93,27 @@ describe('createTauriSettingsPort', () => {
     expect((await port.read()).recovery.autoCleanup).toBe(false);
     expect(call.mock.calls.filter(([command]) => command === 'settings_read')).toHaveLength(1);
   });
+
+  it('informa el error original del puente sin simular persistencia ni activar tareas automáticas', async () => {
+    const originalError = { command: 'settings_read', reason: 'native bridge unavailable' };
+    // Tauri can reject with a serialized native value rather than an Error instance.
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+    const call = vi.fn(() => Promise.reject(originalError));
+    const onReadError = vi.fn();
+    const port = createTauriSettingsPort(onReadError, call);
+
+    const settings = await port.read();
+    expect(settings.recovery.autoCleanup).toBe(false);
+    expect(settings.backup.enabled).toBe(false);
+    expect(onReadError).toHaveBeenCalledExactlyOnceWith(originalError);
+    expect(await port.read()).toBe(settings);
+    expect(call.mock.calls).toEqual([['settings_read']]);
+
+    await expect(port.patch({ locale: 'fr' })).rejects.toBe(originalError);
+    expect(await port.read()).toBe(settings);
+    expect(onReadError).toHaveBeenCalledOnce();
+  });
+
   it('migra ajustes sin variante y escribe la selección para el siguiente arranque', async () => {
     let disk: unknown = { appearance: { theme: 'grimorio', mode: 'light' } };
     const call = vi.fn((command: string, args?: Record<string, unknown>) => {
@@ -93,7 +121,7 @@ describe('createTauriSettingsPort', () => {
       disk = structuredClone(args?.['settings']);
       return Promise.resolve(undefined);
     });
-    const port = createTauriSettingsPort(call);
+    const port = createTauriSettingsPort(vi.fn(), call);
 
     expect((await port.read()).appearance).toMatchObject({
       theme: 'grimorio',
@@ -102,7 +130,7 @@ describe('createTauriSettingsPort', () => {
     });
 
     await port.patch({ appearance: { themeVariant: 'dense' } });
-    const reopened = createTauriSettingsPort(call);
+    const reopened = createTauriSettingsPort(vi.fn(), call);
 
     expect((await reopened.read()).appearance).toMatchObject({
       theme: 'grimorio',
@@ -123,7 +151,7 @@ describe('createTauriSettingsPort', () => {
       if (written.length === 1) await firstWrite;
       return undefined as T;
     });
-    const port = createTauriSettingsPort(call);
+    const port = createTauriSettingsPort(vi.fn(), call);
     await port.read();
 
     const rename = port.patch({ workingWipNames: { repo: 'Entrega' } });

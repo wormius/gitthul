@@ -881,7 +881,9 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
       await settle(query);
       failIfProgrammed('ignorePath');
 
-      return store(ignoreIn(find(id), pattern, options?.untrack === true)).status;
+      return store(
+        ignoreIn(find(id), pattern, options?.untrack === true, options?.patternKind ?? 'path'),
+      ).status;
     },
 
     commit: async (id, request, query) => {
@@ -2641,54 +2643,59 @@ function discardPath(repo: MockRepo, path: string): MockRepo {
   };
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 /**
  * Si un patrón de `.gitignore` tapa una ruta.
  *
- * Cubre las tres formas que se escriben a mano desde el menú contextual: la
- * ruta entera, un nombre suelto que vale en cualquier carpeta y un comodín de
- * extensión. Lo demás —negaciones, `**`, anclas— es sintaxis que la vista no
- * ofrece escribir.
+ * Las rutas son literales y parten de la raíz; las extensiones usan el comodín
+ * del menú contextual sobre cada nombre: una carpeta coincidente también ignora
+ * a sus descendientes, como una regla `*.ext` de Git.
  */
-function matchesIgnore(path: string, pattern: string): boolean {
+function matchesIgnore(path: string, pattern: string, kind: 'path' | 'extension'): boolean {
   const clean = pattern.replace(/^\/+|\/+$/g, '');
 
   if (clean === '') return false;
 
-  const regex = new RegExp(`^${clean.split('*').map(escapeRegExp).join('[^/]*')}$`);
+  if (kind === 'path') return path === clean || path.startsWith(`${clean}/`);
 
-  return (
-    regex.test(path) ||
-    path.split('/').some((segment) => regex.test(segment)) ||
-    path.startsWith(`${clean}/`)
-  );
+  if (!clean.startsWith('*.')) return false;
+
+  return path.split('/').some((segment) => segment.endsWith(clean.slice(1)));
 }
 
 /**
  * Suma el patrón a `.gitignore` y saca de la vista lo que tapa.
  *
- * Un patrón repetido o vacío devuelve el mismo estado sin escribir ni lanzar:
- * no hay código de error para esto porque no hay nada que explicar que el campo
- * de patrón no valide antes. Con `untrack`, lo que ya tenía seguimiento no
- * desaparece sino que queda como borrado en el stage, que es lo que hace
- * `git rm --cached`.
+ * Un patrón vacío o ya presente devuelve el mismo estado, salvo que `untrack`
+ * aún tenga coincidencias en el índice. Estas quedan como borradas en el stage,
+ * que es lo que hace `git rm --cached`.
  */
-function ignoreIn(repo: MockRepo, pattern: string, untrack: boolean): MockRepo {
-  const clean = pattern.trim();
+function ignoreIn(
+  repo: MockRepo,
+  pattern: string,
+  untrack: boolean,
+  kind: 'path' | 'extension',
+): MockRepo {
+  const clean = pattern;
 
-  if (clean === '' || repo.ignored.includes(clean)) return repo;
+  const alreadyIgnored = repo.ignored.some(
+    (entry) => entry.pattern === clean && entry.kind === kind,
+  );
 
-  const hidden = (change: FileChange) => matchesIgnore(change.path, clean);
+  if (clean === '' || (alreadyIgnored && !untrack)) return repo;
+
+  const hidden = (change: FileChange) => matchesIgnore(change.path, clean, kind);
   const untracked = (change: FileChange) => change.change === 'untracked';
 
   let staged = repo.status.staged;
   let unstaged = repo.status.unstaged.filter((change) => !(untracked(change) && hidden(change)));
 
   if (untrack) {
-    const tracked = [...staged, ...unstaged].filter(hidden);
+    const tracked = [...staged.filter((change) => change.change !== 'deleted'), ...unstaged].filter(
+      hidden,
+    );
+
+    if (alreadyIgnored && tracked.length === 0) return repo;
+
     const paths = new Set(tracked.map((change) => change.path));
 
     staged = [
@@ -2707,7 +2714,7 @@ function ignoreIn(repo: MockRepo, pattern: string, untrack: boolean): MockRepo {
 
   // Escribir el patrón cambia un archivo del árbol, y el árbol tiene que
   // decirlo: si no, el commit siguiente se haría sin `.gitignore` dentro.
-  if (![...staged, ...unstaged].some((change) => change.path === GITIGNORE)) {
+  if (!alreadyIgnored && !unstaged.some((change) => change.path === GITIGNORE)) {
     unstaged = [
       ...unstaged,
       { path: GITIGNORE, change: 'modified', binary: false, insertions: 1, deletions: 0 },
@@ -2722,7 +2729,7 @@ function ignoreIn(repo: MockRepo, pattern: string, untrack: boolean): MockRepo {
 
   return {
     ...repo,
-    ignored: [...repo.ignored, clean],
+    ignored: alreadyIgnored ? repo.ignored : [...repo.ignored, { pattern: clean, kind }],
     status: statusOf(staged, unstaged, repo.status.conflicted),
     staging,
   };

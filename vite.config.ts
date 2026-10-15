@@ -4,6 +4,8 @@ import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+import { productionBundleGuard } from './src/core/adapters/productionBundleGuard';
+
 const resolvePath = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
 const { version } = createRequire(import.meta.url)('./package.json') as { version: string };
@@ -33,7 +35,7 @@ const woff2Only = {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), productionBundleGuard()],
 
   css: {
     postcss: { plugins: [woff2Only] },

@@ -1,20 +1,24 @@
 import { render, screen, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { selectPorts } from '@core/adapters/selectPorts';
 import { ThemeProvider } from '@design/ThemeProvider';
 import { I18nProvider } from '@i18n/I18nProvider';
 
 import { App } from './App';
+import { PortsContext } from './PortsContext';
 import { TOKENS_GALLERY_PATH } from './devRoutes';
 import { useShellStore } from './shellStore';
 
 function renderApp() {
   return render(
-    <ThemeProvider initialSettings={{ theme: 'thul', mode: 'dark' }}>
-      <I18nProvider initialLocale="es-MX">
-        <App />
-      </I18nProvider>
-    </ThemeProvider>,
+    <PortsContext value={selectPorts()}>
+      <ThemeProvider initialSettings={{ theme: 'thul', mode: 'dark' }}>
+        <I18nProvider initialLocale="es-MX">
+          <App />
+        </I18nProvider>
+      </ThemeProvider>
+    </PortsContext>,
   );
 }
 
@@ -23,6 +27,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   window.history.pushState({}, '', '/');
 });
 
@@ -46,14 +51,22 @@ describe('App', () => {
   });
 
   // La galería es superficie interna: no pasa por i18n y no monta el shell.
-  it('en la ruta interna abre la galería en vez del shell', () => {
+  it('en la ruta interna abre la galería en vez del shell', async () => {
     window.history.pushState({}, '', TOKENS_GALLERY_PATH);
 
     renderApp();
 
-    expect(screen.getByRole('heading', { name: /Tokens/ })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /Tokens/ })).toBeInTheDocument();
     // La galería tiene su propia barra de ejemplo; la del shell no está.
     expect(screen.queryByRole('contentinfo', { name: 'Barra inferior' })).not.toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Pestañas abiertas' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the application shell on the gallery route in production', () => {
+    vi.stubEnv('DEV', false);
+    window.history.pushState({}, '', TOKENS_GALLERY_PATH);
+    renderApp();
+    expect(screen.queryByRole('heading', { name: /Tokens/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('contentinfo', { name: 'Barra inferior' })).toBeInTheDocument();
   });
 });

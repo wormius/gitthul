@@ -1,10 +1,9 @@
 import { AuthenticationDialogs } from '../features/auth/AuthenticationDialogs';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useTheme } from '@design/useTheme';
 
 import { useI18n } from '@i18n/useI18n';
 import { DragLayer } from '@ui/DragLayer';
-import { TokensGallery } from '@ui/gallery/TokensGallery';
 import { ToastProvider } from '@ui/ToastProvider';
 
 import { GestureProvider } from './GestureProvider';
@@ -18,6 +17,13 @@ import { subscribeShellSession } from './shellStore';
 import { isTokensGalleryPath } from './devRoutes';
 import { useNativeMenu } from './useNativeMenu';
 
+const TokensGallery = import.meta.env.DEV
+  ? lazy(async () => {
+      const { TokensGallery } = await import('@ui/gallery/TokensGallery');
+      return { default: TokensGallery };
+    })
+  : null;
+
 /**
  * La aplicación: la galería interna o el shell.
  *
@@ -28,7 +34,13 @@ import { useNativeMenu } from './useNativeMenu';
  * que no pasa por i18n.
  */
 export function App() {
-  if (isTokensGalleryPath(window.location.pathname)) return <TokensGallery />;
+  if (import.meta.env.DEV && TokensGallery && isTokensGalleryPath(window.location.pathname)) {
+    return (
+      <Suspense fallback={null}>
+        <TokensGallery />
+      </Suspense>
+    );
+  }
 
   return <ShellApp />;
 }

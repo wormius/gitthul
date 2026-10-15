@@ -561,6 +561,30 @@ describe('menú de un remoto', () => {
 });
 
 describe('menús de archivo', () => {
+  it('distingue la extensión del nombre literal y la carpeta al ignorar', () => {
+    const actions = makeActions();
+    const items = unstagedFileMenu({ ...context(), actions }, { ...file, path: 'src/*.log' });
+
+    for (const [key, untrack] of [
+      ['ignore', false],
+      ['ignoreAndUntrack', true],
+    ] as const) {
+      const ignore = find(items, key);
+      if (!isSubmenu(ignore)) throw new Error('Ignorar tiene que ser un submenú');
+      select(ignore.items, 'file');
+      select(ignore.items, 'extension');
+      select(ignore.items, 'folder');
+      expect(actions.ignorePath).toHaveBeenNthCalledWith(untrack ? 4 : 1, 'src/*.log', untrack);
+      expect(actions.ignorePath).toHaveBeenNthCalledWith(
+        untrack ? 5 : 2,
+        '*.log',
+        untrack,
+        'extension',
+      );
+      expect(actions.ignorePath).toHaveBeenNthCalledWith(untrack ? 6 : 3, 'src/', untrack);
+    }
+  });
+
   it('el de Cambios ofrece las dos formas de ignorar, con sus tres alcances', () => {
     const items = unstagedFileMenu(context(), file);
     const ignore = find(items, 'ignore');

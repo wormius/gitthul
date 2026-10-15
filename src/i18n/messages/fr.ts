@@ -1,6 +1,11 @@
 import type { Messages } from './es-MX';
 
 export const fr: Messages = {
+  'startup.failed': 'GitThul n’a pas pu démarrer',
+  'startup.desktopUnavailable':
+    'La connexion à l’environnement de bureau a échoué. Fermez GitThul et rouvrez l’application de bureau.',
+  'startup.retry':
+    'Fermez GitThul et rouvrez-le. Si le problème persiste, vérifiez l’installation.',
   'settings.profiles.saveError': 'Impossible d’enregistrer le profil. Réessayez.',
   'settings.profiles.applyError': 'Impossible d’appliquer le profil au dépôt.',
   'access.title': 'Accès au dépôt distant',
@@ -1170,6 +1175,7 @@ export const fr: Messages = {
   'undo.fetch': 'Effectuer un fetch',
   'undo.pull': 'Effectuer un pull',
   'undo.remote': 'Modifier les dépôts distants',
+  'undo.upstream': 'Configurer l’upstream',
   'undo.resolve': 'Résoudre les conflits',
   'undo.quit': 'Laisser l’intégration dans l’index',
   'undo.continue': 'Continuer l’intégration',
@@ -1192,6 +1198,7 @@ export const fr: Messages = {
   'error.undo.snapshotUnavailable.cause':
     'Vérifiez les permissions et l’espace libre. Les copies complètes ne prennent pas en charge les sous-modules ni les fichiers spéciaux. Les copies locales de modifications sont limitées à 64 Mio et aux fichiers ordinaires.',
   'undo.stage': 'Ajouter les modifications à l’index',
+  'undo.ignore': 'Ignorer des fichiers',
   'undo.unstage': 'Retirer les modifications de l’index',
   'undo.discard': 'Abandonner les modifications',
   'undo.empty': 'Aucune opération récupérable',

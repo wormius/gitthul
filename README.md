@@ -36,6 +36,13 @@ y por la consulta de versiones al iniciar si activas esa opción, desactivada po
 - Perfiles y cuentas Git con secretos almacenados únicamente en el llavero del sistema.
 - Registros rotados, avisos de operación e historial de sesión.
 
+En el menú de un archivo de GitWorking, **Ignorar** agrega una regla al `.gitignore`
+de la raíz para ese archivo, su extensión o su carpeta. El archivo se conserva en
+disco y `.gitignore` queda pendiente para que revises y prepares el cambio.
+**Ignorar y dejar de seguir** también retira las coincidencias del índice; si ya
+estaban en un commit, sus eliminaciones quedan preparadas para el siguiente.
+Ambas acciones admiten Deshacer y Rehacer durante la sesión.
+
 Siguen pendientes mover y reparar worktrees, la administración completa de identidades, firmas GPG/SSH,
 submódulos, Git LFS, bisect, blame y otras capacidades especializadas.
 
