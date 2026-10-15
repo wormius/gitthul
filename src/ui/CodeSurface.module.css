@@ -331,6 +331,40 @@
   text-decoration-skip-ink: none;
 }
 
+.changedSpace,
+.changedTab {
+  position: relative;
+}
+
+.changedSpace::before {
+  position: absolute;
+  inset-inline-start: 0;
+  content: '␣';
+  color: var(--diff-added-ink);
+  pointer-events: none;
+}
+
+/* Una sola figura evita desalinear la punta por la métrica del carácter ›. */
+.changedTab::before {
+  position: absolute;
+  inset-inline: 1px;
+  top: 50%;
+  block-size: 0.55em;
+  background-color: var(--diff-added-ink);
+  clip-path: polygon(
+    0 calc(50% - 0.5px),
+    calc(100% - 0.25em) calc(50% - 0.5px),
+    calc(100% - 0.25em) 0,
+    100% 50%,
+    calc(100% - 0.25em) 100%,
+    calc(100% - 0.25em) calc(50% + 0.5px),
+    0 calc(50% + 0.5px)
+  );
+  transform: translateY(-50%);
+  content: '';
+  pointer-events: none;
+}
+
 .surface :global(.cm-editor .cm-line) .wordAdded {
   background-color: var(--diff-word-added-bg);
   text-decoration-color: var(--diff-added-ink);

@@ -482,6 +482,30 @@ function wordDecorations(state: EditorState, words: readonly CodeWordMark[]): De
   return builder.finish();
 }
 
+/** Se superponen símbolos a los bytes originales, sin reemplazos ni widgets copiables. */
+function changedWhitespaceDecorations(
+  state: EditorState,
+  words: readonly CodeWordMark[],
+): DecorationSet {
+  const ranges: ReturnType<Decoration['range']>[] = [];
+  for (const word of sortWordMarks(words)) {
+    if (word.line < 1 || word.line > state.doc.lines) continue;
+    const line = state.doc.line(word.line);
+    const end = Math.min(word.end, line.length);
+    for (let index = Math.max(0, word.start); index < end; index += 1) {
+      const character = line.text[index];
+      if (character !== ' ' && character !== '\t') continue;
+      ranges.push(
+        Decoration.mark({
+          class: character === ' ' ? styles.changedSpace : styles.changedTab,
+          attributes: { 'data-diff-whitespace': character === ' ' ? 'space' : 'tab' },
+        }).range(line.from + index, line.from + index + 1),
+      );
+    }
+  }
+  return Decoration.set(ranges, true);
+}
+
 function replacementDecorations(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const text = state.doc.toString();
@@ -762,6 +786,7 @@ export function CodeSurface({
     );
     if (words && words.length > 0) {
       list.push(documentDecorations((state) => wordDecorations(state, words)));
+      list.push(documentDecorations((state) => changedWhitespaceDecorations(state, words)));
     }
 
     if (language) {

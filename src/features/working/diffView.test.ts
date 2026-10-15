@@ -288,6 +288,53 @@ describe('el stage por línea', () => {
   });
 });
 
+describe('la fila vacía del salto final', () => {
+  const hunk: Hunk = {
+    id: 'final',
+    oldStart: 1,
+    oldLines: 3,
+    newStart: 1,
+    newLines: 3,
+    header: '',
+    lines: [
+      line('context', 'uno', 1, 1),
+      line('context', 'dos', 2, 2),
+      line('removed', 'tres', 3, null),
+      line('added', 'tres', null, 3),
+    ],
+  };
+  it.each([true, false])(
+    'conserva números y referencias Git al añadir/quitar el salto: %s',
+    (added) => {
+      const presence = { before: !added, after: added };
+      const text = 'uno\ndos\ntres' + (added ? '\n' : '');
+      for (const rows of [
+        hunkBlocks([hunk], presence)[0]!.rows,
+        fileRows(text.split('\n'), [hunk], presence),
+      ]) {
+        const { left, right } = splitRows(rows);
+        expect(oldColumn(left).labels.filter(Boolean)).toEqual(
+          added ? ['1', '2', '3'] : ['1', '2', '3', '4'],
+        );
+        expect(newColumn(right).labels.filter(Boolean)).toEqual(
+          added ? ['1', '2', '3', '4'] : ['1', '2', '3'],
+        );
+        expect(stageableLines(rows, 1, rows.length)).toEqual([
+          { side: 'old', line: 3 },
+          { side: 'new', line: 3 },
+        ]);
+        expect(stageableLines(right, right.length, right.length, left)).toEqual([]);
+        expect(stageableLines(left, left.length, left.length, right)).toEqual([]);
+      }
+    },
+  );
+  it('añade la fila del salto solo al último hunk', () => {
+    const blocks = hunkBlocks([simple, hunk], { before: false, after: true });
+    expect(blocks[0]!.rows.some((row) => row.displayOnly)).toBe(false);
+    expect(blocks[1]!.rows.filter((row) => row.displayOnly)).toHaveLength(1);
+  });
+});
+
 describe('las marcas de la barra', () => {
   it('reserva sitio para cabeceras y contexto, pero solo marca las líneas modificadas', () => {
     const blocks = hunkBlocks([simple, uneven]);

@@ -223,6 +223,28 @@ describe('CodeSurface', () => {
     ).not.toThrow();
   });
 
+  it('marca cada espacio y tabulador únicamente dentro de los tramos cambiados', () => {
+    const value = '    antes\n\tdespués\nigual espacio\nfin \t';
+    const { container } = renderSurface({
+      value,
+      words: [
+        { line: 1, start: 0, end: 4, tone: 'removed' },
+        { line: 2, start: 0, end: 1, tone: 'added' },
+        { line: 4, start: 3, end: 5, tone: 'added' },
+      ],
+    });
+    expect(container.querySelectorAll('[data-diff-whitespace="space"]')).toHaveLength(5);
+    expect(container.querySelectorAll('[data-diff-whitespace="tab"]')).toHaveLength(2);
+    const editor = container.querySelector<HTMLElement>('.cm-editor')!;
+    expect(EditorView.findFromDOM(editor)!.state.doc.toString()).toBe(value);
+    expect(
+      container.querySelectorAll('.cm-line')[2]?.querySelector('[data-diff-whitespace]'),
+    ).toBeNull();
+    expect(
+      [...container.querySelectorAll('[data-diff-whitespace]')].map((node) => node.textContent),
+    ).toEqual([' ', ' ', ' ', ' ', '\t', ' ', '\t']);
+  });
+
   it('un diff rotula cada línea con lo que le digan, no con una cuenta corrida', () => {
     const { container } = renderSurface({
       value: 'uno\ndos\ntres',

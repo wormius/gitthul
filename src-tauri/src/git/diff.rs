@@ -15,7 +15,11 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use super::{diagnostics::Diagnostic, encoding};
+use super::{
+    diagnostics::Diagnostic,
+    encoding,
+    text_changes::{self, TextChanges},
+};
 
 const DEFAULT_CONTEXT: u32 = 3;
 const MAX_CONTEXT: u32 = 1_000;
@@ -152,6 +156,10 @@ pub(super) enum DiffContent {
         decoding_errors: bool,
         #[serde(rename = "supportsPartial")]
         supports_partial: bool,
+        #[serde(rename = "lineEndingChange", skip_serializing_if = "Option::is_none")]
+        line_ending_change: Option<LineEndingChange>,
+        #[serde(rename = "textChanges", skip_serializing_if = "Option::is_none")]
+        text_changes: Option<TextChanges>,
     },
     Binary {
         #[serde(rename = "oldSize")]
@@ -161,6 +169,20 @@ pub(super) enum DiffContent {
         #[serde(rename = "mediaType")]
         media_type: &'static str,
     },
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub(super) struct LineEndingChange {
+    before: TextLineEndings,
+    after: TextLineEndings,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum TextLineEndings {
+    Lf,
+    CrLf,
+    Mixed,
 }
 
 #[derive(Debug, Serialize)]
@@ -522,6 +544,8 @@ pub fn read_cancellable(
                 detected_encoding: "utf-8",
                 decoding_errors: false,
                 supports_partial: false,
+                line_ending_change: None,
+                text_changes: None,
             }
         }
     } else {
@@ -580,6 +604,22 @@ pub fn read_cancellable(
                 decoded_patch(repository, &request, &old.text, &new.text, cancelled)?
             };
             let text = String::from_utf8(patch).map_err(|_| ReadDiffError::MalformedOutput)?;
+            // hash-object --path applies Git's clean filters to the worktree side.
+            // Equal OIDs mean CRLF conversion is already ignored by Git; don't
+            // describe that normal checkout conversion as a pending change.
+            let changed_blobs = precondition
+                .before
+                .as_ref()
+                .zip(precondition.after.as_ref())
+                .is_some_and(|(before, after)| before.oid != after.oid);
+            let line_ending_change = if changed_blobs && !old.errors && !new.errors {
+                line_ending_change(&old.text, &new.text)
+            } else {
+                None
+            };
+            let text_changes = changed_blobs
+                .then(|| text_changes::analyze(&before, &after, &old, &new))
+                .flatten();
             DiffContent::Text {
                 hunks: parse_hunks(&text)
                     .map_err(|error| parse_error("diff.parsePatchHunks", error))?,
@@ -588,6 +628,8 @@ pub fn read_cancellable(
                 detected_encoding: shown.detected,
                 decoding_errors: old.errors || new.errors,
                 supports_partial,
+                line_ending_change,
+                text_changes,
             }
         }
     };
@@ -599,6 +641,31 @@ pub fn read_cancellable(
         source: request.source,
         precondition,
         content,
+    })
+}
+
+/// Explain visually identical replacement blocks without altering their patch bytes.
+fn line_ending_change(before: &str, after: &str) -> Option<LineEndingChange> {
+    if before == after || before.replace("\r\n", "\n") != after.replace("\r\n", "\n") {
+        return None;
+    }
+    fn style(text: &str) -> Option<TextLineEndings> {
+        let lf = text.bytes().filter(|byte| *byte == b'\n').count();
+        let crlf = text
+            .as_bytes()
+            .windows(2)
+            .filter(|pair| *pair == b"\r\n")
+            .count();
+        match (lf, crlf) {
+            (0, _) => None,
+            (_, 0) => Some(TextLineEndings::Lf),
+            (total, windows) if total == windows => Some(TextLineEndings::CrLf),
+            _ => Some(TextLineEndings::Mixed),
+        }
+    }
+    Some(LineEndingChange {
+        before: style(before)?,
+        after: style(after)?,
     })
 }
 
@@ -2471,6 +2538,210 @@ mod tests {
             diff.precondition.after.unwrap().mode,
             GitFileMode::Executable
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn mode_only_gradle_wrappers_have_git_changes_and_no_text_hunks() {
+        use std::os::unix::fs::PermissionsExt;
+
+        for (before, after, old_mode, new_mode) in [
+            (0o644, 0o755, GitFileMode::Regular, GitFileMode::Executable),
+            (0o755, 0o644, GitFileMode::Executable, GitFileMode::Regular),
+        ] {
+            let temporary = repository();
+            let root = temporary.path();
+            git(root, &["config", "core.filemode", "true"]);
+            for name in ["gradlew", "gradlew.bat"] {
+                let path = root.join(name);
+                fs::write(&path, "same wrapper content\n").unwrap();
+                fs::set_permissions(&path, fs::Permissions::from_mode(before)).unwrap();
+            }
+            git(root, &["add", "."]);
+            git(root, &["commit", "-qm", "base"]);
+            let base = git_text(root, &["rev-parse", "HEAD"]);
+            for name in ["gradlew", "gradlew.bat"] {
+                fs::set_permissions(root.join(name), fs::Permissions::from_mode(after)).unwrap();
+            }
+
+            let status = serde_json::to_value(super::super::status::read(root).unwrap()).unwrap();
+            assert_eq!(status["unstaged"].as_array().unwrap().len(), 2);
+            assert_eq!(status["clean"], false);
+
+            let check = |source: DiffSource| {
+                for name in ["gradlew", "gradlew.bat"] {
+                    let diff = read(root, request(name, source.clone())).unwrap();
+                    assert_eq!(diff.change, ChangeType::Modified);
+                    let old = diff.precondition.before.unwrap();
+                    let new = diff.precondition.after.unwrap();
+                    assert_eq!(old.oid, new.oid);
+                    assert_eq!((old.mode, new.mode), (old_mode, new_mode));
+                    let DiffContent::Text { hunks, .. } = diff.content else {
+                        panic!("wrapper must remain text");
+                    };
+                    assert!(hunks.is_empty());
+                }
+            };
+            check(DiffSource::Worktree);
+            git(root, &["add", "."]);
+            check(DiffSource::Index);
+            git(root, &["commit", "-qm", "mode only"]);
+            let head = git_text(root, &["rev-parse", "HEAD"]);
+            check(DiffSource::Commit { sha: head.clone() });
+            check(DiffSource::Range {
+                from: Some(base),
+                to: head,
+            });
+        }
+    }
+
+    #[test]
+    fn crlf_to_lf_explains_identical_gradle_wrapper_replacements() {
+        let temporary = repository();
+        let root = temporary.path();
+        fs::write(root.join(".gitattributes"), "*.bat -text\n").unwrap();
+        fs::write(root.join("gradlew.bat"), b"@echo off\r\ncall java\r\n").unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "CRLF base"]);
+        let base = git_text(root, &["rev-parse", "HEAD"]);
+        fs::write(root.join("gradlew.bat"), b"@echo off\ncall java\n").unwrap();
+
+        let check = |source: DiffSource, ignore_whitespace: bool| {
+            let mut query = request("gradlew.bat", source);
+            query.ignore_whitespace = ignore_whitespace;
+            let diff = read(root, query).unwrap();
+            let json = serde_json::to_value(&diff).unwrap();
+            assert_eq!(json["content"]["lineEndingChange"]["before"], "crlf");
+            assert_eq!(json["content"]["lineEndingChange"]["after"], "lf");
+            let DiffContent::Text {
+                hunks,
+                supports_partial,
+                ..
+            } = diff.content
+            else {
+                panic!("batch wrapper must be text");
+            };
+            assert!(supports_partial);
+            if ignore_whitespace {
+                assert!(hunks.is_empty());
+            } else {
+                let lines = &hunks[0].lines;
+                let removed = lines
+                    .iter()
+                    .filter(|line| line.kind == DiffLineKind::Removed)
+                    .collect::<Vec<_>>();
+                let added = lines
+                    .iter()
+                    .filter(|line| line.kind == DiffLineKind::Added)
+                    .collect::<Vec<_>>();
+                assert_eq!(removed.len(), 2);
+                assert_eq!(added.len(), 2);
+                for (old, new) in removed.into_iter().zip(added) {
+                    assert_eq!(old.text, new.text);
+                    assert_eq!(old.ending, super::LineEnding::CrLf);
+                    assert_eq!(new.ending, super::LineEnding::Lf);
+                }
+            }
+        };
+        check(DiffSource::Worktree, false);
+        check(DiffSource::Worktree, true);
+        check(DiffSource::WorkingRange { from: base.clone() }, false);
+        assert!(git_text(
+            root,
+            &[
+                "diff",
+                "--ignore-cr-at-eol",
+                "--exit-code",
+                "--",
+                "gradlew.bat"
+            ]
+        )
+        .is_empty());
+        git(root, &["add", "."]);
+        check(DiffSource::Index, false);
+        git(root, &["commit", "-qm", "LF conversion"]);
+        let head = git_text(root, &["rev-parse", "HEAD"]);
+        check(DiffSource::Commit { sha: head.clone() }, false);
+        check(
+            DiffSource::Range {
+                from: Some(base),
+                to: head,
+            },
+            false,
+        );
+        fs::write(root.join("gradlew.bat"), b"@echo off\r\ncall java\r\n").unwrap();
+        git(root, &["stash", "push", "-qm", "CRLF conversion"]);
+        let stash = git_text(root, &["rev-parse", "refs/stash"]);
+        let diff = read(
+            root,
+            request("gradlew.bat", DiffSource::Stash { sha: stash }),
+        )
+        .unwrap();
+        let json = serde_json::to_value(diff).unwrap();
+        assert_eq!(json["content"]["lineEndingChange"]["before"], "lf");
+        assert_eq!(json["content"]["lineEndingChange"]["after"], "crlf");
+    }
+
+    #[test]
+    fn line_ending_notice_rejects_text_changes_missing_newline_and_normalized_checkouts() {
+        use super::{line_ending_change, LineEndingChange, TextLineEndings};
+
+        assert_eq!(line_ending_change("same\n", "changed\r\n"), None);
+        assert_eq!(line_ending_change("same\n", "same"), None);
+        assert_eq!(line_ending_change("same\r", "same"), None);
+        assert_eq!(line_ending_change("same\n", "same\n"), None);
+        assert_eq!(
+            line_ending_change("one\r\ntwo\n", "one\ntwo\r\n"),
+            Some(LineEndingChange {
+                before: TextLineEndings::Mixed,
+                after: TextLineEndings::Mixed
+            }),
+        );
+        let temporary = repository();
+        let root = temporary.path();
+        fs::write(root.join(".gitattributes"), "*.bat text eol=crlf\n").unwrap();
+        fs::write(root.join("gradlew.bat"), b"@echo off\r\ncall java\r\n").unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "normalized LF blob"]);
+        assert_eq!(
+            git_text(root, &["show", ":gradlew.bat"]),
+            "@echo off\ncall java"
+        );
+        let diff = read(root, request("gradlew.bat", DiffSource::Worktree)).unwrap();
+        assert_eq!(diff.change, ChangeType::Unmodified);
+        assert!(serde_json::to_value(diff).unwrap()["content"]
+            .get("lineEndingChange")
+            .is_none());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            git(root, &["config", "core.filemode", "true"]);
+            fs::set_permissions(root.join("gradlew.bat"), fs::Permissions::from_mode(0o755))
+                .unwrap();
+            let diff = read(root, request("gradlew.bat", DiffSource::Worktree)).unwrap();
+            assert_eq!(diff.change, ChangeType::Modified);
+            assert!(serde_json::to_value(diff).unwrap()["content"]
+                .get("lineEndingChange")
+                .is_none());
+        }
+
+        fs::write(root.join(".gitattributes"), "*.bat -text\n").unwrap();
+        fs::write(root.join("gradlew.bat"), b"@echo off\r\ncall changed\r\n").unwrap();
+        let diff = read(root, request("gradlew.bat", DiffSource::Worktree)).unwrap();
+        assert!(serde_json::to_value(diff).unwrap()["content"]
+            .get("lineEndingChange")
+            .is_none());
+
+        fs::write(root.join("gradlew.bat"), b"same \xff\r\n").unwrap();
+        git(root, &["add", "."]);
+        git(root, &["commit", "-qm", "invalid UTF-8 base"]);
+        fs::write(root.join("gradlew.bat"), b"same \xfe\n").unwrap();
+        let mut query = request("gradlew.bat", DiffSource::Worktree);
+        query.encoding = Some("utf-8".to_owned());
+        let json = serde_json::to_value(read(root, query).unwrap()).unwrap();
+        assert_eq!(json["content"]["decodingErrors"], true);
+        assert!(json["content"].get("lineEndingChange").is_none());
     }
 
     #[test]

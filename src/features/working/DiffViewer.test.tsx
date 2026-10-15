@@ -7,6 +7,7 @@ import { PortsContext } from '@app/PortsContext';
 import { createMockGitPort } from '@core/adapters/mock/mockGitPort';
 import { NO_LATENCY } from '@core/adapters/mock/latency';
 import { selectPorts } from '@core/adapters/selectPorts';
+import type { DiffSource, FileDiff, GitFileMode, TextChanges } from '@core/domain/diff';
 import { I18nProvider } from '@i18n/I18nProvider';
 
 import { DiffViewer } from './DiffViewer';
@@ -15,6 +16,418 @@ import type { WorkingActions } from './useWorkingActions';
 import { useWorkingStore } from './workingStore';
 
 beforeEach(() => useWorkingStore.getState().reset());
+
+describe('cambios sin diferencias de texto', () => {
+  const sources: DiffSource[] = [
+    { kind: 'worktree' },
+    { kind: 'index' },
+    { kind: 'commit', sha: 'commit' },
+    { kind: 'stash', sha: 'stash' },
+    { kind: 'range', from: 'before', to: 'after' },
+    { kind: 'workingRange', from: 'before' },
+  ];
+
+  function modeDiff(source: DiffSource, before: GitFileMode, after: GitFileMode): FileDiff {
+    return {
+      path: 'gradlew',
+      source,
+      change: 'modified',
+      precondition: {
+        before: { oid: 'same-blob', mode: before },
+        after: { oid: 'same-blob', mode: after },
+      },
+      content: { kind: 'text', hunks: [], truncated: false, encoding: 'utf-8' },
+    };
+  }
+
+  function show(file: FileDiff) {
+    const git = createMockGitPort({ latency: NO_LATENCY });
+    vi.spyOn(git, 'readDiff').mockResolvedValue(file);
+    vi.spyOn(git, 'readFile').mockResolvedValue({
+      path: file.path,
+      text: '#!/bin/sh\n',
+      binary: false,
+      size: 10,
+      mediaType: 'text/plain',
+      encoding: 'utf-8',
+    });
+    return render(
+      <PortsContext value={{ ...selectPorts(), git }}>
+        <I18nProvider initialLocale="es-MX">
+          <DiffViewer
+            repoId="gitthul"
+            diff={{ path: file.path, source: file.source, returnTo: null }}
+            actions={{} as WorkingActions}
+            status={null}
+            onClose={() => {}}
+          />
+        </I18nProvider>
+      </PortsContext>,
+    );
+  }
+
+  it.each(sources)(
+    'explica ambos cambios de permiso en $kind sin inventar líneas',
+    async (source) => {
+      useWorkingStore.getState().setDiffOptions({ scope: 'hunks', content: 'diff' });
+      const first = show(modeDiff(source, '100644', '100755'));
+      expect(
+        await screen.findByText('Permiso de ejecución añadido: 100644 → 100755.'),
+      ).toHaveAttribute('role', 'status');
+      expect(screen.getByText('Sin diferencias de texto en gradlew')).toBeInTheDocument();
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      expect(screen.queryByText('gradlew no cambió')).not.toBeInTheDocument();
+      first.unmount();
+
+      show(modeDiff(source, '100755', '100644'));
+      expect(
+        await screen.findByText('Permiso de ejecución eliminado: 100755 → 100644.'),
+      ).toHaveAttribute('role', 'status');
+    },
+  );
+
+  it.each(['diff', 'file'] as const)(
+    'conserva la explicación en archivo completo con contenido %s y ambas columnas',
+    async (content) => {
+      useWorkingStore.getState().setDiffOptions({ columns: 'split', scope: 'file', content });
+      show(modeDiff({ kind: 'worktree' }, '100644', '100755'));
+      const editors = await screen.findAllByRole('textbox');
+      expect(screen.getByRole('status')).toHaveTextContent('Permiso de ejecución añadido');
+      for (const editor of editors) {
+        expect(EditorView.findFromDOM(editor)!.state.doc.toString()).toContain('#!/bin/sh');
+      }
+    },
+  );
+
+  it('muestra el permiso junto con los cambios de texto', async () => {
+    const git = createMockGitPort({ latency: NO_LATENCY });
+    const file = await git.readDiff('gitthul', {
+      path: 'src/design/roles.css',
+      source: { kind: 'worktree' },
+    });
+    show({ ...file, precondition: modeDiff(file.source, '100644', '100755').precondition });
+    await screen.findAllByRole('textbox');
+    expect(screen.getByRole('status')).toHaveTextContent('Permiso de ejecución añadido');
+  });
+
+  it('muestra el permiso también en archivos binarios', async () => {
+    const file = modeDiff({ kind: 'index' }, '100755', '100644');
+    show({
+      ...file,
+      content: { kind: 'binary', oldSize: 10, newSize: 10, mediaType: 'application/octet-stream' },
+    });
+    expect(
+      await screen.findByText('Permiso de ejecución eliminado: 100755 → 100644.'),
+    ).toHaveAttribute('role', 'status');
+    expect(screen.getByText('Archivo binario')).toBeInTheDocument();
+  });
+
+  it('describe cambios de tipo sin llamarlos permisos de ejecución', async () => {
+    show(modeDiff({ kind: 'commit', sha: 'commit' }, '100644', '120000'));
+    expect(await screen.findByText('Tipo de archivo cambiado: 100644 → 120000.')).toHaveAttribute(
+      'role',
+      'status',
+    );
+  });
+
+  it.each(sources)(
+    'explica los finales de línea de $kind sin ocultar el parche',
+    async (source) => {
+      useWorkingStore
+        .getState()
+        .setDiffOptions({ columns: 'unified', scope: 'hunks', content: 'diff' });
+      const file = modeDiff(source, '100644', '100644');
+      show({
+        ...file,
+        path: 'gradlew.bat',
+        content: {
+          kind: 'text',
+          truncated: false,
+          encoding: 'utf-8',
+          lineEndingChange: { before: 'crlf', after: 'lf' },
+          hunks: [
+            {
+              id: 'eol',
+              oldStart: 1,
+              oldLines: 1,
+              newStart: 1,
+              newLines: 1,
+              header: '',
+              lines: [
+                { kind: 'removed', oldLine: 1, newLine: null, text: '@echo off' },
+                { kind: 'added', oldLine: null, newLine: 1, text: '@echo off' },
+              ],
+            },
+          ],
+        },
+      });
+      expect(
+        await screen.findByText('Se cambiaron los finales de línea (CRLF → LF).'),
+      ).toHaveAttribute('role', 'status');
+      const editor = screen.getByRole('textbox');
+      expect(EditorView.findFromDOM(editor)!.state.doc.toString()).toContain(
+        '-@echo off\n+@echo off',
+      );
+    },
+  );
+
+  it.each(['diff', 'file'] as const)(
+    'mantiene el aviso de finales de línea en archivo completo (%s)',
+    async (content) => {
+      useWorkingStore
+        .getState()
+        .setDiffOptions({ columns: 'split', scope: 'file', content, ignoreWhitespace: true });
+      const file = modeDiff({ kind: 'worktree' }, '100644', '100644');
+      show({
+        ...file,
+        content: {
+          kind: 'text',
+          hunks: [],
+          truncated: false,
+          encoding: 'utf-8',
+          lineEndingChange: { before: 'lf', after: 'crlf' },
+        },
+      });
+      await screen.findAllByRole('textbox');
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Se cambiaron los finales de línea (LF → CRLF).',
+      );
+    },
+  );
+
+  it('explica los finales mixtos junto a un cambio de permiso', async () => {
+    const file = modeDiff({ kind: 'index' }, '100644', '100755');
+    show({
+      ...file,
+      content: {
+        kind: 'text',
+        hunks: [],
+        truncated: false,
+        encoding: 'utf-8',
+        lineEndingChange: { before: 'mixed', after: 'lf' },
+      },
+    });
+    await screen.findByText('Se cambiaron los finales de línea (Mixtos → LF).');
+    expect(screen.getByText('Permiso de ejecución añadido: 100644 → 100755.')).toBeInTheDocument();
+  });
+
+  it.each(['modified', 'renamed', 'unmodified'] as const)(
+    'no afirma que el archivo no cambió al no haber líneas visibles (%s)',
+    async (change) => {
+      useWorkingStore.getState().setDiffOptions({
+        scope: 'hunks',
+        content: 'diff',
+        ignoreWhitespace: true,
+      });
+      show({ ...modeDiff({ kind: 'worktree' }, '100644', '100644'), change });
+      expect(await screen.findByText('Sin diferencias de texto en gradlew')).toBeInTheDocument();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    },
+  );
+
+  const explanations: { details: TextChanges; expected: string }[] = [
+    {
+      details: { bom: { before: null, after: 'utf-8' } },
+      expected: 'Cambió la marca BOM (Sin BOM → UTF-8).',
+    },
+    {
+      details: { bom: { before: 'utf-8', after: null } },
+      expected: 'Cambió la marca BOM (UTF-8 → Sin BOM).',
+    },
+    {
+      details: { encoding: { before: 'utf-8', after: 'utf-16le' } },
+      expected: 'Cambió la codificación detectada (UTF-8 → UTF-16LE).',
+    },
+    {
+      details: { unicodeNormalization: { before: 'NFC', after: 'NFD' } },
+      expected: 'Cambió la representación Unicode (NFC → NFD).',
+    },
+    {
+      details: { invisibleCharacters: [{ codePoint: 'U+200B', before: 0, after: 1 }] },
+      expected: 'Cambiaron caracteres invisibles: U+200B (0 → 1).',
+    },
+  ];
+  it.each(['trailing', 'indentation', 'spacesAndTabs'] as const)(
+    'representa %s en el diff sin aviso adicional',
+    async (whitespace) => {
+      useWorkingStore.getState().setDiffOptions({ scope: 'hunks', content: 'diff' });
+      const file = modeDiff({ kind: 'worktree' }, '100644', '100644');
+      show({
+        ...file,
+        content: {
+          kind: 'text',
+          encoding: 'utf-8',
+          truncated: false,
+          hunks: [],
+          textChanges: { whitespace },
+        },
+      });
+      await screen.findByText('Sin diferencias de texto en gradlew');
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    },
+  );
+
+  for (const scope of ['hunks', 'file'] as const) {
+    it.each([true, false])(
+      `numera el salto final por lado sin aviso (${scope}, añadido: %s)`,
+      async (added) => {
+        useWorkingStore.getState().setDiffOptions({ columns: 'split', scope, content: 'diff' });
+        const file = modeDiff({ kind: 'worktree' }, '100644', '100644');
+        const git = createMockGitPort({ latency: NO_LATENCY });
+        const after = 'uno\ndos\ntres' + (added ? '\n' : '');
+        vi.spyOn(git, 'readFile').mockResolvedValue({
+          path: file.path,
+          text: after,
+          binary: false,
+          size: after.length,
+          mediaType: 'text/plain',
+          encoding: 'utf-8',
+        });
+        vi.spyOn(git, 'readDiff').mockResolvedValue({
+          ...file,
+          content: {
+            kind: 'text',
+            encoding: 'utf-8',
+            truncated: false,
+            textChanges: { finalNewline: { before: !added, after: added } },
+            hunks: [
+              {
+                id: 'last',
+                oldStart: 1,
+                oldLines: 3,
+                newStart: 1,
+                newLines: 3,
+                header: '',
+                lines: [
+                  { kind: 'context', text: 'uno', oldLine: 1, newLine: 1 },
+                  { kind: 'context', text: 'dos', oldLine: 2, newLine: 2 },
+                  { kind: 'removed', text: 'tres', oldLine: 3, newLine: null },
+                  { kind: 'added', text: 'tres', oldLine: null, newLine: 3 },
+                ],
+              },
+            ],
+          },
+        });
+        const { container } = render(
+          <PortsContext value={{ ...selectPorts(), git }}>
+            <I18nProvider initialLocale="es-MX">
+              <DiffViewer
+                repoId="gitthul"
+                diff={{ path: file.path, source: file.source, returnTo: null }}
+                actions={{} as WorkingActions}
+                status={null}
+                onClose={() => {}}
+              />
+            </I18nProvider>
+          </PortsContext>,
+        );
+        await screen.findAllByRole('textbox');
+        const labels = [...container.querySelectorAll('.cm-editor')].map((editor) =>
+          [...editor.querySelectorAll('.cm-lineNumbers .cm-gutterElement')]
+            .map((line) => line.textContent)
+            .filter((label) => label && label !== '9'),
+        );
+        expect(labels).toEqual(
+          added
+            ? [
+                ['1', '2', '3'],
+                ['1', '2', '3', '4'],
+              ]
+            : [
+                ['1', '2', '3', '4'],
+                ['1', '2', '3'],
+              ],
+        );
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: /Agregar la línea 4 al staging/ }),
+        ).not.toBeInTheDocument();
+      },
+    );
+  }
+  for (const options of [
+    { columns: 'unified', scope: 'hunks', content: 'diff' },
+    { columns: 'split', scope: 'file', content: 'diff' },
+    { columns: 'unified', scope: 'file', content: 'file' },
+  ] as const) {
+    it.each(explanations)(
+      `explica $expected (${options.content}, ${options.columns}, ${options.scope})`,
+      async ({ details, expected }) => {
+        useWorkingStore.getState().setDiffOptions(options);
+        const file = modeDiff({ kind: 'worktree' }, '100644', '100644');
+        show({
+          ...file,
+          content: {
+            kind: 'text',
+            hunks: [],
+            truncated: false,
+            encoding: 'utf-8',
+            textChanges: details,
+          },
+        });
+        expect(await screen.findByText(expected)).toHaveAttribute('role', 'status');
+      },
+    );
+  }
+
+  it.each(sources)('explica el renombrado sin cambios de contenido en $kind', async (source) => {
+    const file = modeDiff(source, '100644', '100644');
+    show({ ...file, path: 'nuevo.txt', previousPath: 'anterior.txt', change: 'renamed' });
+    expect(
+      await screen.findByText('Archivo renombrado: anterior.txt → nuevo.txt.'),
+    ).toHaveAttribute('role', 'status');
+  });
+
+  it('distingue un renombrado con contenido modificado y limita la lista de avisos', async () => {
+    const file = modeDiff({ kind: 'index' }, '100644', '100755');
+    const { container } = show({
+      ...file,
+      path: 'nuevo.txt',
+      previousPath: 'anterior.txt',
+      change: 'renamed',
+      precondition: { ...file.precondition, after: { oid: 'different-blob', mode: '100755' } },
+      content: {
+        kind: 'text',
+        hunks: [],
+        truncated: false,
+        encoding: 'utf-8',
+        textChanges: {
+          encoding: { before: 'utf-8', after: 'utf-16le' },
+          bom: { before: null, after: 'utf-16le' },
+          finalNewline: { before: true, after: false },
+        },
+      },
+    });
+    await screen.findByText(
+      'Archivo renombrado: anterior.txt → nuevo.txt. También cambió el contenido.',
+    );
+    expect(screen.getAllByRole('status')).toHaveLength(4);
+    expect(container.querySelector(`.${styles.metadataList}`)).toBeInTheDocument();
+  });
+
+  it.each([true, false])(
+    'explica una copia binaria (contenido idéntico: %s)',
+    async (identical) => {
+      const file = modeDiff({ kind: 'index' }, '100644', '100644');
+      show({
+        ...file,
+        path: 'copia.png',
+        previousPath: 'original.png',
+        change: 'copied',
+        precondition: {
+          ...file.precondition,
+          after: { oid: identical ? 'same-blob' : 'another-blob', mode: '100644' },
+        },
+        content: { kind: 'binary', oldSize: 10, newSize: 10, mediaType: 'image/png' },
+      });
+      expect(
+        await screen.findByText(
+          `Archivo copiado: original.png → copia.png.${identical ? '' : ' También cambió el contenido.'}`,
+        ),
+      ).toHaveAttribute('role', 'status');
+    },
+  );
+});
 
 describe('WIP con muchos hunks', () => {
   it.each([
