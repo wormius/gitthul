@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 
-import { Button, type ButtonSize, type ButtonVariant } from './Button';
+import { Button, type ButtonContentAlign, type ButtonSize, type ButtonVariant } from './Button';
 import type { FloatingAlign, FloatingSide } from './floatingUtils';
 import { IconButton } from './IconButton';
 import { Menu } from './Menu';
@@ -20,6 +20,8 @@ interface DropdownProps {
   description?: string;
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** Alineación del texto del disparador; `align` coloca el menú. */
+  contentAlign?: ButtonContentAlign;
   disabled?: boolean;
   side?: FloatingSide;
   align?: FloatingAlign;
@@ -57,6 +59,7 @@ export function Dropdown({
   description,
   variant = 'secondary',
   size = 'md',
+  contentAlign,
   disabled,
   side = 'bottom',
   align = 'start',
@@ -101,6 +104,7 @@ export function Dropdown({
         ref={setTrigger}
         variant={variant}
         size={size}
+        contentAlign={contentAlign}
         iconStart={icon}
         iconEnd={<CaretDownIcon />}
         disabled={disabled}

@@ -4,6 +4,11 @@ Al abrir un archivo desde Cambios, Staging, un commit o una comparación, la
 barra del diff incluye un botón con un reloj para consultar su historial.
 El reloj es el primer control de la barra.
 
+En el árbol de un commit, **Todos los archivos** también permite abrir los que
+no cambiaron en ese commit. Estos se muestran directamente como archivo, con
+el contenido de esa revisión en una sola vista. Los controles de comparación
+vuelven al abrir un archivo modificado, con tus ajustes anteriores.
+
 Al estrechar el panel, la barra oculta primero el origen de la comparación
 (por ejemplo, **En el commit** y su SHA). Si hace falta más espacio, muestra
 la ruta y el origen arriba, y mueve todos los controles juntos a una fila

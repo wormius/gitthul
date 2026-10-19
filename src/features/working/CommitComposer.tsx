@@ -325,6 +325,7 @@ export function CommitComposer({
               : t('working.composer.gitIdentity')
           }
           menuLabel={t('working.composer.profile')}
+          contentAlign="start"
           matchTriggerWidth
           icon={
             gitIdentity ? (

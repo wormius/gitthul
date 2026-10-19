@@ -1524,7 +1524,7 @@ export const de: Messages = {
   'about.logo': 'Logo von GitThul',
   'about.version': 'GitThul™ {version}',
   'about.license': 'Lizenz {license}',
-  'about.trademark': 'GitThul und sein Logo werden als nicht eingetragene Marken (™) verwendet.',
+  'about.trademark': 'GitThul™ und sein Logo sind Marken des GitThul-Projekts.',
   'about.tagline': 'Tentakelartiger, arkaner grafischer Git-Client mit offenem Quellcode.',
   'about.site': 'Projektseite',
   'about.source': 'Quellcode',

@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useId,
   useMemo,
   useLayoutEffect,
   useRef,
@@ -7,6 +8,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
+  type RefObject,
 } from 'react';
 
 import { ContextMenu } from './ContextMenu';
@@ -52,6 +54,8 @@ interface DataGridProps {
   columnScrollLabel?: string;
   columnScroll?: number;
   onColumnScrollChange?: (offset: number) => void;
+  /** Señala los lados con contenido oculto de la columna con scroll propio. */
+  columnOverflowIndicator?: 'sawtooth';
   /**
    * El cuerpo. Normalmente una `VirtualList` con `semantics="rowgroup"` que
    * pinta `DataGridRow`, para que la tabla siga siendo una tabla en el árbol
@@ -62,6 +66,10 @@ interface DataGridProps {
 }
 
 const RESIZE_STEP = 8;
+const COLUMN_SCROLL_STEP = 40;
+const WHEEL_LINE_WIDTH = 16;
+const MAX_WHEEL_STEP = 24;
+const SCROLL_EDGE_TOLERANCE = 0.5;
 
 /**
  * Tabla de columnas redimensionables con la cabecera fuera del scroll.
@@ -88,6 +96,7 @@ export function DataGrid({
   columnScrollLabel,
   columnScroll,
   onColumnScrollChange,
+  columnOverflowIndicator,
   children,
   className,
 }: DataGridProps) {
@@ -113,12 +122,15 @@ export function DataGrid({
   // mismo punto de partida.
   const applied = useRef(widths);
   const headerRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyId = useId();
+  const columnScrollerRef = useRef<HTMLDivElement>(null);
 
   const [ownHidden, setOwnHidden] = useState<ReadonlySet<string>>(() => new Set());
   const [ownScroll, setOwnScroll] = useState(0);
 
   const hiddenKeys = hidden ?? ownHidden;
-  const scrollOffset = columnScroll ?? ownScroll;
+  const requestedScroll = columnScroll ?? ownScroll;
 
   const widthOf = useCallback(
     (key: string) => {
@@ -161,6 +173,71 @@ export function DataGrid({
     (key: string) => fitted[key] ?? widthOf(key),
     [fitted, widthOf],
   );
+
+  const scrollable = visible.find((column) => column.contentWidth !== undefined);
+  const scrollableKey = scrollable?.key;
+  const columnWidth = scrollable ? effectiveWidthOf(scrollable.key) : 0;
+  const maxScroll = scrollable ? Math.max(0, scrollable.contentWidth! - columnWidth) : 0;
+  const scrollOffset = Math.min(maxScroll, Math.max(0, requestedScroll));
+  const appliedScroll = useRef(scrollOffset);
+  // Si el contenido se encoge o la columna crece, no conservar un offset
+  // inválido que reaparecería al volver a estrecharla.
+  if (columnScroll === undefined && ownScroll !== scrollOffset) setOwnScroll(scrollOffset);
+  const hiddenAtStart = scrollOffset > SCROLL_EDGE_TOLERANCE;
+  const hiddenAtEnd = maxScroll - scrollOffset > SCROLL_EDGE_TOLERANCE;
+  const columnStart = scrollable
+    ? visible
+        .slice(0, visible.indexOf(scrollable))
+        .reduce((left, column) => left + effectiveWidthOf(column.key), 0)
+    : 0;
+
+  useLayoutEffect(() => {
+    appliedScroll.current = scrollOffset;
+  }, [scrollOffset, scrollableKey, columnWidth]);
+
+  const changeColumnScroll = useCallback(
+    (offset: number) => {
+      const next = Math.min(maxScroll, Math.max(0, offset));
+      const previous = appliedScroll.current;
+      if (columnScroll === undefined) setOwnScroll(next);
+      // Acumular ráfagas sin perder deltas finos antes del siguiente render.
+      appliedScroll.current = columnScroll === undefined ? next : scrollOffset;
+      if (next !== previous) onColumnScrollChange?.(next);
+    },
+    [columnScroll, maxScroll, onColumnScrollChange, scrollOffset],
+  );
+
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    const scroller = columnScrollerRef.current;
+    if (!body || !scrollableKey || maxScroll === 0) return;
+    const wheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || !(event.target instanceof Element)) return;
+      const overScroller = scroller?.contains(event.target);
+      if (!overScroller) {
+        const cell = event.target.closest('[data-column-key]');
+        if (cell?.getAttribute('data-column-key') !== scrollableKey) return;
+        if (!event.shiftKey && Math.abs(event.deltaY) > Math.abs(event.deltaX)) return;
+      }
+      const delta = event.deltaX || (event.shiftKey || overScroller ? event.deltaY : 0);
+      if (!delta) return;
+      const unit =
+        event.deltaMode === 1 ? WHEEL_LINE_WIDTH : event.deltaMode === 2 ? columnWidth : 1;
+      // Una muesca suele llegar como 120 px o varias líneas: en una columna
+      // estrecha no debe saltar directamente de un extremo al otro.
+      const stepLimit = Math.max(1, Math.min(MAX_WHEEL_STEP, columnWidth / 4));
+      const step = Math.sign(delta) * Math.min(Math.abs(delta * unit), stepLimit);
+      const previous = appliedScroll.current;
+      const next = Math.min(maxScroll, Math.max(0, previous + step));
+      if (next === previous) return;
+      event.preventDefault();
+      changeColumnScroll(next);
+    };
+    // React registra wheel como pasivo; aquí sólo consumimos el gesto horizontal
+    // que realmente mueve esta columna, conservando rueda vertical y zoom.
+    body.addEventListener('wheel', wheel, { passive: false });
+    return () => body.removeEventListener('wheel', wheel);
+  }, [changeColumnScroll, columnWidth, maxScroll, scrollableKey]);
 
   const layout: DataGridLayout = useMemo(
     () => ({
@@ -241,7 +318,6 @@ export function DataGrid({
     setWidths(defaults);
   };
 
-  const scrollable = columns.find((column) => column.contentWidth !== undefined);
   const columnEntries: MenuEntry[] = columns
     .filter((column) => column.hideable !== false)
     .map((column) => ({
@@ -300,7 +376,11 @@ export function DataGrid({
 
   return (
     <DataGridContext value={layout}>
-      <div className={[styles.grid, className].filter(Boolean).join(' ')}>
+      <div
+        className={[styles.grid, scrollable ? styles.columnScrollable : '', className]
+          .filter(Boolean)
+          .join(' ')}
+      >
         <div
           role="grid"
           aria-label={label}
@@ -318,40 +398,160 @@ export function DataGrid({
             )}
           </div>
 
-          {children}
-        </div>
-
-        {scrollable && !hiddenKeys.has(scrollable.key) && (
-          <div className={styles.footer} style={{ gridTemplateColumns: layout.template }}>
-            {visible.map((column) =>
-              column.key === scrollable.key ? (
+          <div ref={bodyRef} id={bodyId} className={styles.body}>
+            {children}
+            {columnOverflowIndicator === 'sawtooth' &&
+              rowCount > 0 &&
+              (hiddenAtStart || hiddenAtEnd) && (
                 <div
-                  key={column.key}
-                  className={styles.columnScroller}
-                  role="region"
-                  aria-label={columnScrollLabel}
-                  tabIndex={0}
-                  onScroll={(event) => {
-                    const offset = event.currentTarget.scrollLeft;
-
-                    if (columnScroll === undefined) setOwnScroll(offset);
-
-                    onColumnScrollChange?.(offset);
-                  }}
+                  className={styles.columnClipping}
+                  style={{ left: columnStart, width: columnWidth }}
+                  aria-hidden="true"
                 >
-                  <div
-                    className={styles.columnScrollerContent}
-                    style={{ width: column.contentWidth }}
-                  />
+                  {hiddenAtStart && <ClippedColumnEdge side="start" />}
+                  {hiddenAtEnd && <ClippedColumnEdge side="end" />}
                 </div>
-              ) : (
-                <div key={column.key} />
-              ),
+              )}
+            {scrollable && maxScroll > SCROLL_EDGE_TOLERANCE && (
+              <ColumnScrollbar
+                trackRef={columnScrollerRef}
+                controlsId={bodyId}
+                label={columnScrollLabel}
+                left={columnStart}
+                width={columnWidth}
+                contentWidth={scrollable.contentWidth!}
+                offset={scrollOffset}
+                maxScroll={maxScroll}
+                onChange={changeColumnScroll}
+                onKeyDown={(event) => {
+                  if (event.altKey || event.ctrlKey || event.metaKey) return;
+                  let next: number;
+                  if (event.key === 'ArrowLeft') next = appliedScroll.current - COLUMN_SCROLL_STEP;
+                  else if (event.key === 'ArrowRight')
+                    next = appliedScroll.current + COLUMN_SCROLL_STEP;
+                  else if (event.key === 'PageUp') next = appliedScroll.current - columnWidth;
+                  else if (event.key === 'PageDown') next = appliedScroll.current + columnWidth;
+                  else if (event.key === 'Home') next = 0;
+                  else if (event.key === 'End') next = maxScroll;
+                  else return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  changeColumnScroll(next);
+                }}
+              />
             )}
           </div>
-        )}
+        </div>
       </div>
     </DataGridContext>
+  );
+}
+
+interface ColumnScrollbarProps {
+  trackRef: RefObject<HTMLDivElement | null>;
+  controlsId: string;
+  label?: string;
+  left: number;
+  width: number;
+  contentWidth: number;
+  offset: number;
+  maxScroll: number;
+  onChange: (offset: number) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
+}
+
+/** Indicador propio: WebKit puede pintar una pista opaca y expandirla en hover. */
+function ColumnScrollbar({
+  trackRef,
+  controlsId,
+  label,
+  left,
+  width,
+  contentWidth,
+  offset,
+  maxScroll,
+  onChange,
+  onKeyDown,
+}: ColumnScrollbarProps) {
+  const inset = Math.min(2, width / 4);
+  const trackWidth = Math.max(0, width - inset * 2);
+  const thumbWidth = Math.min(trackWidth, Math.max(16, (trackWidth * width) / contentWidth));
+  const travel = trackWidth - thumbWidth;
+  const thumbLeft = (offset / maxScroll) * travel;
+  const drag = useRef<{ pointerId: number; x: number; offset: number } | null>(null);
+
+  const stopDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (drag.current?.pointerId !== event.pointerId) return;
+    drag.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      className={styles.columnScrollbar}
+      style={{ left: left + inset, width: trackWidth }}
+      role="scrollbar"
+      aria-label={label}
+      aria-controls={controlsId}
+      aria-orientation="horizontal"
+      aria-valuemin={0}
+      aria-valuemax={maxScroll}
+      aria-valuenow={offset}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      onPointerDown={(event) => {
+        if (event.button !== 0 || travel <= 0 || drag.current) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.focus({ preventScroll: true });
+        const x = event.clientX - event.currentTarget.getBoundingClientRect().left;
+        const onThumb = x >= thumbLeft && x <= thumbLeft + thumbWidth;
+        const next = onThumb
+          ? offset
+          : Math.min(maxScroll, Math.max(0, ((x - thumbWidth / 2) / travel) * maxScroll));
+        if (!onThumb) onChange(next);
+        drag.current = { pointerId: event.pointerId, x: event.clientX, offset: next };
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        const origin = drag.current;
+        if (!origin || origin.pointerId !== event.pointerId || travel <= 0) return;
+        event.preventDefault();
+        onChange(origin.offset + ((event.clientX - origin.x) / travel) * maxScroll);
+      }}
+      onPointerUp={stopDrag}
+      onPointerCancel={stopDrag}
+      onLostPointerCapture={stopDrag}
+    >
+      <span
+        className={styles.columnThumb}
+        style={{ left: thumbLeft, width: thumbWidth }}
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
+function ClippedColumnEdge({ side }: { side: 'start' | 'end' }) {
+  const patternId = useId();
+  return (
+    <svg
+      className={`${styles.clippedEdge} ${side === 'start' ? styles.clippedStart : styles.clippedEnd}`}
+      data-overflow-edge={side}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        <pattern id={patternId} width="6" height="12" patternUnits="userSpaceOnUse">
+          <path d="M6 0H5.5L0.5 6L5.5 12H6Z" fill="var(--surface-app)" />
+          <path d="M5.5 0 0.5 6 5.5 12" fill="none" stroke="currentColor" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill={`url(#${patternId})`} />
+    </svg>
   );
 }
 

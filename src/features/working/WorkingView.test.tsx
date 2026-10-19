@@ -14,6 +14,7 @@ import { createMockSystemPort } from '@core/adapters/mock/mockSystemPort';
 import { createMockLibraryPort } from '@core/adapters/mock/mockLibraryPort';
 import { selectPorts, type AppPorts } from '@core/adapters/selectPorts';
 import { isMerge, shortSha, type Commit, type CommitPageRequest } from '@core/domain/commit';
+import type { FileDiff } from '@core/domain/diff';
 import { normalizeSession } from '@core/domain/session';
 import { GitOperationError, OperationCancelledError } from '@core/domain/errors';
 import type { WorkingStatus } from '@core/domain/status';
@@ -36,6 +37,16 @@ function makePorts(latency = NO_LATENCY): AppPorts {
     system: createMockSystemPort(),
     library: createMockLibraryPort(),
   };
+}
+
+function loadingGate() {
+  let resolve!: () => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<void>((complete, fail) => {
+    resolve = complete;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
 }
 
 function renderApp(ports: AppPorts) {
@@ -511,10 +522,12 @@ describe('WorkingView', () => {
     expect(within(grid).getByText('6')).toBeInTheDocument();
     expect(within(grid).getAllByRole('row').length).toBeGreaterThan(1);
 
-    // La columna Grafo trae su propio scroll horizontal — F2.3—, que es lo que
-    // la deja crecer con las calles sin comerse la columna del mensaje.
+    // Al estrechar Grafo aparece su control horizontal sobre la propia columna.
+    fireEvent.keyDown(within(grid).getByRole('separator', { name: 'Grafo' }), {
+      key: 'ArrowLeft',
+    });
     expect(
-      screen.getByRole('region', { name: 'Desplazamiento horizontal del grafo' }),
+      screen.getByRole('scrollbar', { name: 'Desplazamiento horizontal del grafo' }),
     ).toBeInTheDocument();
 
     // El panel derecho enseña Cambios y Stage con StagingPanel — F2.5.
@@ -1271,6 +1284,162 @@ describe('WorkingView', () => {
     await waitFor(() =>
       expect(screen.queryByRole('status', { name: 'Leyendo las referencias' })).toBeNull(),
     );
+  });
+
+  it('el progreso inicial continúa desde los metadatos hasta la primera página de commits', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const metadata = loadingGate();
+    const history = loadingGate();
+    const readRepository = ports.git.readRepository.bind(ports.git);
+    const readCommits = ports.git.readCommits.bind(ports.git);
+    vi.spyOn(ports.git, 'readRepository').mockImplementation(async (id, query) => {
+      if (id === 'gitthul') await metadata.promise;
+      return readRepository(id, query);
+    });
+    const reads = vi.spyOn(ports.git, 'readCommits').mockImplementation(async (id, page, query) => {
+      if (id === 'gitthul' && page?.limit === 500) await history.promise;
+      return readCommits(id, page, query);
+    });
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+
+    const progress = await screen.findByRole('progressbar', { name: 'Leyendo los commits' });
+    expect(progress).not.toHaveAttribute('aria-valuenow');
+    expect(reads.mock.calls.some(([id, page]) => id === 'gitthul' && page?.limit === 500)).toBe(
+      false,
+    );
+    await act(async () => {
+      metadata.resolve();
+      await metadata.promise;
+    });
+    await screen.findByRole('region', { name: 'Referencias de gitthul' });
+    await waitFor(() =>
+      expect(reads.mock.calls.some(([id, page]) => id === 'gitthul' && page?.limit === 500)).toBe(
+        true,
+      ),
+    );
+    expect(screen.getByRole('progressbar', { name: 'Leyendo los commits' })).toBeInTheDocument();
+    expect(screen.queryByRole('grid', { name: 'Commits de gitthul' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      history.resolve();
+      await history.promise;
+    });
+    await screen.findByRole('grid', { name: 'Commits de gitthul' });
+    expect(
+      screen.queryByRole('progressbar', { name: 'Leyendo los commits' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each(['metadatos', 'historial'])(
+    'el progreso inicial termina ante un error de %s y vuelve mientras se reintenta',
+    async (phase) => {
+      const user = userEvent.setup();
+      const ports = makePorts();
+      const first = loadingGate();
+      const retry = loadingGate();
+      let firstAttempt = true;
+      const readRepository = ports.git.readRepository.bind(ports.git);
+      const readCommits = ports.git.readCommits.bind(ports.git);
+      vi.spyOn(ports.git, 'readRepository').mockImplementation(async (id, query) => {
+        if (phase === 'metadatos' && id === 'gitthul') {
+          await (firstAttempt ? first.promise : retry.promise);
+        }
+        return readRepository(id, query);
+      });
+      vi.spyOn(ports.git, 'readCommits').mockImplementation(async (id, page, query) => {
+        if (phase === 'historial' && id === 'gitthul' && page?.limit === 500) {
+          await (firstAttempt ? first.promise : retry.promise);
+        }
+        return readCommits(id, page, query);
+      });
+      renderApp(ports);
+      await openRepo(user, GITTHUL_PATH);
+      await screen.findByRole('progressbar', { name: 'Leyendo los commits' });
+
+      await act(async () => {
+        first.reject(new GitOperationError('unknown', {}));
+        await first.promise.catch(() => undefined);
+      });
+      const retryButton = await screen.findByRole('button', { name: 'Reintentar' });
+      expect(
+        screen.queryByRole('progressbar', { name: 'Leyendo los commits' }),
+      ).not.toBeInTheDocument();
+      firstAttempt = false;
+      await user.click(retryButton);
+      expect(screen.getByRole('progressbar', { name: 'Leyendo los commits' })).toBeInTheDocument();
+
+      await act(async () => {
+        retry.resolve();
+        await retry.promise;
+      });
+      await screen.findByRole('grid', { name: 'Commits de gitthul' });
+      expect(
+        screen.queryByRole('progressbar', { name: 'Leyendo los commits' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('el progreso inicial del nuevo repositorio ignora la página tardía de la pestaña anterior', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const nextRepository = await ports.git.createRepository('/home/example/projects/siguiente', {
+      name: 'siguiente',
+      initialBranch: 'main',
+    });
+    const oldHistory = loadingGate();
+    const nextMetadata = loadingGate();
+    let oldSignal: AbortSignal | undefined;
+    const readRepository = ports.git.readRepository.bind(ports.git);
+    const readCommits = ports.git.readCommits.bind(ports.git);
+    vi.spyOn(ports.git, 'readRepository').mockImplementation(async (id, query) => {
+      if (id === nextRepository.id) await nextMetadata.promise;
+      return readRepository(id, query);
+    });
+    vi.spyOn(ports.git, 'readCommits').mockImplementation(async (id, page, query) => {
+      if (id === 'gitthul' && page?.limit === 500) {
+        oldSignal = query?.signal;
+        await oldHistory.promise;
+        // Simula un puerto que entrega su resultado aun después del aborto.
+        return readCommits(id, page);
+      }
+      return readCommits(id, page, query);
+    });
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    await waitFor(() => expect(oldSignal).toBeInstanceOf(AbortSignal));
+    act(() => {
+      useShellStore.getState().openWorking({
+        repoId: nextRepository.id,
+        repoName: nextRepository.name,
+        repoPath: nextRepository.path,
+        branch: nextRepository.head,
+      });
+    });
+    expect(oldSignal?.aborted).toBe(true);
+    expect(screen.getByRole('progressbar', { name: 'Leyendo los commits' })).toBeInTheDocument();
+
+    await act(async () => {
+      oldHistory.resolve();
+      await oldHistory.promise;
+    });
+    expect(screen.getByRole('progressbar', { name: 'Leyendo los commits' })).toBeInTheDocument();
+    expect(screen.queryByRole('grid', { name: 'Commits de gitthul' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      nextMetadata.resolve();
+      await nextMetadata.promise;
+    });
+    await screen.findByRole('region', { name: 'Referencias de siguiente' });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('progressbar', { name: 'Leyendo los commits' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole('region', { name: 'Referencias de gitthul' }),
+    ).not.toBeInTheDocument();
   });
 
   it('un repositorio que ya no está ofrece Localizar y Olvidar, y Olvidar cierra la pestaña', async () => {
@@ -2962,6 +3131,9 @@ describe('WorkingView', () => {
     renderApp(ports);
     await openRepo(user, GITTHUL_PATH);
     const grid = await screen.findByRole('grid', { name: 'Commits de gitthul' });
+    expect(
+      screen.queryByRole('progressbar', { name: 'Leyendo los commits' }),
+    ).not.toBeInTheDocument();
     const before = read.mock.calls.length;
 
     holdRefresh = true;
@@ -2972,11 +3144,17 @@ describe('WorkingView', () => {
     await waitFor(() => expect(read.mock.calls.length).toBeGreaterThan(before));
     expect(grid).toBeInTheDocument();
     expect(screen.getByRole('grid', { name: 'Commits de gitthul' })).toBe(grid);
+    expect(
+      screen.queryByRole('progressbar', { name: 'Leyendo los commits' }),
+    ).not.toBeInTheDocument();
 
     await act(async () => {
       releaseRefresh();
       await refreshGate;
     });
+    expect(
+      screen.queryByRole('progressbar', { name: 'Leyendo los commits' }),
+    ).not.toBeInTheDocument();
   });
 
   it.each([false, true])(
@@ -3450,6 +3628,98 @@ describe('WorkingView', () => {
 
     await user.click(within(details).getByRole('radio', { name: 'Lista' }));
     expect(within(details).queryByRole('checkbox', { name: 'Todos los archivos' })).toBeNull();
+  });
+
+  it('Ver todos abre archivos sin cambios desde su blob histórico sin alterar las preferencias del diff', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const path = 'sin-cambios.txt';
+    const blob = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const historicalText = 'Contenido heredado del commit\nSegunda línea intacta\n';
+    vi.spyOn(ports.git, 'readTree').mockResolvedValue([{ path, kind: 'file' }]);
+    const readCommit = vi.spyOn(ports.git, 'readCommit');
+    const originalDiff = ports.git.readDiff.bind(ports.git);
+    const readDiff = vi
+      .spyOn(ports.git, 'readDiff')
+      .mockImplementation(async (id, request, query) => {
+        if (request.path === path && request.source.kind === 'commit') {
+          const snapshot = { oid: blob, mode: '100644' as const };
+          return {
+            path,
+            source: request.source,
+            change: 'unmodified',
+            precondition: { before: snapshot, after: snapshot },
+            content: { kind: 'text', hunks: [], truncated: false, encoding: 'utf-8' },
+          } satisfies FileDiff;
+        }
+        return originalDiff(id, request, query);
+      });
+    const originalFile = ports.git.readFile.bind(ports.git);
+    const readFile = vi
+      .spyOn(ports.git, 'readFile')
+      .mockImplementation(async (id, filePath, at, query) => {
+        if (filePath !== path) return originalFile(id, filePath, at, query);
+        const text = query?.blob === blob ? historicalText : 'Contenido actual incorrecto';
+        return {
+          path,
+          text,
+          binary: false,
+          size: new TextEncoder().encode(text).length,
+          mediaType: 'text/plain',
+          encoding: 'utf-8',
+        };
+      });
+    useWorkingStore.getState().setDiffOptions({
+      columns: 'unified',
+      scope: 'hunks',
+      content: 'diff',
+      wrap: true,
+    });
+    const preferences = useWorkingStore.getState().diffOptions;
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    const grid = await screen.findByRole('grid', { name: 'Commits de gitthul' });
+    const row = within(grid).getAllByRole('row').slice(4)[0];
+    if (!row) throw new Error('La tabla no montó ninguna fila de commit');
+    fireEvent.mouseDown(row, { button: 0 });
+    const details = await screen.findByRole('region', { name: /^Detalles del commit / });
+    const result = readCommit.mock.results.at(-1);
+    if (!result) throw new Error('No se leyó el commit');
+    const { commit, files } = await (result.value as ReturnType<AppPorts['git']['readCommit']>);
+    const changed = files.find((file) => !file.binary && /\.(?:css|ts|tsx)$/.test(file.path));
+    if (!changed) throw new Error('El commit no trae un archivo de texto modificado');
+
+    await user.click(within(details).getByRole('radio', { name: 'Árbol' }));
+    await user.click(within(details).getByRole('checkbox', { name: 'Todos los archivos' }));
+    await user.click(await within(details).findByText(path));
+    const viewer = await screen.findByRole('region', { name: `Diff de ${path}` });
+    const fileEditor = await within(viewer).findByRole('textbox', { name: `Archivo ${path}` });
+    expect(within(viewer).getAllByRole('textbox')).toHaveLength(1);
+    expect(EditorView.findFromDOM(fileEditor)!.state.doc.toString()).toBe(historicalText);
+    expect(within(viewer).queryByRole('radio', { name: 'Diff' })).not.toBeInTheDocument();
+    expect(within(viewer).queryByRole('radio', { name: 'Archivo' })).not.toBeInTheDocument();
+    const blobRead = readFile.mock.calls.find(([, filePath]) => filePath === path);
+    expect(blobRead?.slice(0, 3)).toEqual(['gitthul', path, commit.sha]);
+    expect(blobRead?.[3]).toMatchObject({ blob, encoding: preferences.encoding });
+    expect(blobRead?.[3]?.signal).toBeInstanceOf(AbortSignal);
+    expect(useWorkingStore.getState().diffOptions).toBe(preferences);
+
+    await user.click(within(details).getByText(changed.path.split('/').at(-1)!));
+    const changedViewer = await screen.findByRole('region', { name: `Diff de ${changed.path}` });
+    await within(changedViewer).findAllByRole('textbox', { name: /^Diff de / });
+    expect(within(changedViewer).getByRole('radio', { name: 'Diff' })).toBeChecked();
+    expect(within(changedViewer).getByRole('radio', { name: 'Hunks' })).toBeChecked();
+    expect(within(changedViewer).getByRole('radio', { name: 'Una' })).toBeChecked();
+    expect(
+      within(changedViewer).queryByRole('textbox', { name: /^Archivo / }),
+    ).not.toBeInTheDocument();
+    expect(readDiff.mock.lastCall?.[0]).toBe('gitthul');
+    expect(readDiff.mock.lastCall?.[1]).toMatchObject({
+      path: changed.path,
+      source: { kind: 'commit', sha: commit.sha },
+    });
+    expect(readDiff.mock.lastCall?.[2]?.signal).toBeInstanceOf(AbortSignal);
+    expect(useWorkingStore.getState().diffOptions).toBe(preferences);
   });
 
   it.each([false, true])(

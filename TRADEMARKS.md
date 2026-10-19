@@ -1,8 +1,6 @@
 # Nombre y marca de GitThul
 
-GitThul™ y su logotipo identifican el proyecto GitThul. Se utilizan como marcas no
-registradas; ™ no afirma que exista un registro. El símbolo ® solo corresponde a
-un registro confirmado y no se utiliza en esta etapa.
+GitThul™ y su logotipo son marcas del proyecto GitThul.
 
 El código propio del proyecto se distribuye bajo [MIT](LICENSE). Esta política de
 marca no añade restricciones de uso, modificación ni redistribución al código bajo
