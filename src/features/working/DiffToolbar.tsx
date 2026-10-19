@@ -21,6 +21,8 @@ interface DiffToolbarProps {
   decodingErrors?: boolean;
   /** Con un binario no hay columnas, ni hunks, ni espacios que ignorar. */
   textual: boolean;
+  /** Un archivo heredado del commit sólo ofrece lectura, sin comparación. */
+  fileOnly?: boolean;
   historyOpen: boolean;
   onToggleHistory: () => void;
   onClose: () => void;
@@ -148,6 +150,7 @@ export function DiffToolbar({
   reportedEncoding,
   decodingErrors,
   textual,
+  fileOnly = false,
   historyOpen,
   onToggleHistory,
   onClose,
@@ -269,24 +272,26 @@ export function DiffToolbar({
               }
               onClick={onToggleHistory}
             />
-            <SegmentedControl
-              label={t('working.diff.content')}
-              hideLabels
-              value={options.content}
-              onChange={(content) => {
-                onOptionsChange({
-                  content:
-                    content === options.content
-                      ? options.content === 'diff'
-                        ? 'file'
-                        : 'diff'
-                      : content,
-                });
-              }}
-              options={contents}
-            />
+            {!fileOnly && (
+              <SegmentedControl
+                label={t('working.diff.content')}
+                hideLabels
+                value={options.content}
+                onChange={(content) => {
+                  onOptionsChange({
+                    content:
+                      content === options.content
+                        ? options.content === 'diff'
+                          ? 'file'
+                          : 'diff'
+                        : content,
+                  });
+                }}
+                options={contents}
+              />
+            )}
 
-            {textual && options.content === 'diff' && (
+            {!fileOnly && textual && options.content === 'diff' && (
               <>
                 <SegmentedControl
                   label={t('working.diff.columns')}

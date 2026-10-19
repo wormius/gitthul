@@ -501,12 +501,14 @@ export function TerminalRefSidebar({
         />
       )}
       <DataGrid
+        className={styles.historyGrid}
         columns={columns}
         label={t('view.terminal.railLabel')}
         rowCount={visibleRows.length}
         storageId="terminal.references"
       >
         <VirtualList
+          className={styles.historyScroll}
           items={visibleRows}
           semantics="rowgroup"
           onRangeChange={handleRange}

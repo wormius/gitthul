@@ -39,7 +39,10 @@ export function SearchInput({
   };
 
   return (
-    <div className={[styles.wrapper, className].filter(Boolean).join(' ')}>
+    <div
+      className={[styles.wrapper, className].filter(Boolean).join(' ')}
+      data-disabled={rest.disabled || undefined}
+    >
       <label className={hiddenStyles.hidden} htmlFor={inputId}>
         {label}
       </label>
@@ -69,6 +72,7 @@ export function SearchInput({
             type="button"
             className={styles.clear}
             aria-label={clearLabel}
+            disabled={rest.disabled}
             onClick={() => onChange('')}
           >
             <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">

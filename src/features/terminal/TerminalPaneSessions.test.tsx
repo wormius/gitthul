@@ -100,6 +100,88 @@ describe('Sesiones de paneles de terminal', () => {
     },
   );
 
+  it.each([
+    [1, 'Dividir a la derecha'],
+    [1, 'Dividir hacia abajo'],
+    [2, 'Dividir a la derecha'],
+    [2, 'Dividir hacia abajo'],
+  ])(
+    'cerrar el panel inicial tras dividir abajo y luego el panel %s con %s conserva los supervivientes',
+    async (splitPaneIndex, action) => {
+      const createSession = vi.fn((_request: TerminalSessionRequest) => Promise.resolve());
+      const closeSession = vi.fn((_sessionId: string) => Promise.resolve());
+      const write = vi.fn(() => Promise.resolve());
+      const port: TerminalPtyPort = {
+        kind: 'pty',
+        createSession,
+        closeSession,
+        write,
+        resize: vi.fn(() => Promise.resolve()),
+      };
+      const view = render(ptyView(port));
+      await waitFor(() => expect(createSession).toHaveBeenCalledOnce());
+      fireEvent.click(screen.getByRole('button', { name: 'Dividir hacia abajo' }));
+      await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2));
+      fireEvent.click(
+        within(
+          screen.getByRole('region', { name: `Terminal ${String(splitPaneIndex)}` }),
+        ).getByRole('button', {
+          name: action,
+        }),
+      );
+      await waitFor(() => expect(createSession).toHaveBeenCalledTimes(3));
+      const initial = createSession.mock.calls[0]![0];
+      const survivors = createSession.mock.calls.slice(1).map(([request], index) => {
+        const paneIndex = splitPaneIndex === 1 ? 3 - index : index + 2;
+        const output = screen.getByRole('application', {
+          name: `Terminal: Terminal ${String(paneIndex)}`,
+        });
+        act(() => request.onData(new TextEncoder().encode(`sesión ${request.sessionId}\r\n`)));
+        return { request, output, input: output.querySelector('textarea')! };
+      });
+      for (const { request, output } of survivors) {
+        await waitFor(() => expect(output).toHaveTextContent(`sesión ${request.sessionId}`));
+      }
+      const focused = survivors[1]!.input;
+      act(() => focused.focus());
+      expect(focused).toHaveFocus();
+      fireEvent.click(
+        within(screen.getByRole('region', { name: 'Terminal 1' })).getByRole('button', {
+          name: 'Cerrar este panel de terminal',
+        }),
+      );
+
+      expect(createSession).toHaveBeenCalledTimes(3);
+      expect(closedStartedSessions(createSession, closeSession)).toEqual([initial.sessionId]);
+      expect(screen.getAllByRole('application')).toHaveLength(2);
+      for (const [index, { request, output, input }] of survivors.entries()) {
+        const paneIndex = splitPaneIndex === 1 ? 2 - index : index + 1;
+        expect(
+          screen.getByRole('application', {
+            name: `Terminal: Terminal ${String(paneIndex)}`,
+          }),
+        ).toBe(output);
+        const host = output.closest('section')!.parentElement!;
+        expect(host.parentElement?.childElementCount).toBe(1);
+        expect(host.parentElement?.closest('section')).toBeNull();
+        expect(output).toHaveTextContent(`sesión ${request.sessionId}`);
+        act(() => request.onData(new TextEncoder().encode('continúa después del cierre\r\n')));
+        await waitFor(() => expect(output).toHaveTextContent('continúa después del cierre'));
+        fireEvent.keyDown(input, { key: 'l', keyCode: 76, which: 76 });
+        expect(write).toHaveBeenLastCalledWith(request.sessionId, 'l');
+      }
+      expect(focused).toHaveFocus();
+      view.unmount();
+      expect(closedStartedSessions(createSession, closeSession)).toHaveLength(3);
+      expect(closedStartedSessions(createSession, closeSession)).toEqual(
+        expect.arrayContaining([
+          initial.sessionId,
+          ...survivors.map(({ request }) => request.sessionId),
+        ]),
+      );
+    },
+  );
+
   it('dividir durante la preparación mantiene pendiente el arranque original sin cancelarlo', async () => {
     let complete!: () => void;
     const starting = new Promise<void>((resolve) => {

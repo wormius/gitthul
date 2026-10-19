@@ -20,7 +20,6 @@ import {
   gutter,
   GutterMarker,
   keymap,
-  lineNumbers,
   WidgetType,
   type DecorationSet,
 } from '@codemirror/view';
@@ -204,6 +203,20 @@ class BlockSpacerWidget extends WidgetType {
     }
 
     return spacer;
+  }
+}
+
+class LineNumberMarker extends GutterMarker {
+  constructor(readonly label: string) {
+    super();
+  }
+
+  override eq(other: LineNumberMarker): boolean {
+    return this.label === other.label;
+  }
+
+  override toDOM(): Text {
+    return document.createTextNode(this.label);
   }
 }
 
@@ -646,16 +659,41 @@ export function CodeSurface({
   }, [hasChoiceControls]);
   // Si cambia la configuración de un gutter, CodeMirror retira y reinserta todos.
   // Mantener sus facetas evita que un repintado ajeno a los controles les quite el foco.
-  const numberGutter = useMemo(
-    () =>
-      lineNumbers({
-        formatNumber: (number) =>
-          lineNumberLabels
-            ? (lineNumberLabels[number - 1] ?? '')
-            : String(number + firstLineNumber - 1),
-      }),
-    [lineNumberLabels, firstLineNumber],
-  );
+  const numberGutter = useMemo(() => {
+    const formatNumber = (number: number) =>
+      lineNumberLabels
+        ? (lineNumberLabels[number - 1] ?? '')
+        : String(number + firstLineNumber - 1);
+    // El espaciador nativo pide 9, 99, 999... aunque esa línea no exista.
+    // En un diff su rótulo puede ser vacío: medir todos los rótulos reales evita
+    // que el margen dependa únicamente de las líneas que entran en el viewport.
+    const spacerFor = (state: EditorState) => {
+      let widest = '';
+      if (lineNumberLabels) {
+        const count = Math.min(state.doc.lines, lineNumberLabels.length);
+        for (let index = 0; index < count; index += 1) {
+          const label = lineNumberLabels[index]!;
+          if (label.length > widest.length) widest = label;
+        }
+      } else {
+        const first = formatNumber(1);
+        const last = formatNumber(state.doc.lines);
+        widest = first.length > last.length ? first : last;
+      }
+      return new LineNumberMarker(widest);
+    };
+    return gutter({
+      class: 'cm-lineNumbers',
+      lineMarker: (view, line) =>
+        new LineNumberMarker(formatNumber(view.state.doc.lineAt(line.from).number)),
+      initialSpacer: (view) => spacerFor(view.state),
+      updateSpacer: (spacer, update) => {
+        if (!update.docChanged) return spacer;
+        const next = spacerFor(update.state);
+        return spacer.eq(next) ? spacer : next;
+      },
+    });
+  }, [lineNumberLabels, firstLineNumber]);
   const foldingGutter = useMemo(() => foldGutter(), []);
 
   /*

@@ -191,6 +191,15 @@ export function TerminalPane({
           </button>
         )}
         <div className={styles.actions}>
+          {repositoryAvailable && onOpenWorking && (
+            <IconButton
+              size="sm"
+              icon={<WorkingIcon />}
+              aria-label={openWorkingLabel}
+              title={openWorkingLabel}
+              onClick={onOpenWorking}
+            />
+          )}
           <IconButton
             size="sm"
             icon={<HorizontalSplitIcon />}
@@ -205,15 +214,6 @@ export function TerminalPane({
             title={splitVerticalLabel}
             onClick={() => onSplit(pane.id, 'vertical')}
           />
-          {repositoryAvailable && onOpenWorking && (
-            <IconButton
-              size="sm"
-              icon={<WorkingIcon />}
-              aria-label={openWorkingLabel}
-              title={openWorkingLabel}
-              onClick={onOpenWorking}
-            />
-          )}
           <IconButton
             size="sm"
             icon={<CloseIcon />}

@@ -52,7 +52,7 @@ describe('AboutPanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('dice la versión, la licencia y el aviso de marca no registrada', async () => {
+  it('dice la versión, la licencia y el aviso de marca', async () => {
     useShellStore.getState().setOverlay('about');
     renderAbout(makePorts());
 
@@ -61,7 +61,7 @@ describe('AboutPanel', () => {
     expect(within(dialog).getByText(/^GitThul™ \d+\.\d+\.\d+/)).toBeInTheDocument();
     expect(within(dialog).getByText('Licencia MIT')).toBeInTheDocument();
     expect(
-      within(dialog).getByText('GitThul y su logotipo se usan como marcas no registradas (™).'),
+      within(dialog).getByText('GitThul™ y su logotipo son marcas del proyecto GitThul.'),
     ).toBeInTheDocument();
     expect(
       within(dialog).getByText('Cliente gráfico de Git, tentacular, arcano y de código abierto.'),

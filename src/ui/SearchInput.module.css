@@ -3,6 +3,27 @@
   display: inline-flex;
   align-items: center;
   width: 100%;
+  min-width: 0;
+  height: var(--control-height-md);
+  padding-right: var(--space-2);
+  background-color: var(--surface-sunken);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.wrapper:hover:not([data-disabled]):not(:focus-within) {
+  border-color: var(--border-strong);
+}
+
+.wrapper:focus-within {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  border-color: var(--border-accent);
+}
+
+.wrapper[data-disabled] {
+  background-image: var(--disabled-pattern);
+  opacity: var(--disabled-opacity);
 }
 
 .icon {
@@ -16,15 +37,22 @@
 }
 
 .input {
-  width: 100%;
-  height: var(--control-height-md);
-  padding: 0 var(--space-6) 0 calc(var(--space-3) + var(--icon-sm) + var(--space-2));
+  flex: 1 1 0;
+  min-width: 0;
+  width: 0;
+  height: 100%;
+  padding: 0 var(--space-2) 0 calc(var(--space-3) + var(--icon-sm) + var(--space-2));
   color: var(--text-primary);
   font-family: inherit;
   font-size: var(--text-md);
-  background-color: var(--surface-sunken);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  appearance: none;
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.input:focus-visible {
+  outline: none;
 }
 
 .input::placeholder {
@@ -35,14 +63,13 @@
   display: none;
 }
 
-.input:hover:not(:disabled) {
-  border-color: var(--border-strong);
-}
-
+/* El contador reserva su ancho en el flujo; si falta espacio, se recorta él
+   antes de superponerse al texto o esconder el botón de limpiar. */
 .controls {
-  position: absolute;
-  right: var(--space-2);
   display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
   gap: var(--space-2);
   align-items: center;
 }
@@ -71,8 +98,15 @@
   background-color: var(--surface-hover);
 }
 
+.clear:disabled {
+  cursor: not-allowed;
+}
+
 .count {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-muted);
   font-size: var(--text-xs);
   white-space: nowrap;
+  text-overflow: ellipsis;
 }

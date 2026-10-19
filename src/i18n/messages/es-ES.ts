@@ -1516,7 +1516,7 @@ export const esES: Messages = {
   'about.logo': 'Logotipo de GitThul',
   'about.version': 'GitThul™ {version}',
   'about.license': 'Licencia {license}',
-  'about.trademark': 'GitThul y su logotipo se usan como marcas no registradas (™).',
+  'about.trademark': 'GitThul™ y su logotipo son marcas del proyecto GitThul.',
   'about.tagline': 'Cliente gráfico de Git, tentacular, arcano y de código abierto.',
   'about.site': 'Sitio del proyecto',
   'about.source': 'Código fuente',

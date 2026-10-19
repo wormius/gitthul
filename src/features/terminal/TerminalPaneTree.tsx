@@ -100,6 +100,14 @@ function MountedTerminalPane({
     attach(paneId, 'host', host);
     return () => attach(paneId, 'host', null);
   }, [attach, host, paneId]);
+  useLayoutEffect(() => {
+    return () => {
+      // React puede reutilizar este slot para otro panel al promover un split.
+      // El portal retira su contenido, pero su host se insertó manualmente:
+      // dejarlo vacío conservaría una caja de alto completo delante del nuevo.
+      host.remove();
+    };
+  }, [host]);
   return createPortal(<TerminalPane {...props} />, host);
 }
 

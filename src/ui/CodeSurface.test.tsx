@@ -56,6 +56,14 @@ function lineNumbersOf(container: HTMLElement): string[] {
     .map((element) => element.textContent ?? '');
 }
 
+function lineNumberSpacer(container: HTMLElement): HTMLElement {
+  const spacer = [
+    ...container.querySelectorAll<HTMLElement>('.cm-lineNumbers .cm-gutterElement'),
+  ].find((element) => element.style.visibility === 'hidden');
+  if (!spacer) throw new Error('No se reservó ancho para los números de línea');
+  return spacer;
+}
+
 describe('CodeSurface', () => {
   it('se anuncia con el nombre de lo que enseña', () => {
     renderSurface();
@@ -84,6 +92,100 @@ describe('CodeSurface', () => {
 
     expect(lineNumbersOf(container).slice(0, 3)).toEqual(['128', '129', '130']);
   });
+
+  it.each([
+    [98, '100'],
+    [998, '1000'],
+  ])('reserva desde el inicio el número completo de un hunk que empieza en %s', (first, last) => {
+    const { container } = renderSurface({ value: 'uno\ndos\n', firstLineNumber: first });
+
+    expect(lineNumberSpacer(container).textContent).toBe(last);
+    expect(lineNumbersOf(container)).toEqual([String(first), String(first + 1), last]);
+  });
+
+  it('reserva el rótulo más largo aunque quede fuera de la vista y el último esté vacío', () => {
+    const lineNumberLabels = Array.from({ length: 2000 }, (_, index) => String(index + 1));
+    lineNumberLabels[1500] = '123456789';
+    lineNumberLabels[1999] = '';
+    const value = Array.from({ length: 2000 }, () => 'línea sin cambios').join('\n');
+    const { container } = renderSurface({ value, lineNumberLabels });
+
+    expect(lineNumbersOf(container)).not.toContain('123456789');
+    expect(lineNumberSpacer(container).textContent).toBe('123456789');
+    expect(lineNumberSpacer(container).style.visibility).toBe('hidden');
+  });
+
+  it('cambiar los rótulos recalcula la reserva sin sustituir el editor ni su selección', () => {
+    const value = 'one\ntwo\nthree';
+    const { container, rerender } = renderSurface({
+      value,
+      lineNumberLabels: ['9', '', '123456'],
+    });
+    const view = EditorView.findFromDOM(editor())!;
+    act(() => view.dispatch({ selection: { anchor: 5 } }));
+    expect(lineNumberSpacer(container).textContent).toBe('123456');
+
+    rerender(
+      <CodeSurface
+        value={value}
+        label="src/design/theme.ts"
+        lineNumberLabels={['1', '1000000000', '']}
+      />,
+    );
+    expect(lineNumberSpacer(container).textContent).toBe('1000000000');
+    expect(EditorView.findFromDOM(editor())).toBe(view);
+    expect(view.state.selection.main.anchor).toBe(5);
+
+    rerender(
+      <CodeSurface value={value} label="src/design/theme.ts" lineNumberLabels={['', '10', '']} />,
+    );
+    expect(lineNumberSpacer(container).textContent).toBe('10');
+    expect(lineNumbersOf(container)).toEqual(['', '10', '']);
+    expect(view.state.selection.main.anchor).toBe(5);
+  });
+
+  it('acortar el documento actualiza el máximo reservado conservando el editor', () => {
+    const { container, rerender } = renderSurface({
+      value: 'one\ntwo\nthree',
+      firstLineNumber: 998,
+    });
+    const view = EditorView.findFromDOM(editor())!;
+    act(() => view.dispatch({ selection: { anchor: 1 } }));
+    expect(lineNumberSpacer(container).textContent).toBe('1000');
+
+    rerender(<CodeSurface value={'one\ntwo'} label="src/design/theme.ts" firstLineNumber={998} />);
+    expect(lineNumberSpacer(container).textContent).toBe('999');
+    expect(EditorView.findFromDOM(editor())).toBe(view);
+    expect(view.state.selection.main.anchor).toBe(1);
+  });
+
+  it.each([
+    [98, '99', '100'],
+    [998, '999', '1000'],
+  ])(
+    'editar un hunk desde %s ajusta la reserva al añadir y retirar una línea',
+    (first, before, after) => {
+      const onChange = vi.fn<(value: string) => void>();
+      const { container } = renderSurface({
+        value: 'one\ntwo',
+        firstLineNumber: first,
+        readOnly: false,
+        onChange,
+      });
+      const view = EditorView.findFromDOM(editor())!;
+      expect(lineNumberSpacer(container).textContent).toBe(before);
+
+      act(() => view.dispatch({ changes: { from: view.state.doc.length, insert: '\nthree' } }));
+      expect(lineNumberSpacer(container).textContent).toBe(after);
+      expect(onChange).toHaveBeenLastCalledWith('one\ntwo\nthree');
+
+      act(() =>
+        view.dispatch({ changes: { from: view.state.doc.line(2).to, to: view.state.doc.length } }),
+      );
+      expect(lineNumberSpacer(container).textContent).toBe(before);
+      expect(onChange).toHaveBeenLastCalledWith('one\ntwo');
+    },
+  );
 
   it('se puede quitar el margen de números', () => {
     const { container } = renderSurface({ showLineNumbers: false });

@@ -24,6 +24,30 @@
   pointer-events: none;
 }
 
+/* La cabecera reserva el mismo ancho que la barra del historial para mantener
+   las columnas alineadas también con barras que ocupan espacio. */
+.historyGrid :global([role='row'][aria-rowindex='1']),
+.historyScroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) var(--surface-sunken);
+}
+
+.historyGrid :global([role='row'][aria-rowindex='1'])::-webkit-scrollbar,
+.historyScroll::-webkit-scrollbar {
+  display: block;
+  width: var(--space-2);
+}
+
+.historyScroll::-webkit-scrollbar-track {
+  background: var(--surface-sunken);
+}
+
+.historyScroll::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border: var(--border-width) solid var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
 .row {
   align-items: center;
   min-width: 0;

@@ -10,24 +10,6 @@
   min-height: 0;
 }
 
-/* Los carriles fuera de la columna deben tener un control visible para llegar
-   a ellos: una conexión recortada sin barra parece una arista sin destino. */
-.grid :global([role='region']) {
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) var(--surface-sunken);
-}
-
-.grid :global([role='region'])::-webkit-scrollbar {
-  display: block;
-  height: var(--space-2);
-}
-
-.grid :global([role='region'])::-webkit-scrollbar-thumb {
-  background-color: var(--border-strong);
-  border-radius: var(--radius-pill);
-}
-
 /* El resto de la aplicación oculta la ornamentación nativa del scroll. El
    historial es la excepción: en una lista larga la barra también comunica
    posición y tamaño, además de permitir arrastrar directamente. */
@@ -58,6 +40,11 @@
   gap: var(--border-width);
   padding: var(--space-1) 0;
   overflow: hidden;
+}
+
+.loadingProgress {
+  flex: none;
+  padding: var(--space-4);
 }
 
 .empty,

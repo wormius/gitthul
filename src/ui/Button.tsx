@@ -4,10 +4,13 @@ import styles from './Button.module.css';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ButtonContentAlign = 'center' | 'start';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** Alineación del texto dentro del espacio disponible entre los iconos. */
+  contentAlign?: ButtonContentAlign;
   /** Icono decorativo; el texto accesible siempre viene de `children`. */
   iconStart?: ReactNode;
   iconEnd?: ReactNode;
@@ -19,6 +22,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export function Button({
   variant = 'secondary',
   size = 'md',
+  contentAlign = 'center',
   iconStart,
   iconEnd,
   type = 'button',
@@ -26,7 +30,13 @@ export function Button({
   children,
   ...rest
 }: ButtonProps) {
-  const classes = [styles.button, styles[variant], styles[size], className]
+  const classes = [
+    styles.button,
+    styles[variant],
+    styles[size],
+    contentAlign === 'start' ? styles.start : '',
+    className,
+  ]
     .filter(Boolean)
     .join(' ');
 

@@ -30,6 +30,41 @@
   flex: 0 0 auto;
 }
 
+/* La capa de recorte abarca el cuerpo completo, incluido el espacio sin filas,
+   y queda fuera del desplazamiento vertical de la lista. */
+.body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.columnClipping {
+  position: absolute;
+  inset-block: 0;
+  z-index: var(--z-raised);
+  pointer-events: none;
+}
+
+.clippedEdge {
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  color: var(--border-strong);
+}
+
+.clippedStart {
+  left: 0;
+  transform: scaleX(-1);
+}
+
+.clippedEnd {
+  right: 0;
+}
+
 /*
  * La cabecera reserva el hueco de la barra de scroll del cuerpo con
  * `scrollbar-gutter`, que es lo que mantiene las columnas alineadas cuando el
@@ -109,27 +144,74 @@
   outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
-/*
- * Scroll horizontal de la única columna que puede tenerlo. Vive al pie de la
- * tabla y alineado con su columna mediante la misma rejilla, para que se lea
- * como parte de ella y no como un scroll de la tabla entera.
- */
-.footer {
-  display: grid;
-  flex: 0 0 auto;
-  border-top: var(--border-width) solid var(--border-subtle);
-  scrollbar-gutter: stable;
+/* La cabecera comparte el mismo hueco para la barra vertical del cuerpo.
+   Las tablas sin columna desplazable mantienen su tratamiento de scroll. */
+.columnScrollable .header,
+.columnScrollable .body > [role='rowgroup'] {
+  scrollbar-width: thin;
 }
 
-.columnScroller {
-  overflow: hidden;
+.columnScrollable .body > [role='rowgroup'] {
+  scrollbar-color: var(--border-strong) var(--surface-sunken);
 }
 
-.columnScroller:focus-visible {
+.columnScrollable .body > [role='rowgroup']::-webkit-scrollbar {
+  display: block;
+  width: var(--space-2);
+}
+
+.columnScrollable .body > [role='rowgroup']::-webkit-scrollbar-track {
+  background: var(--surface-sunken);
+}
+
+.columnScrollable .body > [role='rowgroup']::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border: var(--border-width) solid var(--surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.columnScrollable .header::-webkit-scrollbar {
+  display: block;
+  width: var(--space-2);
+}
+
+/* Sólo el indicador se pinta sobre el grafo: la zona de agarre transparente no
+   reserva una franja al pie ni cambia de geometría al pasar el puntero. */
+.columnScrollbar {
+  position: absolute;
+  bottom: 0;
+  z-index: var(--z-raised);
+  height: 12px;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.columnScrollbar:active {
+  cursor: grabbing;
+}
+
+.columnThumb {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  background-color: var(--border-strong);
+  border-radius: var(--radius-pill);
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.columnScrollbar:hover > .columnThumb,
+.columnScrollbar:focus-visible > .columnThumb {
+  background-color: var(--border-accent);
+}
+
+.columnScrollbar:focus-visible {
+  outline: none;
+}
+
+.columnScrollbar:focus-visible > .columnThumb {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: calc(var(--focus-ring-offset) * -1);
-}
-
-.columnScrollerContent {
-  height: var(--space-1);
+  outline-offset: 0;
 }

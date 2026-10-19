@@ -407,6 +407,8 @@
 }
 
 .fit :global(.cm-editor .cm-scroller) {
+  /* Rellena el alto libre sin encoger el documento que desplaza el padre. */
+  flex: 1 0 auto;
   height: auto;
   overflow: visible;
 }

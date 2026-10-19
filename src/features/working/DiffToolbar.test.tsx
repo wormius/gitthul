@@ -16,7 +16,7 @@ const INITIAL: DiffOptions = {
   encoding: 'utf-8',
 };
 
-function Harness({ textual = true }: { textual?: boolean }) {
+function Harness({ textual = true, fileOnly = false }: { textual?: boolean; fileOnly?: boolean }) {
   const [options, setOptions] = useState(INITIAL);
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -29,6 +29,7 @@ function Harness({ textual = true }: { textual?: boolean }) {
         onOptionsChange={(patch) => setOptions((current) => ({ ...current, ...patch }))}
         reportedEncoding="utf-8"
         textual={textual}
+        fileOnly={fileOnly}
         historyOpen={historyOpen}
         onToggleHistory={() => setHistoryOpen((open) => !open)}
         onClose={() => {}}
@@ -38,6 +39,25 @@ function Harness({ textual = true }: { textual?: boolean }) {
 }
 
 describe('DiffToolbar', () => {
+  it('en archivos sin cambios conserva lectura e historial sin controles de comparación', async () => {
+    render(<Harness fileOnly />);
+    expect(screen.queryByRole('radio', { name: 'Diff' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Archivo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Dos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Hunks' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Codificación' })).toBeEnabled();
+    const wrap = screen.getByRole('button', { name: 'Ajustar líneas' });
+    await userEvent.click(wrap);
+    expect(wrap).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Ver el historial de src/app.ts' }));
+    expect(
+      screen.getByRole('button', { name: 'Cerrar el historial de src/app.ts' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Cerrar el diff de src/app.ts' }),
+    ).toBeInTheDocument();
+  });
+
   it.each([false, true])(
     'permite alternar el historial con el teclado (texto: %s)',
     async (textual) => {

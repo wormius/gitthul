@@ -324,8 +324,9 @@ describe('cambios sin diferencias de texto', () => {
         await screen.findAllByRole('textbox');
         const labels = [...container.querySelectorAll('.cm-editor')].map((editor) =>
           [...editor.querySelectorAll('.cm-lineNumbers .cm-gutterElement')]
+            .filter((line) => !(line as HTMLElement).style.visibility)
             .map((line) => line.textContent)
-            .filter((label) => label && label !== '9'),
+            .filter(Boolean),
         );
         expect(labels).toEqual(
           added
@@ -710,9 +711,14 @@ it('muestra un archivo borrado en una sola columna sin intentar leerlo del árbo
   expect(readFile).not.toHaveBeenCalled();
 });
 
-it.each(['diff', 'file'] as const)(
-  'lee el archivo de HEAD que no cambió en el commit, con contenido %s',
-  async (content) => {
+it.each([
+  ['hunks', 'diff'],
+  ['hunks', 'file'],
+  ['file', 'diff'],
+  ['file', 'file'],
+] as const)(
+  'abre el archivo sin cambios del commit en una sola vista (%s, %s)',
+  async (scope, content) => {
     const git = createMockGitPort({ latency: NO_LATENCY });
     const path = 'src/heredado.ts';
     const source = { kind: 'commit' as const, sha: 'head-sin-cambios-en-archivo' };
@@ -731,7 +737,8 @@ it.each(['diff', 'file'] as const)(
       mediaType: 'text/plain',
       encoding: 'UTF-8',
     });
-    useWorkingStore.getState().setDiffOptions({ columns: 'split', scope: 'file', content });
+    useWorkingStore.getState().setDiffOptions({ columns: 'split', scope, content });
+    const preferences = useWorkingStore.getState().diffOptions;
     render(
       <PortsContext value={{ ...selectPorts(), git }}>
         <I18nProvider initialLocale="es-MX">
@@ -746,6 +753,12 @@ it.each(['diff', 'file'] as const)(
       </PortsContext>,
     );
     const editors = await screen.findAllByRole('textbox');
+    expect(editors).toHaveLength(1);
+    expect(editors[0]).toHaveAccessibleName(`Archivo ${path}`);
+    expect(screen.queryByRole('radio', { name: 'Diff' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Dos' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Hunks' })).not.toBeInTheDocument();
+    expect(useWorkingStore.getState().diffOptions).toBe(preferences);
     expect(readFile.mock.calls[0]?.slice(0, 3)).toEqual(['gitthul', path, source.sha]);
     expect(readFile.mock.calls[0]?.[3]?.signal).toBeInstanceOf(AbortSignal);
     for (const editor of editors)

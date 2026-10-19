@@ -1519,7 +1519,7 @@ export const fr: Messages = {
   'about.logo': 'Logotype de GitThul',
   'about.version': 'GitThul™ {version}',
   'about.license': 'Licence {license}',
-  'about.trademark': 'GitThul et son logo sont utilisés comme marques non enregistrées (™).',
+  'about.trademark': 'GitThul™ et son logo sont des marques du projet GitThul.',
   'about.tagline': 'Client graphique de Git, tentaculaire, arcanique et open source.',
   'about.site': 'Site du projet',
   'about.source': 'Code source',

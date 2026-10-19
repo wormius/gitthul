@@ -79,6 +79,10 @@ interface DiffData {
   contents: FileContents | null;
 }
 
+function isUnchangedCommitFile(file: FileDiff): boolean {
+  return file.source.kind === 'commit' && file.change === 'unmodified';
+}
+
 /** Un añadido o borrado contiene el archivo completo en sus líneas cambiadas. */
 function oneSidedContents(file: FileDiff): FileContents | null {
   if (file.content.kind !== 'text' || file.content.truncated) return null;
@@ -212,7 +216,10 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
         file.content.kind === 'text' &&
         file.content.hunks.length === 0 &&
         file.content.textChanges?.finalNewline !== undefined;
-      if ((!wholeFile && !needsFinalLine) || file.content.kind === 'binary')
+      if (
+        (!wholeFile && !needsFinalLine && !isUnchangedCommitFile(file)) ||
+        file.content.kind === 'binary'
+      )
         return { file, contents: null };
 
       const oneSided = oneSidedContents(file);
@@ -298,13 +305,18 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
     data.status === 'ready' && data.data.file.content.kind === 'text'
       ? (data.data.file.content.detectedEncoding ?? data.data.file.content.encoding)
       : null;
+  // «Ver todos» incluye archivos heredados: se leen tal como están en el commit,
+  // sin convertir este caso en una preferencia para los próximos diffs.
+  const fileOnly = data.status === 'ready' && isUnchangedCommitFile(data.data.file);
+  const displayOptions: DiffOptions = fileOnly ? { ...options, content: 'file' } : options;
 
   const toolbar = (
     <DiffToolbar
       path={path}
       source={source}
-      options={options}
+      options={displayOptions}
       onOptionsChange={setOptions}
+      fileOnly={fileOnly}
       reportedEncoding={reportedEncoding}
       decodingErrors={
         data.status === 'ready' &&
@@ -353,7 +365,7 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
           <DiffMetadata file={data.data.file} />
           <DiffBody
             data={data.data}
-            options={options}
+            options={displayOptions}
             path={path}
             source={source}
             encoding={

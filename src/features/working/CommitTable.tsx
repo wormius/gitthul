@@ -12,6 +12,7 @@ import { useI18n } from '@i18n/useI18n';
 import { DataGrid } from '@ui/DataGrid';
 import type { DataGridColumn } from '@ui/dataGridUtils';
 import { EmptyState } from '@ui/EmptyState';
+import { ProgressBar } from '@ui/ProgressBar';
 import { Skeleton } from '@ui/Skeleton';
 import { Spinner } from '@ui/Spinner';
 import { VirtualList, type VirtualListHandle } from '@ui/VirtualList';
@@ -562,6 +563,7 @@ export function CommitTable({
         menuExtras={headerExtras}
         resetWidthsLabel={t('working.menu.header.resetWidths')}
         columnScrollLabel={t('working.commitTable.graphScroll')}
+        columnOverflowIndicator="sawtooth"
         className={styles.grid}
       >
         <VirtualList<CommitTableRow>
@@ -622,6 +624,9 @@ export function CommitTableSkeleton() {
       role="status"
       aria-label={t('working.commitTable.loading')}
     >
+      <div className={styles.loadingProgress}>
+        <ProgressBar label={t('working.commitTable.loading')} />
+      </div>
       {Array.from({ length: SKELETON_ROWS }, (_, index) => (
         <Skeleton key={index} variant="block" style={{ height: rowHeightPx }} />
       ))}

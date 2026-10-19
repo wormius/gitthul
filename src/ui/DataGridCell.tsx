@@ -30,14 +30,18 @@ export function DataGridCell({ columnKey, className, children }: DataGridCellPro
 
   if (column.contentWidth === undefined) {
     return (
-      <div role="gridcell" className={classes}>
+      <div role="gridcell" data-column-key={columnKey} className={classes}>
         {children}
       </div>
     );
   }
 
   return (
-    <div role="gridcell" className={[classes, styles.clipped].filter(Boolean).join(' ')}>
+    <div
+      role="gridcell"
+      data-column-key={columnKey}
+      className={[classes, styles.clipped].filter(Boolean).join(' ')}
+    >
       <div
         className={styles.scrolled}
         style={{

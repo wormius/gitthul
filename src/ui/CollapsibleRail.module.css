@@ -4,7 +4,6 @@
   flex-direction: column;
   min-height: 0;
   background-color: var(--surface-panel);
-  border-right: var(--border-width) solid var(--border-subtle);
 }
 
 .expanded {
