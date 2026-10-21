@@ -131,6 +131,15 @@ para las rutas sin seguimiento. El visor de archivo lee el blob que resolvió el
 también para archivos truncados; no buscar esos archivos en disco ni en el árbol
 rastreado del stash. DiffSource.commit conserva la comparación contra el primer padre.
 
+GitPort.applyStash con options.paths aplica únicamente esa selección al árbol de
+trabajo y conserva el índice y el stash. Verificar el OID del stash y el estado
+observado antes y después del checkpoint; incluir ambos extremos de los renombrados
+y el tercer padre para archivos sin seguimiento. Comprobar el parche completo antes
+de escribir, usar rutas literales y conservar Deshacer/Rehacer con alcance limitado.
+Los conflictos y colisiones rechazan el lote; no usar checkout para sobrescribir
+archivos ni combinar esta modalidad con drop. Los gitlinks requieren aplicar el
+stash completo y producen un error explícito en la aplicación parcial.
+
 TextDiff.lineEndingChange explica CRLF/LF cuando los textos decodificados coinciden
 al normalizar sus finales y Git registra blobs distintos. No normalizar los hunks
 ni sus bytes de escritura; omitir el aviso si Git ya normaliza la conversión o
@@ -150,10 +159,31 @@ lo tiene; las filas displayOnly no son referencias de línea Git para Stage.
 La vista completa de un enlace simbólico muestra los bytes de su destino textual,
 igual que el blob Git; no seguir el enlace para leer el contenido del archivo destino.
 
+CodeSurface ofrece copia por selección mediante SystemPort en diffs y en todos
+los editores de Resolver. En solo lectura, clipboard.sourceText puede conservar
+la fuente sin relleno de alineación; el resultado editable copia siempre el
+documento actual. Seleccionar, copiar o abrir el menú no modifica decisiones del
+conflicto ni activa los espacios de edición reservados al clic izquierdo.
+
 Las pruebas de escritura usan repositorios descartables. No experimentar con
 reset, limpieza o recuperación destructiva sobre repositorios del usuario.
 
+AvatarPicker comparte el catálogo de repositorios y perfiles. avatarGlyphs reúne
+los dibujos de cinco módulos por categoría; conservar los IDs persistidos al
+redibujar y mostrar solo nombres en sus pestañas. Los detalles recortados usan
+--avatar-cutout, ligado al mismo --avatar-background que el disco, incluidos los
+colores personalizados. Mantener geometría legible a tamaño de fila y etiquetas
+en los cinco idiomas.
+
 La selección de Repositorios usa selectedIds, únicos entre listas y espacios.
+Library.aliases conserva nombres locales por RepoId mediante LibraryPort.setAlias.
+Un alias vacío retira la etiqueta; Repository.name, rutas e identidades de pestañas
+permanecen canónicas. Resolver el nombre visible desde la biblioteca actual en listas,
+espacios, búsquedas, pestañas y GitWorking, también después de restaurar una sesión.
+La edición inline por doble clic en una pestaña usa el mismo setAlias: Enter o
+salir del campo guarda; Escape cancela. Conservar el borrador si falla la escritura,
+evitar guardados duplicados y respetar la composición IME. Durante la edición, las
+flechas y los gestos del campo no deben navegar, arrastrar ni cerrar pestañas.
 selected solo contiene un repositorio si la selección es singular. Filtrar y
 recargar descartan los IDs ocultos o retirados. Abrir/olvidar por lotes procesa
 los IDs en orden, evita duplicados y conserva los errores por entrada; olvidar
@@ -237,6 +267,13 @@ el último punto válido de cada repositorio aunque desaparezca, se olvide o que
 inactivo. La depuración global corre al arrancar y diariamente. Si no cabe una
 copia completa, conservar la anterior e informar falta de espacio. La consulta
 IPC devuelve metadatos en memoria, sin esperar compresión ni validación de datos.
+Antes de rechazar una captura por espacio, calcular los bytes únicos nuevos y
+los temporales de verificación, y planificar la eliminación mínima de extras
+globales por antigüedad. No eliminar puntos para un intento que ya se sabe que
+no cabe; conservar todos los últimos puntos y sus empates hasta que el nuevo
+punto sea durable y verificado. Proteger también los chunks que usará el
+candidato al retirar otros puntos. lastAutoPrune informa la última liberación
+automática de espacio sin suponer que la captura posterior terminó bien.
 Mantener un bloqueo de archivo del almacén durante su vida para impedir que otro
 proceso elimine temporales de una captura activa. Una configuración ilegible
 suspende también la depuración de respaldos hasta guardar una política válida.
@@ -244,6 +281,60 @@ Un manifiesto dañado no oculta respaldos independientes sanos; mostrar adverten
 y suspender eliminación/capturas ante contenido ambiguo. Limpiar caché nunca borra
 respaldos. Mantener dominio, BackupPort, mock, adaptador Tauri, IPC y cinco idiomas
 alineados y comprobar restauración con el repositorio fuente eliminado.
+
+BackupPort.delete y backup_delete retiran un punto anterior y devuelven el catálogo
+actualizado. El backend revalida bajo el bloqueo del almacén, protege todos los
+puntos con la fecha máxima de cada repository_id y verifica la integridad de los
+datos conservados antes de borrar. Nunca retirar chunks compartidos con otro
+punto ni barrer archivos inciertos durante el borrado individual. Rechazar datos
+corruptos, políticas suspendidas y operaciones manuales simultáneas. Una acción
+manual reserva su turno antes de cancelar una captura automática; espera a que
+terminen esa captura o el mantenimiento ya iniciado y su publicación del catálogo.
+Impedir que arranque otra captura durante la reserva, despertar a todos los
+esperadores y comprobar cierre/fallos antes de borrar. Devolver el snapshot antes
+de soltar la reserva para que la cola no publique un estado intermedio al caller.
+La confirmación muestra repositorio y fecha; un fallo conserva
+el diálogo y las respuestas atrasadas no reemplazan el catálogo de la operación.
+La barra de uso toma totalBytes del almacén y el límite global configurado, sin
+sumar tamaños de puntos que pueden compartir datos ni confundirlo con disco libre.
+
+BackupSnapshot.scanning distingue la revisión nativa del catálogo de una lista
+vacía: empieza activo antes de la primera lectura y cubre mantenimiento y
+actualizaciones del catálogo, conservando los datos previos. Termina también
+ante errores, que siguen siendo explícitos. RecoverySection muestra ProgressBar
+indeterminado durante la primera carga o una actualización solicitada; los sondeos
+automáticos posteriores son silenciosos, incluidos los scanning posteriores.
+Sondear mientras scanning aunque los respaldos estén desactivados; una lectura
+pendiente debe poder terminar si cambia la frecuencia de sondeo. No mostrar
+ausencia de puntos durante la primera revisión ni congelar estados anteriores al
+recibir un snapshot completo. Con catálogo confirmado, delete y prune comparten
+disponibilidad: scanning y status.running no bloquean esas acciones; la seguridad
+y la prioridad frente a tareas automáticas pertenecen al backend.
+BackupPort.prune y backup_prune depuran todos los puntos no protegidos con una
+sola reserva y bloqueo, revalidación y verificación completa antes del primer
+borrado. Mantener latest por repositorio, empates y chunks compartidos; no barrer
+huérfanos ajenos. La confirmación y el progreso de depuración son independientes
+de Limpiar caché, y devuelven el catálogo real actualizado.
+
+BackupPort.previewLimit y backup_preview_limit calculan un BackupLimitPlan
+con uso actual/proyectado, mínimo conservable, cantidad de puntos y token del
+catálogo. El preview no borra ni cambia la política. Reducir maxMiB mediante
+SettingsPort.patch conserva el flujo serializado de ajustes; backupLimitToken
+autoriza solamente el plan revisado. No agrupar ese token con otro límite.
+Un parche con maxMiB espera su propia persistencia antes de resolver; publicar
+el valor en la UI solo después de esa confirmación, sin atribuirle fallos de
+parches ajenos que un flush posterior pudiera ejecutar.
+Mantener o aumentar maxMiB no requiere preview ni borra puntos, incluso si el
+catálogo está dañado o no disponible; los demás ajustes deben seguir guardándose.
+settings_write revalida bajo reserva/bloqueo, rechaza límites inferiores al mínimo
+y exige nueva confirmación si cambió el plan. Guardar el límite y depurar fuera
+del hilo de la ventana; ante fallo de persistencia no borrar, y ante fallo posterior
+restaurar el archivo completo de ajustes y refrescar el catálogo. El error sigue
+siendo explícito aunque ya se hayan retirado algunos puntos anteriores.
+Mantener rollback exacto de preferencias y no reintroducir en parches posteriores
+un límite que fue rechazado. La UI distingue revisión del límite, confirmación,
+cancelación, mínimo imposible y plan desactualizado; los últimos puntos y empates
+son intocables también en esta operación.
 
 Los ajustes y biblioteca usan los directorios de configuración del usuario;
 los logs, recovery y backups usan sus directorios de datos. Resolverlos con Tauri, sin rutas

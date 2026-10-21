@@ -175,13 +175,9 @@ interface LineSelection {
  * nace desde el historial de un archivo, este permanece operable en el panel
  * derecho para cambiar de versión sin cerrar el diff — CU-19.
  *
- * **Cada hunk es su propio `CodeSurface`.** El primitivo sabe pintar líneas con
- * tono y ahora también tramos de palabra, pero no sabe qué es un hunk ni qué son
- * dos columnas; eso se construye por encima apilando visores que crecen con su
- * contenido —`fitContent`— dentro de un solo contenedor con scroll. Es lo que
- * deja poner una cabecera con su botón de stage entre hunk y hunk, y lo que hace
- * que las dos columnas se muevan juntas sin sincronizar dos barras. Los hunks
- * numerosos del WIP se consolidan en un documento estable por columna.
+ * Cada columna mantiene un documento continuo para seleccionar y copiar entre
+ * hunks. Las cabeceras interactivas de Stage son decoraciones; no forman
+ * parte del texto copiado. `fitContent` conserva el desplazamiento compartido.
  */
 export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewerProps) {
   const { t } = useI18n();
@@ -584,7 +580,7 @@ function DiffBody({
   );
   const working = useMemo<DiffBlock | null>(
     () =>
-      !whole && direction !== null && blocks.length > 8
+      !whole && direction !== null
         ? { key: 'working', hunk: null, number: 0, rows: workingRows(blocks) }
         : null,
     [blocks, direction, whole],
@@ -769,6 +765,11 @@ function DiffBody({
               longLineLabel={t('working.diff.longLine')}
               folding={folding}
               language={syntaxLanguageForPath(path) ?? undefined}
+              clipboard={{
+                copy: actions.copy,
+                copyLabel: t('working.diff.copySelection'),
+                selectAllLabel: t('working.diff.selectAll'),
+              }}
               fitContent
             />
           )}
@@ -970,7 +971,7 @@ function DiffBlockView({
     )?.key;
   }, [actionBlocks, selection]);
   const controlsFor = useCallback(
-    (column: DiffColumn | null): readonly CodeBlockControl[] | undefined => {
+    (column: DiffColumn | null, showActions = true): readonly CodeBlockControl[] | undefined => {
       if (!column || !actionBlocks || direction === null) return undefined;
       let index = 0;
       return column.rows.flatMap((row, line) => {
@@ -986,38 +987,40 @@ function DiffBlockView({
             id: hunk.id,
             line: line + 1,
             label: `${t('working.diff.hunkRange', { from: hunk.newStart, to: hunk.newStart + hunk.newLines })} ${hunk.header}`,
-            actions: [
-              ...(source.key === selectedHunk
-                ? [
-                    {
-                      label: t(
-                        direction === 'stage'
-                          ? 'working.diff.stageLines'
-                          : 'working.diff.unstageLines',
-                        { count: selectionCount },
-                      ),
-                      onSelect: () => {
-                        actions.stageLines(
-                          path,
-                          selection,
-                          direction,
-                          precondition,
-                          ignoreWhitespace,
-                        );
-                        onSelection(null);
-                      },
-                    },
-                  ]
-                : []),
-              {
-                label: t(
-                  direction === 'stage' ? 'working.diff.stageHunk' : 'working.diff.unstageHunk',
-                  { number: source.number },
-                ),
-                onSelect: () =>
-                  actions.stageHunk(path, hunk.id, direction, precondition, ignoreWhitespace),
-              },
-            ],
+            actions: !showActions
+              ? []
+              : [
+                  ...(source.key === selectedHunk
+                    ? [
+                        {
+                          label: t(
+                            direction === 'stage'
+                              ? 'working.diff.stageLines'
+                              : 'working.diff.unstageLines',
+                            { count: selectionCount },
+                          ),
+                          onSelect: () => {
+                            actions.stageLines(
+                              path,
+                              selection,
+                              direction,
+                              precondition,
+                              ignoreWhitespace,
+                            );
+                            onSelection(null);
+                          },
+                        },
+                      ]
+                    : []),
+                  {
+                    label: t(
+                      direction === 'stage' ? 'working.diff.stageHunk' : 'working.diff.unstageHunk',
+                      { number: source.number },
+                    ),
+                    onSelect: () =>
+                      actions.stageHunk(path, hunk.id, direction, precondition, ignoreWhitespace),
+                  },
+                ],
           },
         ];
       });
@@ -1038,7 +1041,7 @@ function DiffBlockView({
     ],
   );
   const unifiedControls = useMemo(() => controlsFor(unified), [controlsFor, unified]);
-  const leftControls = useMemo(() => controlsFor(left), [controlsFor, left]);
+  const leftControls = useMemo(() => controlsFor(left, false), [controlsFor, left]);
   const rightControls = useMemo(() => controlsFor(right), [controlsFor, right]);
 
   const lineControlsFor = useCallback(
@@ -1105,6 +1108,38 @@ function DiffBlockView({
   const first = block.rows[0];
   const from = first?.newLine ?? first?.oldLine ?? 1;
 
+  const selectionItems: MenuEntry[] =
+    direction !== null && selection.length > 0
+      ? [
+          {
+            key: 'stage-selection',
+            label: t(
+              direction === 'stage' ? 'working.diff.stageLines' : 'working.diff.unstageLines',
+              { count: selectionCount },
+            ),
+            onSelect: () => {
+              actions.stageLines(path, selection, direction, precondition, ignoreWhitespace);
+              onSelection(null);
+            },
+          },
+          // Descartar solo tiene sentido del lado del árbol de trabajo: lo
+          // reversible del índice ya es quitar del stage, arriba.
+          ...(direction === 'stage'
+            ? [
+                {
+                  key: 'discard-selection',
+                  label: t('working.diff.discardLines', { count: selectionCount }),
+                  danger: true,
+                  onSelect: () => {
+                    actions.discardLines(path, selection, precondition, ignoreWhitespace);
+                    onSelection(null);
+                  },
+                } satisfies MenuEntry,
+              ]
+            : []),
+        ]
+      : [];
+
   const surface = (
     column: DiffColumn,
     label: string,
@@ -1115,6 +1150,12 @@ function DiffBlockView({
       <CodeSurface
         className={`${styles.surface} ${ownScroll ? styles.ownedSurface : ''}`}
         value={column.text}
+        clipboard={{
+          copy: actions.copy,
+          copyLabel: t('working.diff.copySelection'),
+          selectAllLabel: t('working.diff.selectAll'),
+        }}
+        contextMenuItems={selectionItems}
         wrap={wrap}
         longLineLabel={t('working.diff.longLine')}
         label={label}
@@ -1188,41 +1229,9 @@ function DiffBlockView({
    * botón fijo no tendría dónde ir cuando la selección puede cruzar el archivo.
    */
   if (scope === 'file' || actionBlocks !== undefined) {
-    const items: MenuEntry[] =
-      direction !== null && selection.length > 0
-        ? [
-            {
-              key: 'stage-selection',
-              label: t(
-                direction === 'stage' ? 'working.diff.stageLines' : 'working.diff.unstageLines',
-                { count: selectionCount },
-              ),
-              onSelect: () => {
-                actions.stageLines(path, selection, direction, precondition, ignoreWhitespace);
-                onSelection(null);
-              },
-            },
-            // Descartar solo tiene sentido del lado del árbol de trabajo: lo
-            // reversible del índice ya es quitar del stage, arriba.
-            ...(direction === 'stage'
-              ? [
-                  {
-                    key: 'discard-selection',
-                    label: t('working.diff.discardLines', { count: selectionCount }),
-                    danger: true,
-                    onSelect: () => {
-                      actions.discardLines(path, selection, precondition, ignoreWhitespace);
-                      onSelection(null);
-                    },
-                  } satisfies MenuEntry,
-                ]
-              : []),
-          ]
-        : [];
-
     return (
       <ContextMenu
-        items={items}
+        items={selectionItems}
         label={t('working.diff.label', { path })}
         className={`${styles.context} ${ownScroll ? styles.ownedContext : ''}`}
       >

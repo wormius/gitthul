@@ -8,7 +8,7 @@ import { shortSha, type Commit } from '@core/domain/commit';
 import type { Branch, RefsSnapshot } from '@core/domain/refs';
 import type { RepoId, Repository, RepoOperation, RepoSummary } from '@core/domain/repository';
 import type { WorkingStatus } from '@core/domain/status';
-import { isoDay } from '@core/domain/library';
+import { isoDay, repositoryName } from '@core/domain/library';
 import type { GitPort, GitQuery } from '@core/ports/GitPort';
 import type { I18nContextValue } from '@i18n/I18nContext';
 import type { MessageKey } from '@i18n/messages';
@@ -32,6 +32,7 @@ import {
   STATS_MONTHS,
 } from './stats';
 import { useRepositoryActions } from './useRepositoryActions';
+import { useRepositoryName } from './useRepositoryName';
 import styles from './RepoStatsPanel.module.css';
 
 /** Todo lo que los cuatro bloques necesitan, de una sola consulta cancelable. */
@@ -113,9 +114,11 @@ interface RepoStatsPanelProps {
  * ningún panel de error — cancelar no es fallar, nunca.
  */
 export function RepoStatsPanel({ repo }: RepoStatsPanelProps) {
+  const name = useRepositoryName(repo.id, repo.name);
   const { t, locale } = useI18n();
   const { git } = usePorts();
   const actions = useRepositoryActions();
+  const aliases = useRepositoriesStore((state) => state.library?.aliases);
   const repositories = useRepositoriesStore((state) => state.repositories);
   const select = useRepositoriesStore((state) => state.select);
 
@@ -128,7 +131,7 @@ export function RepoStatsPanel({ repo }: RepoStatsPanelProps) {
   if (stats.status === 'loading') {
     return (
       <div className={styles.centered}>
-        <Spinner label={t('repositories.stats.loading', { repo: repo.name })} />
+        <Spinner label={t('repositories.stats.loading', { repo: name })} />
       </div>
     );
   }
@@ -169,7 +172,7 @@ export function RepoStatsPanel({ repo }: RepoStatsPanelProps) {
 
   return (
     <div className={styles.panel}>
-      <Block title={data.repository.name} heading="page">
+      <Block title={name} heading="page">
         <dl className={styles.facts}>
           <Fact label={t('repositories.stats.path')}>
             <span className={styles.path}>{data.repository.path}</span>
@@ -232,7 +235,7 @@ export function RepoStatsPanel({ repo }: RepoStatsPanelProps) {
                 select(parent);
               }}
             >
-              {t('repositories.stats.goToParent', { repo: parent.name })}
+              {t('repositories.stats.goToParent', { repo: repositoryName(parent, aliases) })}
             </Button>
           )}
 
@@ -258,7 +261,7 @@ export function RepoStatsPanel({ repo }: RepoStatsPanelProps) {
             days={days}
             end={isoDay(data.at)}
             label={t('repositories.stats.heatmapLabel', {
-              repo: data.repository.name,
+              repo: name,
               months: STATS_MONTHS,
             })}
             total={t('repositories.stats.heatmapTotal', {

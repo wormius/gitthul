@@ -59,6 +59,8 @@ export type GitErrorParams = {
   'tag.invalidName': { tag: string };
   'tag.identityMissing': Record<string, never>;
   'stash.nothingToStash': Record<string, never>;
+  'stash.partialConflict': Record<string, never>;
+  'stash.partialUnsupported': Record<string, never>;
   /** Lo guardado y lo que hay ahora tocan las mismas líneas. */
   'stash.conflict': { stash: string; branch: string; count: number };
   /** La actualización terminó, pero la reaplicación del auto-stash dejó conflictos. */
@@ -248,6 +250,8 @@ export const GIT_ERRORS: { [C in GitErrorCode]: GitErrorEntry<C> } = {
   'tag.invalidName': { params: ['tag'], fixes: ['chooseAnotherName'] },
   'tag.identityMissing': { params: [], fixes: ['openSettings'] },
   'stash.nothingToStash': { params: [], fixes: ['retry'] },
+  'stash.partialConflict': { params: [], fixes: ['retry'] },
+  'stash.partialUnsupported': { params: [], fixes: ['retry'] },
   'stash.conflict': {
     params: ['stash', 'branch', 'count'],
     fixes: ['openResolve', 'abortOperation'],

@@ -72,6 +72,8 @@ export const esMX = {
 
   // Pestañas
   'tabs.stripLabel': 'Pestañas abiertas',
+  'tabs.alias.hint':
+    'Enter o clic fuera para guardar; Escape para cancelar. Vacío recupera el nombre original.',
   'tabs.close': 'Cerrar la pestaña {tab}',
   'tabs.menu.label': 'Operaciones de la pestaña {tab}',
   'tabs.menu.close': 'Cerrar',
@@ -309,6 +311,15 @@ export const esMX = {
   'repositories.empty.filtered.clear': 'Limpiar el filtro',
   'repositories.empty.recent.title': 'Todavía no has abierto ningún repositorio desde GitThul',
 
+  'repositories.alias.menu': 'Asignar alias…',
+  'repositories.alias.title': 'Alias de {repo}',
+  'repositories.alias.close': 'Cerrar alias del repositorio',
+  'repositories.alias.label': 'Alias',
+  'repositories.alias.hint':
+    'Deja el campo vacío para mostrar el nombre original. La carpeta del repositorio no cambia.',
+  'repositories.alias.cancel': 'Cancelar',
+  'repositories.alias.save': 'Guardar',
+  'repositories.alias.failed': 'No se pudo guardar el alias. Inténtalo de nuevo.',
   'repositories.avatar.title': 'Avatar de {repo}',
   'repositories.avatar.close': 'Cerrar sin cambiar el avatar de {repo}',
   'repositories.avatar.symbols': 'Símbolos',
@@ -504,6 +515,26 @@ export const esMX = {
   'avatar.glyph.crown': 'Corona',
   'avatar.glyph.gem': 'Gema',
   'avatar.glyph.shield': 'Escudo',
+  'avatar.glyph.code': 'Código',
+  'avatar.glyph.chip': 'Chip',
+  'avatar.glyph.database': 'Base de datos',
+  'avatar.glyph.server': 'Servidor',
+  'avatar.glyph.gamepad': 'Control de juego',
+  'avatar.glyph.headphones': 'Audífonos',
+  'avatar.glyph.satellite': 'Satélite',
+  'avatar.glyph.telescope': 'Telescopio',
+  'avatar.glyph.planet': 'Planeta',
+  'avatar.glyph.ufo': 'OVNI',
+  'avatar.glyph.sword': 'Espada',
+  'avatar.glyph.potion': 'Poción',
+  'avatar.glyph.treasure': 'Tesoro',
+  'avatar.glyph.map': 'Mapa',
+  'avatar.glyph.lighthouse': 'Faro',
+  'avatar.glyph.sailboat': 'Velero',
+  'avatar.glyph.anchorWheel': 'Timón',
+  'avatar.glyph.puzzle': 'Rompecabezas',
+  'avatar.glyph.diamondRing': 'Anillo',
+  'avatar.glyph.hourglass': 'Reloj de arena',
 
   // Avatares anteriores: sus identificadores se conservan para las elecciones guardadas.
   'avatar.glyph.ghost': 'Fantasma',
@@ -533,6 +564,15 @@ export const esMX = {
   'avatar.glyph.turtle': 'Tortuga',
   'avatar.glyph.whale': 'Ballena',
   'avatar.glyph.butterfly': 'Mariposa',
+  'avatar.glyph.wolf': 'Lobo',
+  'avatar.glyph.raccoon': 'Mapache',
+  'avatar.glyph.bat': 'Murciélago',
+  'avatar.glyph.shark': 'Tiburón',
+  'avatar.glyph.dragon': 'Dragón',
+  'avatar.glyph.axolotl': 'Ajolote',
+  'avatar.glyph.bee': 'Abeja',
+  'avatar.glyph.capybara': 'Capibara',
+  'avatar.glyph.hummingbird': 'Colibrí',
   'avatar.glyph.flower': 'Flor',
   'avatar.glyph.sunflower': 'Girasol',
   'avatar.glyph.tulip': 'Tulipán',
@@ -544,6 +584,10 @@ export const esMX = {
   'avatar.glyph.mushroom': 'Hongo',
   'avatar.glyph.clover': 'Trébol',
   'avatar.glyph.fern': 'Helecho',
+  'avatar.glyph.bonsai': 'Bonsái',
+  'avatar.glyph.monstera': 'Monstera',
+  'avatar.glyph.lotus': 'Loto',
+  'avatar.glyph.acorn': 'Bellota',
   'avatar.glyph.pumpkin': 'Calabaza',
   'avatar.glyph.gift': 'Regalo',
   'avatar.glyph.cake': 'Pastel',
@@ -552,6 +596,11 @@ export const esMX = {
   'avatar.glyph.santa': 'Santa Claus',
   'avatar.glyph.snowflake': 'Copo de nieve',
   'avatar.glyph.lantern': 'Farol',
+  'avatar.glyph.mask': 'Máscara festiva',
+  'avatar.glyph.pinata': 'Piñata',
+  'avatar.glyph.candle': 'Vela',
+  'avatar.glyph.firework': 'Fuegos artificiales',
+  'avatar.glyph.bell': 'Campana',
   'avatar.glyph.orbit': 'Órbita',
   'avatar.glyph.spiral': 'Espiral',
   'avatar.glyph.mosaic': 'Mosaico',
@@ -561,6 +610,11 @@ export const esMX = {
   'avatar.glyph.knot': 'Nudo',
   'avatar.glyph.mandala': 'Mandala',
   'avatar.glyph.comet': 'Cometa',
+  'avatar.glyph.vortex': 'Remolino',
+  'avatar.glyph.hexagon': 'Hexágono',
+  'avatar.glyph.aperture': 'Diafragma',
+  'avatar.glyph.kaleidoscope': 'Caleidoscopio',
+  'avatar.glyph.totem': 'Tótem',
 
   // GitWorking
   'working.split.refsLabel': 'Ancho del panel de referencias',
@@ -1022,6 +1076,9 @@ export const esMX = {
   'working.diff.new': 'Versión nueva de {path}, desde la línea {from}',
   'working.diff.horizontalScroll': 'Desplazamiento horizontal de {label}',
   'working.diff.file': 'Archivo {path}',
+  'working.diff.copySelection': 'Copiar selección',
+  'working.diff.selectAll': 'Seleccionar todo',
+  'working.commitDetails.copySha': 'Copiar SHA completo',
   'working.diff.fold': 'Plegar el bloque',
   'working.diff.unfold': 'Desplegar el bloque',
   'working.diff.folded': '…',
@@ -1219,6 +1276,17 @@ export const esMX = {
   'undo.revert': 'Revertir commits',
   'undo.reset': 'Hacer reset',
   'undo.stash': 'Crear stash',
+  'working.menu.file.applyStashFile': 'Aplicar archivo del stash',
+  'working.status.stashFileApplied': 'Se aplicó el archivo del stash',
+  'working.menu.file.applyStashSelection': 'Aplicar {count} archivos del stash',
+  'working.status.stashFilesApplied': 'Se aplicaron {count} archivos del stash',
+  'undo.applyStashPaths': 'Aplicar archivos del stash',
+  'error.stash.partialConflict.title': 'No se pudieron aplicar los archivos seleccionados',
+  'error.stash.partialConflict.cause':
+    'La selección no se puede aplicar sobre el contenido actual. Revisa los cambios locales y las rutas existentes; el stash se conserva.',
+  'error.stash.partialUnsupported.title': 'Esta selección no se puede aplicar parcialmente',
+  'error.stash.partialUnsupported.cause':
+    'Selecciona archivos de un stash vigente y termina las operaciones o conflictos pendientes. Los submódulos requieren aplicar el stash completo.',
   'undo.applyStash': 'Aplicar stash',
   'error.undo.snapshotUnavailable.title':
     'No se pudo crear una copia de recuperación; no se aplicó el cambio',
@@ -1422,7 +1490,7 @@ export const esMX = {
   'settings.appearance.toastPosition.bottom-start': 'Abajo a la izquierda',
   'settings.appearance.toastPosition.bottom-end': 'Abajo a la derecha',
   'settings.appearance.toastPositionHint':
-    'Los avisos conservan distancia de las barras de la aplicación.',
+    'Elige una esquina de la ventana para colocar las notificaciones. Se mostrará una de prueba en esa posición.',
   'settings.appearance.modeAutoResolved': 'El sistema pide ahora mismo el modo {value}.',
   'settings.appearance.modeHint': 'Fijo, sin seguir al sistema.',
   'settings.appearance.fonts': 'Fuentes y tamaños',
@@ -1945,9 +2013,57 @@ export const esMX = {
   'settings.backup.enabled': 'Respaldos automáticos',
   'settings.backup.maxMiB': 'Límite global de espacio (MiB)',
   'settings.backup.invalidLimit': 'Escribe un número entero entre {min} y {max}.',
+  'settings.backup.limitSaved': 'Límite de respaldos actualizado.',
+  'settings.backup.limitHint':
+    'Al reducir el límite, se calcula la eliminación mínima de versiones anteriores. Las últimas copias se conservan; preparar un respaldo nuevo también requiere espacio temporal.',
+  'settings.backup.limitReviewing': 'Calculando el nuevo límite…',
+  'settings.backup.limitApplying': 'Aplicando el límite de respaldos…',
+  'settings.backup.autoPruned':
+    'Se liberaron {size} eliminando {count} versiones anteriores para preparar un respaldo. Las últimas copias se conservaron.',
+  'settings.backup.limitTitle': 'Revisar límite de respaldos',
+  'settings.backup.limitImpossibleDescription':
+    'No se puede aplicar el límite de {limit}. Se conservará el límite actual.',
+  'settings.backup.limitDescription':
+    'Nuevo límite: {limit}. Revisa el espacio y los respaldos que se eliminarán permanentemente.',
+  'settings.backup.confirmLimit': 'Aplicar límite',
+  'settings.backup.reviewLimit': 'Volver a revisar',
+  'settings.backup.limitCurrent': 'Espacio ocupado',
+  'settings.backup.limitDeleteCount': 'Respaldos que se eliminarán',
+  'settings.backup.limitProjected': 'Espacio después de aplicar',
+  'settings.backup.limitMinimum':
+    'Este límite no permite conservar las copias protegidas. Se necesitan al menos {minimum} MiB. Ese mínimo no garantiza espacio para un respaldo nuevo.',
+  'settings.backup.limitProtected':
+    'Se conservarán las últimas copias válidas de cada repositorio y todos sus datos compartidos.',
+  'settings.backup.limitChangedReview': 'Revisa el cálculo actualizado antes de confirmar.',
+  'settings.backup.error.limitChanged':
+    'Los respaldos cambiaron desde la revisión. Revisa el nuevo cálculo y vuelve a confirmar.',
+  'settings.backup.error.limitTooSmall':
+    'El límite es inferior al espacio necesario para conservar los respaldos protegidos.',
   'settings.backup.retention':
     'Conserva hasta 7 versiones diarias, 4 semanales y 3 mensuales mientras haya espacio. El último respaldo válido de cada repositorio siempre se conserva.',
   'settings.backup.total': 'Respaldos: {size} de {limit}',
+  'settings.backup.usage': 'Espacio ocupado por respaldos',
+  'settings.backup.usagePercent': '{percent} usado',
+  'settings.backup.usageDescription': '{size} de {limit}; {percent} del límite',
+  'settings.backup.delete': 'Eliminar…',
+  'settings.backup.deleteTitle': 'Eliminar respaldo',
+  'settings.backup.deleteDescription':
+    'Se eliminará permanentemente el respaldo de «{repository}» ({date}). El repositorio original y su respaldo válido más reciente se conservarán.',
+  'settings.backup.confirmDelete': 'Eliminar respaldo',
+  'settings.backup.deleted': 'Respaldo eliminado.',
+  'settings.backup.scanning': 'Revisando respaldos disponibles…',
+  'settings.backup.deleting': 'Verificando y eliminando respaldo…',
+  'settings.backup.prune': 'Depurar respaldos…',
+  'settings.backup.pruneTitle': 'Depurar respaldos',
+  'settings.backup.pruneDescription':
+    'Se eliminarán permanentemente {count} respaldos no protegidos. Se conservará el respaldo válido más reciente de cada repositorio y todos los datos que necesite.',
+  'settings.backup.confirmPrune': 'Eliminar los no protegidos',
+  'settings.backup.pruned': 'Depuración terminada. Se conservaron los respaldos protegidos.',
+  'settings.backup.pruning': 'Verificando y depurando respaldos…',
+  'settings.backup.deleteProtected':
+    'Se conserva el respaldo válido más reciente de este repositorio.',
+  'settings.backup.error.protected':
+    'El respaldo válido más reciente de cada repositorio está protegido y no se puede eliminar.',
   'settings.backup.overBudget':
     'Los respaldos guardados superan el límite global de espacio. Se conserva el último respaldo válido de cada repositorio; los nuevos respaldos esperarán hasta que haya más espacio.',
   'settings.backup.corruptNotice':
@@ -1966,9 +2082,10 @@ export const esMX = {
   'settings.backup.restored': 'Repositorio restaurado en {path}.',
   'settings.backup.refresh': 'Actualizar',
   'settings.backup.error.unknown': 'No se pudo completar la acción de respaldo.',
-  'settings.backup.error.invalid': 'El respaldo está incompleto o dañado y no se puede restaurar.',
+  'settings.backup.error.invalid':
+    'No se pudieron verificar los datos del respaldo. La acción no puede continuar con datos incompletos o dañados.',
   'settings.backup.error.unavailable':
-    'No se pudo acceder al almacenamiento de respaldos. Comprueba el espacio disponible y los permisos.',
+    'El almacenamiento de respaldos no está disponible o está ocupado. Espera a que termine la operación en curso y revisa el espacio disponible y los permisos.',
   'settings.backup.error.destination':
     'Elige una carpeta de destino nueva. No se pueden sobrescribir archivos existentes.',
   'settings.backup.error.stale':

@@ -4,12 +4,15 @@
 //! de recuperación y se conserva la configuración dañada antes de repararla.
 
 use serde_json::Value;
-use std::{fs, io::Write, path::Path};
+use std::{fs, io::Write, path::Path, sync::Mutex};
 use tauri::{AppHandle, Manager};
 
 use crate::store;
 
 const FILE_NAME: &str = "settings.json";
+// A confirmed backup limit may wait for the worker and verify stored content.
+// Keep settings writers in order without holding up the WebView thread.
+static SETTINGS_WRITE: Mutex<()> = Mutex::new(());
 
 #[tauri::command]
 pub fn settings_read(app: AppHandle) -> Result<Value, String> {
@@ -57,14 +60,48 @@ fn with_recovery_suspension(mut settings: Value, suspended: bool) -> Value {
 }
 
 #[tauri::command]
-pub fn settings_write(app: AppHandle, settings: Value) -> Result<(), String> {
-    let recovery_policy = crate::git::recovery::policy_from_settings(&settings)?;
+pub async fn settings_write(
+    app: AppHandle,
+    settings: Value,
+    backup_limit_token: Option<String>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _write = SETTINGS_WRITE
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        write_settings(&app, settings, backup_limit_token.as_deref())
+    })
+    .await
+    .map_err(|_| "No se pudo completar el guardado de configuraciones".to_owned())?
+}
+
+fn write_settings(
+    app: &AppHandle,
+    settings: Value,
+    backup_limit_token: Option<&str>,
+) -> Result<(), String> {
+    let recovery_policy = crate::git::recovery::prepare_policy(
+        crate::git::recovery::policy_from_settings(&settings)?,
+    )?;
     let backup_policy = crate::git::backup::policy_from_settings(&settings)?;
-    preserve_invalid_settings(&store::file_path(&app, FILE_NAME)?)?;
-    store::write(&app, FILE_NAME, &settings)?;
-    crate::git::recovery::update_policy(recovery_policy)?;
+    let path = store::file_path(app, FILE_NAME)?;
+    let previous = SettingsFileSnapshot::read(&path)?;
+    let mut persisted = false;
     app.state::<crate::git::backup::BackupManager>()
-        .update_policy(backup_policy);
+        .change_policy(backup_policy, backup_limit_token, |_policy| {
+            if persisted {
+                return previous.restore(&path);
+            }
+            preserve_invalid_settings(&path)?;
+            store::write(app, FILE_NAME, &settings)?;
+            persisted = true;
+            Ok(())
+        })
+        .map_err(|error| {
+            serde_json::to_string(&error)
+                .unwrap_or_else(|_| "No se pudo aplicar el límite de respaldos".to_owned())
+        })?;
+    crate::git::recovery::apply_policy(recovery_policy);
     crate::logging::set_debug_enabled(
         settings
             .pointer("/logging/debugEnabled")
@@ -72,6 +109,48 @@ pub fn settings_write(app: AppHandle, settings: Value) -> Result<(), String> {
             .unwrap_or(false),
     );
     Ok(())
+}
+
+/// A failed cleanup must restore the complete settings file, including its
+/// absence or original formatting. Invalid originals are also kept by the
+/// normal repair path before the candidate is written.
+struct SettingsFileSnapshot(Option<Vec<u8>>);
+
+impl SettingsFileSnapshot {
+    fn read(path: &Path) -> Result<Self, String> {
+        match fs::read(path) {
+            Ok(bytes) => Ok(Self(Some(bytes))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Self(None)),
+            Err(error) => Err(format!(
+                "No se pudo leer la configuración anterior: {error}"
+            )),
+        }
+    }
+
+    fn restore(&self, path: &Path) -> Result<(), String> {
+        let Some(bytes) = &self.0 else {
+            return match fs::remove_file(path) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(format!(
+                    "No se pudo restaurar la configuración anterior: {error}"
+                )),
+            };
+        };
+        let parent = path
+            .parent()
+            .ok_or("No se pudo localizar la configuración anterior")?;
+        let mut temporary = tempfile::NamedTempFile::new_in(parent)
+            .map_err(|error| format!("No se pudo preparar la configuración anterior: {error}"))?;
+        temporary
+            .write_all(bytes)
+            .and_then(|()| temporary.as_file().sync_all())
+            .map_err(|error| format!("No se pudo restaurar la configuración anterior: {error}"))?;
+        temporary
+            .persist(path)
+            .map_err(|error| format!("No se pudo restaurar la configuración anterior: {error}"))?;
+        Ok(())
+    }
 }
 
 /// Keep the original bytes before repairing unreadable or invalid preferences.
@@ -117,6 +196,33 @@ fn preserve_invalid_settings(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejected_backup_limit_restores_the_complete_original_settings_file() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join(FILE_NAME);
+        for original in [
+            b"{\"locale\": \"fr\", \"backup\":{\"maxMiB\":2048}}\n".as_slice(),
+            b"{unreadable original".as_slice(),
+        ] {
+            fs::write(&path, original).unwrap();
+            let previous = SettingsFileSnapshot::read(&path).unwrap();
+            fs::write(&path, br#"{"locale":"en","backup":{"maxMiB":512}}"#).unwrap();
+            previous.restore(&path).unwrap();
+            assert_eq!(fs::read(&path).unwrap(), original);
+        }
+    }
+
+    #[test]
+    fn rejected_backup_limit_restores_absent_settings() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join(FILE_NAME);
+        let previous = SettingsFileSnapshot::read(&path).unwrap();
+        fs::write(&path, br#"{"backup":{"maxMiB":512}}"#).unwrap();
+        previous.restore(&path).unwrap();
+        assert!(!path.exists());
+        previous.restore(&path).unwrap();
+    }
 
     #[test]
     fn repairing_invalid_settings_preserves_exact_original_bytes() {

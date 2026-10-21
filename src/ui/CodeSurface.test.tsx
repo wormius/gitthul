@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -623,5 +623,170 @@ describe('long lines', () => {
     });
     const view = EditorView.findFromDOM(container.querySelector('.cm-editor')!)!;
     expect(view.state.doc.toString()).toBe(source);
+  });
+});
+
+describe('CodeSurface clipboard', () => {
+  function show(value = 'antes\n  café\t中\r\ndespués') {
+    const copy = vi.fn();
+    const stage = vi.fn();
+    renderSurface({
+      value,
+      clipboard: { copy, copyLabel: 'Copiar selección', selectAllLabel: 'Seleccionar todo' },
+      contextMenuItems: [{ key: 'stage', label: 'Preparar selección', onSelect: stage }],
+      words: [{ line: 2, start: 0, end: 8, tone: 'added' }],
+      longLineLabel: 'Línea truncada',
+      folding: FOLD_LABELS,
+    });
+    const view = EditorView.findFromDOM(editor())!;
+    return { copy, stage, view };
+  }
+
+  it.each([{ ctrlKey: true }, { metaKey: true }])(
+    'copia solo la selección conservando caracteres y CRLF mediante %j',
+    (modifier) => {
+      const { copy, view } = show();
+      act(() => {
+        view.focus();
+        view.dispatch({ selection: { anchor: 6, head: 15 } });
+      });
+      expect(editor()).toHaveFocus();
+      fireEvent.keyDown(editor(), { key: 'c', ...modifier });
+      expect(copy).toHaveBeenCalledExactlyOnceWith('  café\t中\r\n');
+      expect(view.state.doc.toString()).toBe('antes\n  café\t中\ndespués');
+    },
+  );
+
+  it('conserva la selección al enfocar el menú y permite preparar las mismas líneas', async () => {
+    const user = userEvent.setup();
+    const { copy, stage, view } = show();
+    act(() => view.dispatch({ selection: { anchor: 6, head: 14 } }));
+    fireEvent.contextMenu(editor(), { clientX: 30, clientY: 40 });
+    expect(screen.getByRole('menuitem', { name: 'Preparar selección' })).toBeEnabled();
+    await user.click(screen.getByRole('menuitem', { name: /Copiar selección/ }));
+    expect(copy).toHaveBeenCalledExactlyOnceWith('  café\t中');
+    expect(editor()).toHaveFocus();
+    expect(view.state.selection.main.from).toBe(6);
+    expect(view.state.selection.main.to).toBe(14);
+    fireEvent.contextMenu(editor());
+    await user.click(screen.getByRole('menuitem', { name: 'Preparar selección' }));
+    expect(stage).toHaveBeenCalledOnce();
+  });
+
+  it('selecciona el documento entero desde el menú', async () => {
+    const user = userEvent.setup();
+    const { copy, view } = show();
+    fireEvent.keyDown(editor(), { key: 'F10', shiftKey: true });
+    expect(screen.getByRole('menuitem', { name: /Copiar selección/ })).toBeDisabled();
+    await user.click(screen.getByRole('menuitem', { name: /Seleccionar todo/ }));
+    expect(view.state.selection.main.from).toBe(0);
+    expect(view.state.selection.main.to).toBe(view.state.doc.length);
+    expect(editor()).toHaveFocus();
+    fireEvent.keyDown(editor(), { key: 'c', ctrlKey: true });
+    expect(copy).toHaveBeenCalledExactlyOnceWith('antes\n  café\t中\r\ndespués');
+  });
+
+  it('seleccionar todo incluye los bloques plegados sin copiar el marcador visual', async () => {
+    const { copy } = show(SAMPLE);
+    await userEvent.click(screen.getAllByTitle('Plegar el bloque')[0]!);
+    expect(screen.queryByText('return system.mode;')).not.toBeInTheDocument();
+    fireEvent.keyDown(editor(), { key: 'a', ctrlKey: true });
+    fireEvent.keyDown(editor(), { key: 'c', ctrlKey: true });
+    expect(copy).toHaveBeenCalledExactlyOnceWith(SAMPLE);
+  });
+
+  it('Ctrl+A conserva el texto completo de una línea recortada, sin el aviso visual', () => {
+    const source = `${'x'.repeat(10_020)}\r\nfin`;
+    const { copy, view } = show(source);
+    expect(view.state.doc.toString()).toContain('Línea truncada');
+    fireEvent.keyDown(editor(), { key: 'a', ctrlKey: true });
+    fireEvent.keyDown(editor(), { key: 'c', ctrlKey: true });
+    expect(copy).toHaveBeenCalledExactlyOnceWith(source);
+  });
+
+  it('Copy del navegador usa el mismo puerto y texto original sin necesitar keydown', () => {
+    const source = `${'x'.repeat(10_020)}\r\nfin`;
+    const { copy } = show(source);
+    fireEvent.keyDown(editor(), { key: 'a', ctrlKey: true });
+    expect(fireEvent.copy(editor())).toBe(false);
+    expect(copy).toHaveBeenCalledExactlyOnceWith(source);
+  });
+
+  it('copia las ediciones actuales sin esperar otro value ni emitir cambios adicionales', () => {
+    const copy = vi.fn();
+    const onChange = vi.fn();
+    const updated = '  edición\t中\nnuevo resultado';
+    renderSurface({
+      value: 'resultado anterior',
+      readOnly: false,
+      onChange,
+      clipboard: {
+        copy,
+        copyLabel: 'Copiar selección',
+        selectAllLabel: 'Seleccionar todo',
+        sourceText: 'fuente anterior que no debe sustituir la edición',
+      },
+    });
+    const view = EditorView.findFromDOM(editor())!;
+    act(() => {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: updated } });
+    });
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(updated);
+
+    fireEvent.keyDown(editor(), { key: 'a', ctrlKey: true });
+    fireEvent.keyDown(editor(), { key: 'c', ctrlKey: true });
+    expect(copy).toHaveBeenCalledExactlyOnceWith(updated);
+    expect(fireEvent.copy(editor())).toBe(false);
+    expect(copy).toHaveBeenCalledTimes(2);
+    expect(copy).toHaveBeenLastCalledWith(updated);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(updated);
+    expect(view.state.doc.toString()).toBe(updated);
+    expect(view.state.selection.main.from).toBe(0);
+    expect(view.state.selection.main.to).toBe(updated.length);
+  });
+
+  it('copia la fuente de solo lectura con CRLF y sin el salto final de relleno', async () => {
+    const user = userEvent.setup();
+    const copy = vi.fn();
+    const onChange = vi.fn();
+    const sourceText = '  café\t中\r\nsin salto final';
+    renderSurface({
+      value: `${sourceText.replace(/\r\n/g, '\n')}\n`,
+      onChange,
+      clipboard: {
+        copy,
+        copyLabel: 'Copiar selección',
+        selectAllLabel: 'Seleccionar todo',
+        sourceText,
+      },
+    });
+    const view = EditorView.findFromDOM(editor())!;
+    expect(view.state.doc.toString()).toBe('  café\t中\nsin salto final\n');
+
+    fireEvent.contextMenu(editor());
+    await user.click(screen.getByRole('menuitem', { name: /Seleccionar todo/ }));
+    fireEvent.contextMenu(editor());
+    await user.click(screen.getByRole('menuitem', { name: /Copiar selección/ }));
+    expect(copy).toHaveBeenCalledExactlyOnceWith(sourceText);
+    expect(editor()).toHaveFocus();
+    expect(onChange).not.toHaveBeenCalled();
+
+    // El renglón de alineación no pertenece a la fuente y no se puede copiar.
+    act(() =>
+      view.dispatch({
+        selection: { anchor: view.state.doc.length - 1, head: view.state.doc.length },
+      }),
+    );
+    fireEvent.contextMenu(editor());
+    expect(screen.getByRole('menuitem', { name: /Copiar selección/ })).toBeDisabled();
+  });
+
+  it('no copia sin selección ni interfiere con la composición', () => {
+    const { copy, view } = show();
+    fireEvent.keyDown(editor(), { key: 'c', ctrlKey: true });
+    fireEvent.copy(editor());
+    act(() => view.dispatch({ selection: { anchor: 0, head: 5 } }));
+    fireEvent.keyDown(editor(), { key: 'c', ctrlKey: true, isComposing: true });
+    expect(copy).not.toHaveBeenCalled();
   });
 });

@@ -1026,6 +1026,7 @@ describe('WorkingView', () => {
   it('las flechas conservan el foco en los archivos mientras cambian el diff', async () => {
     const user = userEvent.setup();
     const ports = makePorts();
+    const copy = vi.spyOn(ports.system, 'writeClipboardText');
     const commit = (await ports.git.readCommits('gitthul', { limit: 1 })).commits[0];
 
     if (!commit) throw new Error('El fixture necesita al menos un commit');
@@ -1043,6 +1044,8 @@ describe('WorkingView', () => {
       name: `Detalles del commit ${shortSha(commit.sha)}`,
     });
     const files = within(details).getByRole('listbox');
+    await user.click(within(details).getByRole('button', { name: 'Copiar SHA completo' }));
+    expect(copy).toHaveBeenCalledExactlyOnceWith(commit.sha);
 
     expect(within(files).getAllByRole('option').length).toBeGreaterThan(1);
     files.focus();
@@ -1056,6 +1059,7 @@ describe('WorkingView', () => {
   it('seleccionar un guardado en el panel muestra sus archivos incluidos', async () => {
     const user = userEvent.setup();
     const ports = makePorts();
+    const copy = vi.spyOn(ports.system, 'writeClipboardText');
     const refs = await ports.git.readRefs('gitthul');
     const stash = refs.stashes[0];
     if (!stash) throw new Error('El fixture debe tener un guardado');
@@ -1075,11 +1079,61 @@ describe('WorkingView', () => {
       name: `Detalles del commit ${stash.sha.slice(0, 7)}`,
     });
     expect(stashPanel).toBeInTheDocument();
+    await user.click(within(stashPanel).getByRole('button', { name: 'Copiar SHA completo' }));
+    expect(copy).toHaveBeenCalledExactlyOnceWith(stash.sha);
+    copy.mockRejectedValueOnce(new Error('clipboard unavailable'));
+    await user.click(within(stashPanel).getByRole('button', { name: 'Copiar SHA completo' }));
+    expect(await screen.findByText('No se pudo copiar al portapapeles')).toBeInTheDocument();
     expect(within(stashPanel).queryByText(/^\+\d+$/)).not.toBeInTheDocument();
     expect(within(stashPanel).queryByText(/^−\d+$/)).not.toBeInTheDocument();
     for (const file of details.files) {
       expect(screen.getByText(file.path.split('/').at(-1) ?? file.path)).toBeInTheDocument();
     }
+  });
+
+  it.each([1, 2])('aplica %i archivos del stash desde su selección contextual', async (count) => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const refs = await ports.git.createStash('gitthul', 'Selección parcial', {
+      includeUntracked: true,
+    });
+    const stash = refs.stashes[0]!;
+    const apply = vi.spyOn(ports.git, 'applyStash');
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    await screen.findByRole('grid', { name: 'Commits de gitthul' });
+    act(() => useWorkingStore.getState().setSelectedCommits(new Set(['stash:0'])));
+    const details = await screen.findByRole('region', {
+      name: `Detalles del commit ${stash.sha.slice(0, 7)}`,
+    });
+    const listView = within(details).getByRole('radio', { name: 'Lista' });
+    if (listView.getAttribute('aria-checked') !== 'true') await user.click(listView);
+    const files = await screen.findByRole('listbox', {
+      name: `Archivos de ${stash.sha.slice(0, 7)}`,
+    });
+    const rows = within(files).getAllByRole('option');
+    // Ctrl-click keeps the existing selection when adding another file.
+    for (const row of rows.slice(0, count)) {
+      fireEvent.mouseDown(row, { button: 0, ctrlKey: true });
+      fireEvent.click(row, { button: 0, ctrlKey: true });
+    }
+    const contextTarget = rows[0]?.firstElementChild;
+    if (!contextTarget) throw new Error('The selected file has no context-menu target');
+    fireEvent.contextMenu(contextTarget);
+    await user.click(
+      await screen.findByRole('menuitem', {
+        name: count === 1 ? 'Aplicar archivo del stash' : `Aplicar ${count} archivos del stash`,
+      }),
+    );
+    await waitFor(() => expect(apply).toHaveBeenCalledOnce());
+    const selected = apply.mock.calls[0]?.[2]?.paths;
+    expect(selected).toHaveLength(count);
+    await waitFor(() => expect(useWorkingStore.getState().pendingWrites).toBe(0));
+    expect(
+      new Set((await ports.git.readStatus('gitthul')).unstaged.map((file) => file.path)),
+    ).toEqual(new Set(selected));
+    expect((await ports.git.readRefs('gitthul')).stashes).toEqual(refs.stashes);
+    expect(apply.mock.calls[0]?.[2]).toMatchObject({ expectedStash: stash.sha });
   });
 
   it('abre el archivo sin seguimiento guardado usando el origen del stash', async () => {
@@ -3490,9 +3544,11 @@ describe('WorkingView', () => {
     // Volver a «Hunks» la trae de vuelta: no es una vista que perdió la cabecera para siempre.
     await user.click(within(viewer).getByRole('radio', { name: 'Hunks' }));
 
-    expect(
-      await within(viewer).findByRole('button', { name: 'Agregar el hunk 1 al staging' }),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        within(viewer).getByRole('button', { name: 'Agregar el hunk 1 al staging' }),
+      ).toBeInTheDocument(),
+    );
   });
 
   /*
@@ -3500,7 +3556,7 @@ describe('WorkingView', () => {
    * uno tiene su propia selección y ninguno se entera de los demás, así que el
    * arrastre se paraba en el borde y lo marcado antes se quedaba encendido.
    */
-  it('en «Archivo completo» el archivo entero es un solo visor, no uno por tramo', async () => {
+  it('Hunks y Archivo completo conservan un solo visor para seleccionar entre tramos', async () => {
     const user = userEvent.setup();
 
     renderApp(makePorts());
@@ -3519,8 +3575,11 @@ describe('WorkingView', () => {
     if (oneColumn.getAttribute('aria-checked') !== 'true') await user.click(oneColumn);
 
     await user.click(within(viewer).getByRole('radio', { name: 'Hunks' }));
-    // En «Hunks» hay uno por hunk, que es justo lo que ese modo quiere.
-    expect((await within(viewer).findAllByRole('textbox', { name: unified })).length).toBe(3);
+    // Los hunks comparten el documento para copiar una selección que los atraviese.
+    expect(await within(viewer).findAllByRole('textbox', { name: unified })).toHaveLength(1);
+    expect(
+      within(viewer).getAllByRole('button', { name: /^Agregar el hunk .* al staging$/ }),
+    ).toHaveLength(3);
 
     await user.click(within(viewer).getByRole('radio', { name: 'Archivo completo' }));
 
@@ -4548,6 +4607,89 @@ describe('WorkingView', () => {
     }
     expect(within(resolver).getByRole('checkbox', { name: 'Agregar todo A, main' })).toBeEnabled();
     expect(within(resolver).getByText(/Bloque 1 de/)).toBeVisible();
+  });
+
+  it('copia en los tres paneles de Resolver sin cambiar decisiones y conserva la edición', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const original = await ports.git.readConflict('bitacora', 'docs/plan.md');
+    const ours = 'inicio\r\nA café\t中';
+    const theirs = 'inicio\r\nB té\t文';
+    vi.spyOn(ports.git, 'readConflict').mockResolvedValue({
+      ...original,
+      base: 'inicio\r\nbase',
+      ours,
+      theirs,
+    });
+    const copy = vi.spyOn(ports.system, 'writeClipboardText');
+    const save = vi.spyOn(ports.git, 'resolveConflict');
+    renderApp(ports);
+    await openRepo(user, BITACORA_PATH);
+    await user.click(
+      within(await screen.findByRole('region', { name: 'En conflicto' })).getByText('plan.md'),
+    );
+    const resolver = await screen.findByRole('region', { name: 'docs/plan.md' });
+    const decisions = useResolveStore.getState();
+
+    for (const [label, source] of [
+      ['A · main', ours],
+      ['B · redaccion', theirs],
+    ]) {
+      const editor = within(resolver).getByRole('textbox', { name: label });
+      fireEvent.contextMenu(editor);
+      expect(screen.getByRole('menuitem', { name: /Copiar selección/ })).toBeDisabled();
+      await user.click(screen.getByRole('menuitem', { name: /Seleccionar todo/ }));
+      expect(editor).toHaveFocus();
+      fireEvent.contextMenu(editor);
+      await user.click(screen.getByRole('menuitem', { name: /Copiar selección/ }));
+      expect(copy).toHaveBeenLastCalledWith(source);
+      expect(editor).toHaveFocus();
+      fireEvent.keyDown(editor, { key: 'c', ctrlKey: true });
+      expect(copy).toHaveBeenLastCalledWith(source);
+    }
+
+    // Abrir el menú en un hueco pendiente no empieza una edición ni resuelve el bloque.
+    const slot = resolver.querySelector<HTMLElement>('.gitthul-editable-spacer');
+    expect(slot).not.toBeNull();
+    fireEvent.mouseDown(slot!, { button: 2 });
+    fireEvent.contextMenu(slot!);
+    await user.keyboard('{Escape}');
+    expect(useResolveStore.getState().choices).toBe(decisions.choices);
+    expect(useResolveStore.getState().blockText).toBe(decisions.blockText);
+    expect(useResolveStore.getState().manual).toBe(decisions.manual);
+
+    const result = within(resolver).getByRole('textbox', { name: 'Resultado' });
+    const view = EditorView.findFromDOM(result)!;
+    const edited = 'solución\t中\nsegunda línea';
+    act(() => {
+      view.focus();
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: edited } });
+      view.dispatch({ selection: { anchor: 0, head: 8 } });
+    });
+    fireEvent.contextMenu(result);
+    await user.click(screen.getByRole('menuitem', { name: /Copiar selección/ }));
+    expect(copy).toHaveBeenLastCalledWith('solución');
+    expect(result).toHaveFocus();
+    expect(view.state.selection.main.to).toBe(8);
+    const editedState = useResolveStore.getState();
+    fireEvent.contextMenu(result);
+    await user.click(screen.getByRole('menuitem', { name: /Seleccionar todo/ }));
+    fireEvent.keyDown(result, { key: 'c', ctrlKey: true });
+    expect(copy).toHaveBeenLastCalledWith(edited);
+    expect(useResolveStore.getState().blockText).toBe(editedState.blockText);
+    expect(useResolveStore.getState().manual).toBe(editedState.manual);
+    // Despejar los avisos de las copias anteriores para ver el fallo siguiente.
+    while (screen.queryAllByRole('button', { name: 'Cerrar el aviso' }).length) {
+      await user.click(screen.getAllByRole('button', { name: 'Cerrar el aviso' })[0]!);
+    }
+    copy.mockRejectedValueOnce(new Error('clipboard unavailable'));
+    fireEvent.copy(result);
+    expect(await screen.findByText('No se pudo copiar al portapapeles')).toBeVisible();
+    expect(view.state.doc.toString()).toBe(edited);
+    act(() => view.focus());
+    act(() => view.dispatch(view.state.replaceSelection('seguir editando')));
+    expect(view.state.doc.toString()).toBe('seguir editando');
+    expect(save).not.toHaveBeenCalled();
   });
 
   it('abrir un conflicto monta el resolutor con las dos ramas y sus bloques', async () => {

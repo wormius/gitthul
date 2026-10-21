@@ -435,7 +435,13 @@ export interface GitPort {
   applyStash: (
     id: RepoId,
     index: number,
-    options?: { drop?: boolean; expectedStash?: Sha; precondition?: ResetPrecondition },
+    options?: {
+      drop?: boolean;
+      expectedStash?: Sha;
+      precondition?: ResetPrecondition;
+      /** Apply only these files to the worktree, preserving the index and stash. */
+      paths?: readonly string[];
+    },
     query?: GitQuery,
   ) => Promise<WorkingStatus>;
   dropStash: (

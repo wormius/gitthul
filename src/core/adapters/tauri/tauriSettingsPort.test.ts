@@ -1,10 +1,79 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_SETTINGS } from '@core/domain/settings';
+import { backupFailure } from '@core/domain/backup';
 
 import { createTauriSettingsPort } from './tauriSettingsPort';
 
 describe('createTauriSettingsPort', () => {
+  it('forwards a backup limit token only with its exact write', async () => {
+    const call = vi.fn().mockResolvedValue(DEFAULT_SETTINGS);
+    const port = createTauriSettingsPort(vi.fn(), call);
+    await port.patch({ backup: { maxMiB: 512 } }, { backupLimitToken: 'reviewed-plan' });
+    await port.patch({ locale: 'de' });
+    expect(call.mock.calls.filter(([command]) => command === 'settings_write')).toEqual([
+      [
+        'settings_write',
+        {
+          settings: { ...DEFAULT_SETTINGS, backup: { ...DEFAULT_SETTINGS.backup, maxMiB: 512 } },
+          backupLimitToken: 'reviewed-plan',
+        },
+      ],
+      [
+        'settings_write',
+        {
+          settings: {
+            ...DEFAULT_SETTINGS,
+            locale: 'de',
+            backup: { ...DEFAULT_SETTINGS.backup, maxMiB: 512 },
+          },
+        },
+      ],
+    ]);
+  });
+
+  it('rebases queued changes on confirmed settings after a rejected limit instead of resubmitting it', async () => {
+    let rejectLimit!: (reason: unknown) => void;
+    const pending = new Promise<void>((_resolve, reject) => {
+      rejectLimit = reject;
+    });
+    const written: Record<string, unknown>[] = [];
+    const failure = JSON.stringify({ code: 'backup.limitChanged' });
+    const call = vi.fn((command: string, args?: Record<string, unknown>) => {
+      if (command === 'settings_read') return Promise.resolve(DEFAULT_SETTINGS);
+      written.push(args!);
+      return written.length === 1 ? pending : Promise.resolve();
+    });
+    const port = createTauriSettingsPort(vi.fn(), call);
+    await port.read();
+    const limit = port.patch({ backup: { maxMiB: 100 } }, { backupLimitToken: 'old-plan' });
+    const rejected = expect(limit).rejects.toBe(failure);
+    const locale = port.patch({ locale: 'fr' });
+    const panes = port.patch({ panes: { history: 420 } });
+    await vi.waitFor(() => expect(written).toHaveLength(1));
+    expect((await port.read()).backup.maxMiB).toBe(DEFAULT_SETTINGS.backup.maxMiB);
+    rejectLimit(failure);
+    await rejected;
+    await Promise.all([locale, panes]);
+    expect(backupFailure(failure)).toEqual({ code: 'backup.limitChanged' });
+    expect(written.slice(1)).toEqual([
+      { settings: { ...DEFAULT_SETTINGS, locale: 'fr' } },
+      {
+        settings: {
+          ...DEFAULT_SETTINGS,
+          locale: 'fr',
+          panes: { ...DEFAULT_SETTINGS.panes, history: 420 },
+        },
+      },
+    ]);
+    expect(await port.read()).toMatchObject({
+      locale: 'fr',
+      backup: DEFAULT_SETTINGS.backup,
+      panes: { history: 420 },
+    });
+    await port.flush();
+  });
+
   it('migra un canal beta heredado y conserva las preferencias de consulta y recordatorio', async () => {
     let disk: unknown = { updates: { channel: 'beta', checkOnStartup: true } };
     const call = vi.fn((command: string, args?: Record<string, unknown>) => {

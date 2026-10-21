@@ -60,6 +60,8 @@ export const fr: Messages = {
   'titleBar.close': 'Fermer la fenêtre',
 
   'tabs.stripLabel': 'Onglets ouverts',
+  'tabs.alias.hint':
+    'Entrée ou un clic à l’extérieur pour enregistrer ; Échap pour annuler. Laisser vide rétablit le nom d’origine.',
   'tabs.close': 'Fermer l’onglet {tab}',
   'tabs.menu.label': 'Opérations de l’onglet {tab}',
   'tabs.menu.close': 'Fermer',
@@ -280,6 +282,15 @@ export const fr: Messages = {
   'repositories.empty.filtered.clear': 'Vider le filtre',
   'repositories.empty.recent.title': 'Vous n’avez pas encore ouvert de dépôt dans GitThul',
 
+  'repositories.alias.menu': 'Définir un alias…',
+  'repositories.alias.title': 'Alias de {repo}',
+  'repositories.alias.close': 'Fermer l’alias du dépôt',
+  'repositories.alias.label': 'Alias',
+  'repositories.alias.hint':
+    'Laissez ce champ vide pour afficher le nom d’origine. Le dossier du dépôt reste inchangé.',
+  'repositories.alias.cancel': 'Annuler',
+  'repositories.alias.save': 'Enregistrer',
+  'repositories.alias.failed': 'Impossible d’enregistrer l’alias. Réessayez.',
   'repositories.avatar.title': 'Avatar de {repo}',
   'repositories.avatar.close': 'Fermer sans changer l’avatar de {repo}',
   'repositories.avatar.symbols': 'Symboles',
@@ -476,6 +487,26 @@ export const fr: Messages = {
   'avatar.glyph.crown': 'Couronne',
   'avatar.glyph.gem': 'Gemme',
   'avatar.glyph.shield': 'Bouclier',
+  'avatar.glyph.code': 'Code',
+  'avatar.glyph.chip': 'Puce',
+  'avatar.glyph.database': 'Base de données',
+  'avatar.glyph.server': 'Serveur',
+  'avatar.glyph.gamepad': 'Manette',
+  'avatar.glyph.headphones': 'Casque audio',
+  'avatar.glyph.satellite': 'Satellite',
+  'avatar.glyph.telescope': 'Télescope',
+  'avatar.glyph.planet': 'Planète',
+  'avatar.glyph.ufo': 'OVNI',
+  'avatar.glyph.sword': 'Épée',
+  'avatar.glyph.potion': 'Potion',
+  'avatar.glyph.treasure': 'Trésor',
+  'avatar.glyph.map': 'Carte',
+  'avatar.glyph.lighthouse': 'Phare',
+  'avatar.glyph.sailboat': 'Voilier',
+  'avatar.glyph.anchorWheel': 'Barre à roue',
+  'avatar.glyph.puzzle': 'Puzzle',
+  'avatar.glyph.diamondRing': 'Bague',
+  'avatar.glyph.hourglass': 'Sablier',
 
   // Les personnages existants gardent leurs identifiants pour les avatars enregistrés.
   'avatar.glyph.ghost': 'Fantôme',
@@ -505,6 +536,15 @@ export const fr: Messages = {
   'avatar.glyph.turtle': 'Tortue',
   'avatar.glyph.whale': 'Baleine',
   'avatar.glyph.butterfly': 'Papillon',
+  'avatar.glyph.wolf': 'Loup',
+  'avatar.glyph.raccoon': 'Raton laveur',
+  'avatar.glyph.bat': 'Chauve-souris',
+  'avatar.glyph.shark': 'Requin',
+  'avatar.glyph.dragon': 'Dragon',
+  'avatar.glyph.axolotl': 'Axolotl',
+  'avatar.glyph.bee': 'Abeille',
+  'avatar.glyph.capybara': 'Capybara',
+  'avatar.glyph.hummingbird': 'Colibri',
   'avatar.glyph.flower': 'Fleur',
   'avatar.glyph.sunflower': 'Tournesol',
   'avatar.glyph.tulip': 'Tulipe',
@@ -516,6 +556,10 @@ export const fr: Messages = {
   'avatar.glyph.mushroom': 'Champignon',
   'avatar.glyph.clover': 'Trèfle',
   'avatar.glyph.fern': 'Fougère',
+  'avatar.glyph.bonsai': 'Bonsaï',
+  'avatar.glyph.monstera': 'Monstera',
+  'avatar.glyph.lotus': 'Lotus',
+  'avatar.glyph.acorn': 'Gland',
   'avatar.glyph.pumpkin': 'Citrouille',
   'avatar.glyph.gift': 'Cadeau',
   'avatar.glyph.cake': 'Gâteau',
@@ -524,6 +568,11 @@ export const fr: Messages = {
   'avatar.glyph.santa': 'Père Noël',
   'avatar.glyph.snowflake': 'Flocon de neige',
   'avatar.glyph.lantern': 'Lanterne',
+  'avatar.glyph.mask': 'Masque de fête',
+  'avatar.glyph.pinata': 'Piñata',
+  'avatar.glyph.candle': 'Bougie',
+  'avatar.glyph.firework': 'Feu d’artifice',
+  'avatar.glyph.bell': 'Cloche',
   'avatar.glyph.orbit': 'Orbite',
   'avatar.glyph.spiral': 'Spirale',
   'avatar.glyph.mosaic': 'Mosaïque',
@@ -533,6 +582,11 @@ export const fr: Messages = {
   'avatar.glyph.knot': 'Nœud',
   'avatar.glyph.mandala': 'Mandala',
   'avatar.glyph.comet': 'Comète',
+  'avatar.glyph.vortex': 'Tourbillon',
+  'avatar.glyph.hexagon': 'Hexagone',
+  'avatar.glyph.aperture': 'Diaphragme',
+  'avatar.glyph.kaleidoscope': 'Kaléidoscope',
+  'avatar.glyph.totem': 'Totem',
 
   'working.split.refsLabel': 'Largeur du panneau de références',
   'working.split.detailsLabel': 'Largeur du panneau de détails',
@@ -994,6 +1048,9 @@ export const fr: Messages = {
   'working.diff.new': 'Nouvelle version de {path}, à partir de la ligne {from}',
   'working.diff.horizontalScroll': 'Défilement horizontal de {label}',
   'working.diff.file': 'Fichier {path}',
+  'working.diff.copySelection': 'Copier la sélection',
+  'working.diff.selectAll': 'Tout sélectionner',
+  'working.commitDetails.copySha': 'Copier le SHA complet',
   'working.diff.fold': 'Replier le bloc',
   'working.diff.unfold': 'Déplier le bloc',
   'working.diff.folded': '…',
@@ -1192,6 +1249,19 @@ export const fr: Messages = {
   'undo.revert': 'Annuler des commits (revert)',
   'undo.reset': 'Réinitialiser la branche',
   'undo.stash': 'Créer un stash',
+  'working.menu.file.applyStashFile': 'Appliquer le fichier du stash',
+  'working.status.stashFileApplied': 'Fichier du stash appliqué',
+  'working.menu.file.applyStashSelection': 'Appliquer {count} fichiers du stash',
+  'working.status.stashFilesApplied': '{count} fichiers du stash appliqués',
+  'undo.applyStashPaths': 'Appliquer des fichiers du stash',
+  'error.stash.partialConflict.title':
+    'Les fichiers sélectionnés du stash n’ont pas pu être appliqués',
+  'error.stash.partialConflict.cause':
+    'La sélection ne peut pas être appliquée au contenu actuel. Vérifiez les modifications locales et les chemins existants ; le stash est conservé.',
+  'error.stash.partialUnsupported.title':
+    'Cette sélection ne peut pas être appliquée partiellement',
+  'error.stash.partialUnsupported.cause':
+    'Sélectionnez des fichiers d’un stash existant et terminez les opérations ou conflits en cours. Les sous-modules nécessitent d’appliquer le stash complet.',
   'undo.applyStash': 'Appliquer un stash',
   'error.undo.snapshotUnavailable.title':
     'Copie de récupération impossible ; modification non appliquée',
@@ -1393,7 +1463,7 @@ export const fr: Messages = {
   'settings.appearance.toastPosition.bottom-start': 'En bas à gauche',
   'settings.appearance.toastPosition.bottom-end': 'En bas à droite',
   'settings.appearance.toastPositionHint':
-    'Les avis restent à distance des barres de l’application.',
+    'Choisissez un coin de la fenêtre pour les notifications. Un exemple apparaîtra à cet endroit.',
   'settings.appearance.modeAutoResolved': 'Le système utilise actuellement le mode {value}.',
   'settings.appearance.modeHint': 'Fixe, sans suivre le système.',
   'settings.appearance.fonts': 'Polices et tailles',
@@ -1915,9 +1985,57 @@ export const fr: Messages = {
   'settings.backup.enabled': 'Sauvegardes automatiques',
   'settings.backup.maxMiB': 'Limite globale d’espace (MiB)',
   'settings.backup.invalidLimit': 'Saisissez un entier entre {min} et {max}.',
+  'settings.backup.limitSaved': 'Limite de stockage des sauvegardes mise à jour.',
+  'settings.backup.limitHint':
+    'Réduire la limite supprime uniquement les anciennes versions nécessaires. Les copies les plus récentes sont conservées ; préparer une nouvelle sauvegarde nécessite aussi de l’espace temporaire.',
+  'settings.backup.limitReviewing': 'Calcul de la nouvelle limite…',
+  'settings.backup.limitApplying': 'Application de la limite de stockage des sauvegardes…',
+  'settings.backup.autoPruned':
+    '{size} ont été libérés en supprimant {count} anciennes versions pour préparer une sauvegarde. Les copies les plus récentes ont été conservées.',
+  'settings.backup.limitTitle': 'Vérifier la limite de stockage des sauvegardes',
+  'settings.backup.limitImpossibleDescription':
+    'La limite de {limit} ne peut pas être appliquée. La limite actuelle sera conservée.',
+  'settings.backup.limitDescription':
+    'Nouvelle limite : {limit}. Vérifiez l’espace occupé et les sauvegardes qui seront supprimées définitivement.',
+  'settings.backup.confirmLimit': 'Appliquer la limite',
+  'settings.backup.reviewLimit': 'Vérifier à nouveau',
+  'settings.backup.limitCurrent': 'Espace actuellement occupé',
+  'settings.backup.limitDeleteCount': 'Sauvegardes à supprimer',
+  'settings.backup.limitProjected': 'Espace occupé après application',
+  'settings.backup.limitMinimum':
+    'Cette limite ne permet pas de conserver toutes les copies protégées. Il faut au moins {minimum} MiB. Ce minimum ne garantit pas assez d’espace pour une nouvelle sauvegarde.',
+  'settings.backup.limitProtected':
+    'Les dernières copies valides de chaque dépôt et toutes leurs données partagées seront conservées.',
+  'settings.backup.limitChangedReview': 'Vérifiez le calcul actualisé avant de confirmer.',
+  'settings.backup.error.limitChanged':
+    'Les sauvegardes ont changé depuis la vérification. Vérifiez le nouveau calcul et confirmez à nouveau.',
+  'settings.backup.error.limitTooSmall':
+    'La limite est inférieure à l’espace nécessaire pour conserver les sauvegardes protégées.',
   'settings.backup.retention':
     'Conserve jusqu’à 7 versions quotidiennes, 4 hebdomadaires et 3 mensuelles selon l’espace disponible. La dernière sauvegarde valide de chaque dépôt est toujours conservée.',
   'settings.backup.total': 'Sauvegardes : {size} sur {limit}',
+  'settings.backup.usage': 'Espace occupé par les sauvegardes',
+  'settings.backup.usagePercent': '{percent} utilisé',
+  'settings.backup.usageDescription': '{size} sur {limit} ; {percent} de la limite',
+  'settings.backup.delete': 'Supprimer…',
+  'settings.backup.deleteTitle': 'Supprimer la sauvegarde',
+  'settings.backup.deleteDescription':
+    'La sauvegarde de « {repository} » du {date} sera supprimée définitivement. Le dépôt d’origine et sa sauvegarde valide la plus récente seront conservés.',
+  'settings.backup.confirmDelete': 'Supprimer la sauvegarde',
+  'settings.backup.deleted': 'Sauvegarde supprimée.',
+  'settings.backup.scanning': 'Vérification des sauvegardes disponibles…',
+  'settings.backup.deleting': 'Vérification et suppression de la sauvegarde…',
+  'settings.backup.prune': 'Nettoyer les sauvegardes…',
+  'settings.backup.pruneTitle': 'Nettoyer les sauvegardes',
+  'settings.backup.pruneDescription':
+    '{count} sauvegardes non protégées seront supprimées définitivement. La sauvegarde valide la plus récente de chaque dépôt et toutes les données nécessaires à sa restauration seront conservées.',
+  'settings.backup.confirmPrune': 'Supprimer les sauvegardes non protégées',
+  'settings.backup.pruned': 'Nettoyage terminé. Les sauvegardes protégées ont été conservées.',
+  'settings.backup.pruning': 'Vérification et nettoyage des sauvegardes…',
+  'settings.backup.deleteProtected':
+    'La sauvegarde valide la plus récente de ce dépôt est conservée.',
+  'settings.backup.error.protected':
+    'La sauvegarde valide la plus récente de chaque dépôt est protégée et ne peut pas être supprimée.',
   'settings.backup.overBudget':
     'Les sauvegardes conservées dépassent la limite globale de stockage. La dernière sauvegarde valide de chaque dépôt est conservée ; les nouvelles sauvegardes attendront que davantage d’espace soit disponible.',
   'settings.backup.corruptNotice':
@@ -1937,9 +2055,9 @@ export const fr: Messages = {
   'settings.backup.refresh': 'Actualiser',
   'settings.backup.error.unknown': 'L’action de sauvegarde n’a pas pu être effectuée.',
   'settings.backup.error.invalid':
-    'La sauvegarde est incomplète ou endommagée et ne peut pas être restaurée.',
+    'Les données de la sauvegarde n’ont pas pu être vérifiées. L’action ne peut pas continuer avec des données incomplètes ou endommagées.',
   'settings.backup.error.unavailable':
-    'Le stockage des sauvegardes est inaccessible. Vérifiez l’espace disponible et les permissions.',
+    'Le stockage des sauvegardes est indisponible ou occupé. Attendez la fin de l’opération en cours et vérifiez l’espace disponible ainsi que les autorisations.',
   'settings.backup.error.destination':
     'Choisissez un nouveau dossier de destination. Les fichiers existants ne peuvent pas être écrasés.',
   'settings.backup.error.stale':

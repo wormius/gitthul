@@ -8,7 +8,6 @@ import {
   MODES,
   THEMES,
   THEME_VARIANTS,
-  TOAST_POSITIONS,
   UI_FONTS,
   UI_FONT_SIZE,
   type CodeFont,
@@ -30,6 +29,7 @@ import { ResetButton } from './ResetButton';
 import { SettingsSection } from './SettingsSection';
 import { ModeDarkIcon, ModeLightIcon, ModeSystemIcon } from './SettingsIcons';
 import { ToastPositionPreview } from './ToastPositionPreview';
+import { ToastPositionPicker } from './ToastPositionPicker';
 import { ThemeChip } from './ThemeChip';
 import styles from './AppearanceSection.module.css';
 
@@ -400,21 +400,19 @@ export function AppearanceSection() {
             }}
           />
         </div>
-        <SegmentedControl
-          className={styles.modes}
-          label={t('settings.appearance.toastPosition')}
+        <p className={styles.note}>{t('settings.appearance.toastPositionHint')}</p>
+        <ToastPositionPicker
           value={settings.toastPosition}
-          options={TOAST_POSITIONS.map((value) => ({
-            value,
-            label: t(`settings.appearance.toastPosition.${value}`),
-          }))}
           onChange={(toastPosition) => {
             update({ toastPosition });
             previewToast(toastPosition);
           }}
         />
-        <p className={styles.note}>{t('settings.appearance.toastPositionHint')}</p>
-        <Button variant="ghost" onClick={() => previewToast(settings.toastPosition)}>
+        <Button
+          className={styles.toastPreviewButton}
+          variant="ghost"
+          onClick={() => previewToast(settings.toastPosition)}
+        >
           {t('settings.appearance.toastPreview')}
         </Button>
         {toastPreview && (

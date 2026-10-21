@@ -607,6 +607,26 @@ describe('tauriGitPort', () => {
     });
   });
 
+  it('transporta la selección parcial y exige identidad y estado observados', async () => {
+    const call = vi.fn(() => Promise.resolve({}));
+    const port = createTauriGitPort(call);
+    const options = {
+      paths: ['literal[ab].txt', 'folder/new.txt'],
+      expectedStash: 'd'.repeat(40),
+      precondition: {
+        head: 'a'.repeat(40),
+        indexTree: 'b'.repeat(40),
+        worktreeTree: 'c'.repeat(40),
+      },
+    };
+    await port.applyStash('/repos/uno', 2, options);
+    expect(call).toHaveBeenCalledWith('git_apply_stash', { id: '/repos/uno', index: 2, options });
+    await expect(port.applyStash('/repos/uno', 2, { paths: options.paths })).rejects.toMatchObject({
+      code: 'ref.stale',
+    });
+    expect(call).toHaveBeenCalledOnce();
+  });
+
   it('cancela también el recorrido nativo de historia', async () => {
     const controller = new AbortController();
     let finishHistory: ((value: unknown) => void) | undefined;

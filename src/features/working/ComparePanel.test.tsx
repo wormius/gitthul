@@ -94,6 +94,7 @@ function harness() {
       viewFileHistory: vi.fn(),
       openDiff,
       stashPaths: vi.fn(),
+      applyStashPaths: vi.fn(),
       pop: vi.fn(),
       dropStash: vi.fn(),
       reveal: vi.fn(),

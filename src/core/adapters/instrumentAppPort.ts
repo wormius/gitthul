@@ -7,8 +7,11 @@ import { logOperation, type OperationSummary } from './logOperation';
 const LABELS: Record<string, Record<string, string>> = {
   backup: {
     read: 'leer respaldos de emergencia',
+    previewLimit: 'revisar límite de respaldos',
     schedule: 'programar respaldo de repositorio',
     restore: 'restaurar repositorio en carpeta nueva',
+    delete: 'eliminar respaldo anterior de repositorio',
+    prune: 'eliminar respaldos anteriores de repositorios',
   },
   recovery: {
     read: 'leer puntos de recuperación',
@@ -116,6 +119,8 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
           requestData['sections'] = Object.keys(args[0]);
         if (scope === 'backup' && property === 'schedule' && typeof args[0] === 'string')
           repository = args[0];
+        if (scope === 'backup' && property === 'previewLimit' && typeof args[0] === 'number')
+          requestData['maxMiB'] = args[0];
         if (scope === 'terminal') {
           const first = args[0];
           if (property === 'createSession' && first && typeof first === 'object') {
@@ -212,6 +217,15 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
         const secrets: string[] = [];
         if (scope === 'keyring' && property === 'set' && typeof args[1] === 'string')
           secrets.push(args[1]);
+        if (
+          scope === 'settings' &&
+          property === 'patch' &&
+          args[1] &&
+          typeof args[1] === 'object'
+        ) {
+          const token = (args[1] as Record<string, unknown>)['backupLimitToken'];
+          if (typeof token === 'string') secrets.push(token);
+        }
         if (scope === 'auth') {
           if (property === 'generateKey' && typeof args[1] === 'string') secrets.push(args[1]);
           if (property === 'saveAccess' && typeof args[2] === 'string') secrets.push(args[2]);
@@ -279,7 +293,7 @@ export function instrumentAppPort<T extends object>(port: T, scope: string, log:
           sanitize,
           !(scope === 'terminal' && /^(write|resize)$/.test(property)),
           (scope === 'terminal' && /^(createSession|closeSession)$/.test(property)) ||
-            (scope === 'backup' && property === 'restore')
+            (scope === 'backup' && /^(restore|delete|prune)$/.test(property))
             ? 'info'
             : undefined,
         );

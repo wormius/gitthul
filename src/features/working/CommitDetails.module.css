@@ -77,6 +77,12 @@
   font-size: var(--code-size-sm);
 }
 
+.shaGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .skeleton {
   display: flex;
   flex-direction: column;

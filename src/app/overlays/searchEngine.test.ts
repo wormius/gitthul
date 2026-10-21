@@ -296,3 +296,15 @@ describe('search relevance and scope', () => {
     ).toEqual(['c', 'b', 'a', 'z']);
   });
 });
+
+it('finds local aliases, original names and paths while opening the canonical repository', async () => {
+  const ctx = { ...context(), aliases: { match: 'Product' } };
+  for (const query of ['Product', 'match', '/match']) {
+    const results = await collect(searchResults({ ...ctx, query }));
+    const result = results.find((item) => item.kind === 'repositories');
+    expect(result?.label).toBe('Product');
+    result?.onSelect?.();
+    expect(ctx.open).toHaveBeenLastCalledWith(ctx.repositories[0]);
+  }
+  expect(ctx.repositories[0]?.name).toBe('match');
+});

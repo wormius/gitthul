@@ -94,6 +94,7 @@ export interface WorkingMenuActions {
   openDiff: (path: string, source: DiffSource) => void;
   /** Guarda una selección de archivos en stash. */
   stashPaths: (paths: readonly string[]) => void;
+  applyStashPaths: (sha: Sha, paths: readonly string[]) => void;
   pop: (stash: Stash, drop: boolean) => void;
   dropStash: (stash: Stash) => void;
   reveal: (path: string) => void;
@@ -980,10 +981,13 @@ export function commitFileMenu(
   context: MenuBuildContext,
   path: string,
   source: DiffSource,
+  paths: readonly string[] = [path],
 ): readonly MenuEntry[] {
   const { t, actions } = context;
 
   return [
+    ...stashFileActions(context, source, paths),
+    ...(source.kind === 'stash' && paths.length > 0 ? [separator('stashFiles')] : []),
     {
       key: 'diff',
       label: t('working.menu.file.viewDiff'),
@@ -1017,6 +1021,26 @@ export function commitFileMenu(
       onSelect: () => {
         actions.copy(path);
       },
+    },
+  ];
+}
+
+/** Stash selection is captured when opening the menu, including folder contents. */
+export function stashFileActions(
+  context: MenuBuildContext,
+  source: DiffSource,
+  paths: readonly string[],
+): readonly MenuEntry[] {
+  if (source.kind !== 'stash' || paths.length === 0) return [];
+  const selection = [...new Set(paths)];
+  return [
+    {
+      key: 'applyStashPaths',
+      label:
+        selection.length === 1
+          ? context.t('working.menu.file.applyStashFile')
+          : context.t('working.menu.file.applyStashSelection', { count: selection.length }),
+      onSelect: () => context.actions.applyStashPaths(source.sha, selection),
     },
   ];
 }

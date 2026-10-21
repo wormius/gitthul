@@ -1,6 +1,6 @@
 import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 
-import type { RepoAvatar, Space } from '@core/domain/library';
+import { repositoryName, type RepoAvatar, type Space } from '@core/domain/library';
 import type { RepoId, RepoSummary } from '@core/domain/repository';
 import { useI18n } from '@i18n/useI18n';
 import { Avatar } from '@ui/Avatar';
@@ -11,6 +11,7 @@ import type { MenuEntry } from '@ui/menuUtils';
 
 import { validateSpaceName } from './collection';
 import { OpenAllIcon, SpaceIcon, TrashIcon } from './RepositoryIcons';
+import { useRepositoriesStore } from './repositoriesStore';
 import styles from './SpaceZone.module.css';
 
 interface SpaceZoneProps {
@@ -64,6 +65,7 @@ export function SpaceZone({
   children,
 }: SpaceZoneProps) {
   const { t } = useI18n();
+  const aliases = useRepositoriesStore((state) => state.library?.aliases);
   const collapsed = space.collapsed === true;
   const [draft, setDraft] = useState(space.name);
   const problem = validateSpaceName(spaces, draft, space.id);
@@ -153,7 +155,7 @@ export function SpaceZone({
                 {members.slice(0, 8).map((repo) => (
                   <Avatar
                     key={repo.id}
-                    name={repo.name}
+                    name={repositoryName(repo, aliases)}
                     email={repo.id}
                     size="sm"
                     {...(avatarOf(repo.id) ?? {})}

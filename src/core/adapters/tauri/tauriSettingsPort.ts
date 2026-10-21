@@ -61,27 +61,23 @@ export function createTauriSettingsPort(
   return {
     read: load,
 
-    patch: async (patch: SettingsPatch) => {
-      if (current === null) await load();
-      // Leer `current` después de la posible espera es esencial: dos parches
-      // iniciados en la misma tarea deben encadenarse también en memoria, no
-      // calcular ambos desde la misma foto inicial.
-      const previous = current!;
-      const next = mergeSettings(previous, patch);
-
-      current = next;
+    patch: (patch: SettingsPatch, options) => {
+      const change = structuredClone(patch);
+      const token = options?.backupLimitToken;
       const write = writes
         .catch(() => undefined)
         .then(async () => {
-          await call('settings_write', { settings: next });
+          // Rebase only when this write starts. A rejected earlier limit must
+          // never leak into an unrelated patch waiting behind it.
+          const next = mergeSettings(await load(), change);
+          await call('settings_write', {
+            settings: next,
+            ...(token !== undefined ? { backupLimitToken: token } : {}),
+          });
+          current = next;
         });
       writes = write;
-      try {
-        await write;
-      } catch (error) {
-        if (current === next) current = previous;
-        throw error;
-      }
+      return write;
     },
 
     // La escritura ya espera a que Rust confirme, así que no queda nada

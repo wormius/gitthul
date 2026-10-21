@@ -53,3 +53,16 @@ describe('repositoriesStore selection', () => {
     expect(useRepositoriesStore.getState().selected?.head).toBe('next');
   });
 });
+
+it('keeps selections found by alias and removes them when clearing an alias hides the row', () => {
+  const store = useRepositoriesStore.getState();
+  store.setLibrary({ ...DEFAULT_LIBRARY, aliases: { one: 'Product' } });
+  store.selectMany(new Set(['one', 'two']));
+  store.setFilter('product');
+  expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set(['one']));
+  expect(useRepositoriesStore.getState().selected?.name).toBe('Árbol');
+  store.loaded(REPOS, { ...DEFAULT_LIBRARY, aliases: { one: 'Product' } });
+  expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set(['one']));
+  store.setLibrary(DEFAULT_LIBRARY);
+  expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set());
+});

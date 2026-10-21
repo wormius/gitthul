@@ -26,6 +26,7 @@ export interface LibraryPort {
   setSort: (sort: RepoSort) => Promise<Library>;
   setLayout: (layout: LibraryLayout) => Promise<Library>;
   setAvatar: (repo: RepoId, avatar: RepoAvatar | null) => Promise<Library>;
+  setAlias: (repo: RepoId, alias: string | null) => Promise<Library>;
   recordOpening: (repo: RepoId, at?: number) => Promise<Library>;
   flush: () => Promise<void>;
 }

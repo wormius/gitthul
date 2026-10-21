@@ -41,6 +41,11 @@ solo se crea si cambió el repositorio. Abrir y cerrar GitThul varias veces dura
 el día no genera una copia por sesión.
 
 La interfaz muestra el estado del respaldo y la fecha del último punto terminado.
+Durante la primera consulta de copias disponibles, o al pulsar **Actualizar**,
+muestra una barra de carga y el aviso de revisión. La lista solo se presenta como
+vacía después de terminar esa consulta. Las consultas automáticas posteriores
+actualizan los estados sin volver a mostrar la barra ni bloquear los botones de
+eliminación y depuración.
 Una copia en cola o en curso todavía no es un punto disponible para restaurar.
 Si falla una captura, el punto anterior se conserva. Si se detectan respaldos
 dañados, GitThul avisa y suspende nuevas capturas y depuración para proteger sus
@@ -84,17 +89,67 @@ El **Límite global de espacio** comienza en **1024 MiB (1 GiB)** y se comparte
 entre todos los repositorios. Puedes modificarlo en esta sección o desactivar
 los respaldos automáticos.
 
+La barra muestra cuánto de ese límite está ocupado, junto con el tamaño y el
+porcentaje. Los datos compartidos entre varios puntos se cuentan una sola vez.
+El límite corresponde al espacio reservado para respaldos en GitThul, no al
+espacio libre total del disco.
+
 Mientras haya espacio, GitThul conserva hasta 7 versiones diarias, 4 semanales
 y 3 mensuales. Un punto puede cubrir más de una categoría y no se duplica por
 ese motivo. Se retiran las versiones antiguas para dar lugar a las nuevas.
 
-El último respaldo válido de cada repositorio siempre se conserva, incluso si
-dejas de abrirlo, lo olvidas en GitThul o borras su carpeta original. Por eso, al
-reducir el límite, los respaldos protegidos pueden ocupar más espacio del permitido.
+Si falta espacio al preparar un respaldo, GitThul calcula cuánto puede liberar
+y retira solo las versiones adicionales necesarias, empezando por las más
+antiguas de todos los repositorios. El cálculo considera los datos compartidos
+y el espacio temporal de preparación. En esta sección aparece un aviso con las
+copias retiradas y el espacio liberado.
 
-Si no queda sitio para un nuevo respaldo, GitThul lo indica y suspende esa captura.
+El último respaldo válido de cada repositorio siempre se conserva, incluso si
+dejas de abrirlo, lo olvidas en GitThul o borras su carpeta original. Al actualizar
+un respaldo, la copia anterior permanece protegida hasta terminar y verificar la
+nueva.
+
+Al reducir el límite, GitThul comprueba primero el espacio ocupado. Si necesita
+eliminar versiones adicionales, muestra cuántas se retirarán y cuánto espacio
+quedará ocupado. Al confirmar se aplican la reducción y la depuración; cancelar
+conserva el límite y los respaldos. Si el catálogo cambia antes de confirmar,
+se vuelve a presentar el impacto actualizado.
+
+Un límite inferior al espacio necesario para conservar las copias protegidas se
+rechaza. El aviso indica el mínimo permitido y se mantiene el ajuste anterior.
+Ese mínimo permite conservar las copias protegidas; un respaldo nuevo puede
+necesitar más espacio para sus datos y su preparación temporal.
+
+Si el espacio recuperable no basta para preparar el nuevo respaldo, GitThul
+indica la falta de espacio y suspende esa captura sin retirar versiones para
+un intento que no cabe.
 Puedes ampliar el límite para que vuelva a realizarse. Un respaldo parcial nunca
 se presenta como un punto completo.
+
+## Eliminar un respaldo anterior
+
+Pulsa **Eliminar…** junto al punto que ya no necesitas. La confirmación muestra
+el repositorio y la fecha de la copia elegida. El borrado es permanente y no se
+puede deshacer; el repositorio original se conserva.
+
+El respaldo válido más reciente de cada repositorio está protegido y su botón
+de eliminación permanece deshabilitado. Antes de borrar una copia anterior,
+GitThul vuelve a comprobar esa protección y la integridad de los datos que se
+conservarán. Solo libera los bloques que ninguna otra copia necesita; por eso,
+el espacio liberado puede ser menor que el tamaño mostrado en ese punto.
+
+Si se detectan datos dañados, el borrado se detiene. Las acciones manuales tienen
+prioridad frente a la cola automática: GitThul detiene de forma segura la captura
+en curso o espera al mantenimiento ya iniciado antes de eliminar. El progreso
+permanece visible durante esa espera. Tras una eliminación, la lista y la barra
+de espacio se actualizan con el estado del almacén.
+
+Para retirar todos los respaldos anteriores de una sola vez, pulsa **Depurar
+respaldos…**. La confirmación indica cuántos puntos no protegidos hay. GitThul
+verifica el conjunto antes de empezar y conserva las copias protegidas de todos
+los repositorios, incluidos los datos compartidos que necesitan. La barra de
+carga permanece visible durante la verificación y la depuración. Esta acción
+también es permanente.
 
 ## Restaurar un repositorio
 

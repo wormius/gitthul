@@ -45,6 +45,10 @@
   align-self: start;
 }
 
+.toastPreviewButton {
+  align-self: start;
+}
+
 /* Ocho chips que se reparten el ancho: caben cuatro en la medida ancha y dos en
    una ventana estrecha, sin media queries. */
 .themes {

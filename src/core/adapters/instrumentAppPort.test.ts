@@ -3,6 +3,30 @@ import { createMockLogPort } from './mock/mockLogPort';
 import { instrumentAppPort } from './instrumentAppPort';
 
 describe('instrumentAppPort', () => {
+  it('records the requested backup limit without logging its approval token', async () => {
+    const log = createMockLogPort({ debugEnabled: true });
+    const token = 'opaque-backup-approval-token';
+    const backup = instrumentAppPort(
+      { previewLimit: vi.fn().mockResolvedValue({ token }) },
+      'backup',
+      log,
+    );
+    await backup.previewLimit(512);
+    expect((await log.read())[0]?.context).toMatchObject({
+      method: 'previewLimit',
+      requestData: { maxMiB: 512 },
+    });
+    const settings = instrumentAppPort(
+      { patch: vi.fn().mockRejectedValue(new Error(`stale ${token}`)) },
+      'settings',
+      log,
+    );
+    await expect(
+      settings.patch({ backup: { maxMiB: 512 } }, { backupLimitToken: token }),
+    ).rejects.toThrow('stale');
+    expect(JSON.stringify(await log.read())).not.toContain(token);
+  });
+
   it('registra errores de credenciales sin filtrar secretos aunque el backend los repita', async () => {
     const log = createMockLogPort({ debugEnabled: true });
     const secret = 'arbitrary private value\nwith newline';
@@ -121,6 +145,24 @@ describe('instrumentAppPort', () => {
     const entry = (await log.read())[0];
     expect(entry?.context?.requestData).toEqual({ releaseKind: 'stable' });
     expect(JSON.stringify(entry)).not.toContain('undefined');
+  });
+
+  it('registra depuración de respaldos a nivel info sin exponer datos del catálogo', async () => {
+    const log = createMockLogPort();
+    const catalog = { directory: '/private/backups', repositories: [{ name: 'private name' }] };
+    const source = { prune: vi.fn().mockResolvedValue(catalog) };
+    const port = instrumentAppPort(source, 'backup', log);
+    expect(await port.prune()).toBe(catalog);
+    const entries = await log.read();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      level: 'info',
+      scope: 'backup',
+      context: { method: 'prune' },
+    });
+    expect(entries[0]?.message).toContain('eliminar respaldos anteriores de repositorios');
+    expect(JSON.stringify(entries)).not.toContain('/private/backups');
+    expect(JSON.stringify(entries)).not.toContain('private name');
   });
 });
 

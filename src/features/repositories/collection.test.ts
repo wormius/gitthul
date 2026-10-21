@@ -89,3 +89,19 @@ describe('colección de repositorios', () => {
     ]);
   });
 });
+
+it('filters and sorts by aliases while retaining original names, paths and objects', () => {
+  const original = [repo('alpha'), repo('beta')];
+  const aliases = { alpha: 'Zulu', beta: 'Árbol' };
+  const visible = visibleRepositories({
+    repositories: original,
+    sort: 'name',
+    filter: '',
+    collator: new Intl.Collator('es-MX'),
+    aliases,
+  });
+  expect(visible).toEqual([original[1], original[0]]);
+  expect(filterRepositories(original, 'arbol', aliases)).toEqual([original[1]]);
+  expect(filterRepositories(original, 'alpha', aliases)).toEqual([original[0]]);
+  expect(original[0]?.name).toBe('alpha');
+});

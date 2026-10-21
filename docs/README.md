@@ -9,10 +9,12 @@ Estas guías explican cómo utilizar GitThul y qué efectos tienen sus acciones.
   texto.
 - [Búsqueda global](busqueda-global.md): encontrar repositorios, commits,
   archivos, opciones y acciones.
-- [Selección de repositorios](repositorios.md): abrir u olvidar varios
-  repositorios desde las listas o los espacios.
+- [Repositorios y alias](repositorios.md): identificar repositorios con un alias,
+  abrirlos u olvidarlos desde las listas o los espacios.
 - [Diff e historial de un archivo](diff-historial.md): revisar una comparación
   y consultar otras versiones desde el mismo visor.
+- [Aplicar archivos de un stash](stashes.md): recuperar una selección conservando
+  el stash y el contenido del Stage.
 - [Modificar el último commit](amend.md): cambiar su mensaje, incorporar staging
   y revisar el historial publicado.
 - [Perfiles y acceso a remotos](perfiles-y-accesos.md): identidad de commits,

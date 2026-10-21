@@ -65,6 +65,7 @@ export function createTauriLibraryPort(call: LibraryCall = invoke): LibraryPort 
     setSort: (sort) => mutate((library) => domain.setSort(library, sort)),
     setLayout: (layout) => mutate((library) => domain.setLayout(library, layout)),
     setAvatar: (repo, avatar) => mutate((library) => domain.setAvatar(library, repo, avatar)),
+    setAlias: (repo, alias) => mutate((library) => domain.setAlias(library, repo, alias)),
     recordOpening: (_repo, at) =>
       mutate((library) => domain.recordOpening(library, at ?? Date.now())),
     flush: () => lastWrite?.then(() => undefined) ?? Promise.resolve(),

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
-import type { Library } from '@core/domain/library';
+import type { RepoSummary } from '@core/domain/repository';
+import { useRepositoriesStore } from '@features/repositories/repositoriesStore';
 import { useTheme } from '@design/useTheme';
 import { useReleaseStore } from '@features/settings/releaseStore';
 import { useI18n } from '@i18n/useI18n';
@@ -16,6 +17,7 @@ import { useToast } from '@ui/useToast';
 
 import { useGestures } from './GestureContext';
 import { APP_VERSION } from './metadata';
+import { RepoAliasDialog } from './RepoAliasDialog';
 import { usePorts } from './PortsContext';
 import {
   BranchIcon,
@@ -110,8 +112,9 @@ export function ShellBottomBar() {
   const { unread } = useToast();
   const gestures = useGestures();
   const availableRelease = useReleaseStore((state) => state.availableRelease);
-  const [library, setLibrary] = useState<Library | null>(null);
-  const libraryRef = useRef<Library | null>(null);
+  const library = useRepositoriesStore((state) => state.library);
+  const setLibrary = useRepositoriesStore((state) => state.setLibrary);
+  const [aliasRepo, setAliasRepo] = useState<Pick<RepoSummary, 'id' | 'name'> | null>(null);
   const tabs = useShellStore((state) => state.tabs);
   const activeId = useShellStore((state) => state.activeId);
   const settingsActive = useShellStore((state) => state.settingsOpen);
@@ -131,10 +134,7 @@ export function ShellBottomBar() {
     void libraryPort.read().then(
       (next) => {
         if (!current) return;
-        if (next.spaces.length === 0 && libraryRef.current === null) return;
-
-        libraryRef.current = next.spaces.length === 0 ? null : next;
-        setLibrary(libraryRef.current);
+        setLibrary(next);
       },
       () => undefined,
     );
@@ -142,7 +142,7 @@ export function ShellBottomBar() {
     return () => {
       current = false;
     };
-  }, [activeId, libraryPort, tabs]);
+  }, [activeId, libraryPort, tabs, setLibrary]);
 
   const copy = (value: string) => {
     void copyText(value).then(
@@ -156,7 +156,7 @@ export function ShellBottomBar() {
   };
 
   const descriptors: readonly TabDescriptor[] = tabs.map((tab) => {
-    const { label } = describeTab(tab, t);
+    const { label } = describeTab(tab, t, library?.aliases);
     const index = tabs.findIndex((candidate) => candidate.id === tab.id);
     const repository = tab.context.repository;
     const spaces = repository
@@ -194,10 +194,15 @@ export function ShellBottomBar() {
       items.push(
         { kind: 'separator', key: 'repository' },
         {
+          key: 'repository-alias',
+          label: t('repositories.alias.menu'),
+          onSelect: () => setAliasRepo({ id: repository.repoId, name: repository.repoName }),
+        },
+        {
           key: 'copy-repository-name',
           label: t('tabs.menu.copyRepoName'),
           onSelect: () => {
-            copy(repository.repoName);
+            copy(label);
           },
         },
         {
@@ -228,6 +233,25 @@ export function ShellBottomBar() {
       label,
       closeLabel: t('tabs.close', { tab: label }),
       icon: tabIcon(tab),
+      rename: repository
+        ? {
+            identityKey: repository.repoId,
+            value: label,
+            placeholder: repository.repoName,
+            label: t('repositories.alias.title', { repo: repository.repoName }),
+            hint: t('tabs.alias.hint'),
+            errorLabel: t('repositories.alias.failed'),
+            onSave: async (alias: string) => {
+              try {
+                const next = await libraryPort.setAlias(repository.repoId, alias);
+                setLibrary(next);
+              } catch (error) {
+                setStatus({ tone: 'warning', key: 'repositories.alias.failed' });
+                throw error;
+              }
+            },
+          }
+        : undefined,
       menu: {
         label: t('tabs.menu.label', { tab: label }),
         description: label,
@@ -300,6 +324,14 @@ export function ShellBottomBar() {
         onClose={closeTab}
         onReorder={moveTab}
       />
+      {aliasRepo && (
+        <RepoAliasDialog
+          key={aliasRepo.id}
+          repo={aliasRepo}
+          current={library?.aliases[aliasRepo.id] ?? null}
+          onClose={() => setAliasRepo(null)}
+        />
+      )}
     </BottomBar>
   );
 }

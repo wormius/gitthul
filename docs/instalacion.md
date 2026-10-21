@@ -137,7 +137,7 @@ En macOS, abre el `.dmg`, arrastra GitThul a Aplicaciones y ábrelo desde allí.
 Puedes conservar su acceso en el Dock.
 
 Elige `aarch64` para Apple Silicon o `x64` para Intel. Los paquetes de Windows
-son para x64. En `1.0.1`, Windows no usa un certificado comercial y macOS usa
+son para x64. En `1.2.0`, Windows no usa un certificado comercial y macOS usa
 firma ad hoc, sin notarización de Apple; el sistema puede mostrar avisos o
 impedir su apertura según su política de seguridad.
 
@@ -172,7 +172,7 @@ para tu distribución. Como alternativa, ejecuta el archivo desde la carpeta
 donde lo guardaste, sustituyendo el nombre si es distinto:
 
 ```bash
-./GitThul_1.0.1_amd64.AppImage --appimage-extract-and-run
+./GitThul_1.2.0_amd64.AppImage --appimage-extract-and-run
 ```
 
 Esta opción extrae los archivos temporalmente, ejecuta la aplicación y limpia

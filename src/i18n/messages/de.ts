@@ -60,6 +60,8 @@ export const de: Messages = {
   'titleBar.close': 'Fenster schließen',
 
   'tabs.stripLabel': 'Offene Tabs',
+  'tabs.alias.hint':
+    'Mit Enter oder einem Klick außerhalb speichern; mit Escape abbrechen. Ein leeres Feld stellt den ursprünglichen Namen wieder her.',
   'tabs.close': 'Tab {tab} schließen',
   'tabs.menu.label': 'Aktionen für Tab {tab}',
   'tabs.menu.close': 'Schließen',
@@ -282,6 +284,15 @@ export const de: Messages = {
   'repositories.empty.filtered.clear': 'Den Filter leeren',
   'repositories.empty.recent.title': 'Du hast aus GitThul noch kein Repository geöffnet',
 
+  'repositories.alias.menu': 'Alias festlegen…',
+  'repositories.alias.title': 'Alias für {repo}',
+  'repositories.alias.close': 'Repository-Alias schließen',
+  'repositories.alias.label': 'Alias',
+  'repositories.alias.hint':
+    'Leer lassen, um den ursprünglichen Namen anzuzeigen. Der Repository-Ordner bleibt unverändert.',
+  'repositories.alias.cancel': 'Abbrechen',
+  'repositories.alias.save': 'Speichern',
+  'repositories.alias.failed': 'Der Alias konnte nicht gespeichert werden. Bitte erneut versuchen.',
   'repositories.avatar.title': 'Avatar von {repo}',
   'repositories.avatar.close': 'Schließen, ohne den Avatar von {repo} zu ändern',
   'repositories.avatar.symbols': 'Symbole',
@@ -477,6 +488,26 @@ export const de: Messages = {
   'avatar.glyph.crown': 'Krone',
   'avatar.glyph.gem': 'Edelstein',
   'avatar.glyph.shield': 'Schild',
+  'avatar.glyph.code': 'Code',
+  'avatar.glyph.chip': 'Mikrochip',
+  'avatar.glyph.database': 'Datenbank',
+  'avatar.glyph.server': 'Server',
+  'avatar.glyph.gamepad': 'Gamepad',
+  'avatar.glyph.headphones': 'Kopfhörer',
+  'avatar.glyph.satellite': 'Satellit',
+  'avatar.glyph.telescope': 'Teleskop',
+  'avatar.glyph.planet': 'Planet',
+  'avatar.glyph.ufo': 'UFO',
+  'avatar.glyph.sword': 'Schwert',
+  'avatar.glyph.potion': 'Zaubertrank',
+  'avatar.glyph.treasure': 'Schatz',
+  'avatar.glyph.map': 'Karte',
+  'avatar.glyph.lighthouse': 'Leuchtturm',
+  'avatar.glyph.sailboat': 'Segelboot',
+  'avatar.glyph.anchorWheel': 'Steuerrad',
+  'avatar.glyph.puzzle': 'Puzzle',
+  'avatar.glyph.diamondRing': 'Ring',
+  'avatar.glyph.hourglass': 'Sanduhr',
 
   // Bisherige Figuren behalten ihre Bezeichner für gespeicherte Avatare.
   'avatar.glyph.ghost': 'Gespenst',
@@ -506,6 +537,15 @@ export const de: Messages = {
   'avatar.glyph.turtle': 'Schildkröte',
   'avatar.glyph.whale': 'Wal',
   'avatar.glyph.butterfly': 'Schmetterling',
+  'avatar.glyph.wolf': 'Wolf',
+  'avatar.glyph.raccoon': 'Waschbär',
+  'avatar.glyph.bat': 'Fledermaus',
+  'avatar.glyph.shark': 'Hai',
+  'avatar.glyph.dragon': 'Drache',
+  'avatar.glyph.axolotl': 'Axolotl',
+  'avatar.glyph.bee': 'Biene',
+  'avatar.glyph.capybara': 'Wasserschwein',
+  'avatar.glyph.hummingbird': 'Kolibri',
   'avatar.glyph.flower': 'Blume',
   'avatar.glyph.sunflower': 'Sonnenblume',
   'avatar.glyph.tulip': 'Tulpe',
@@ -517,6 +557,10 @@ export const de: Messages = {
   'avatar.glyph.mushroom': 'Pilz',
   'avatar.glyph.clover': 'Klee',
   'avatar.glyph.fern': 'Farn',
+  'avatar.glyph.bonsai': 'Bonsai',
+  'avatar.glyph.monstera': 'Monstera',
+  'avatar.glyph.lotus': 'Lotus',
+  'avatar.glyph.acorn': 'Eichel',
   'avatar.glyph.pumpkin': 'Kürbis',
   'avatar.glyph.gift': 'Geschenk',
   'avatar.glyph.cake': 'Kuchen',
@@ -525,6 +569,11 @@ export const de: Messages = {
   'avatar.glyph.santa': 'Weihnachtsmann',
   'avatar.glyph.snowflake': 'Schneeflocke',
   'avatar.glyph.lantern': 'Laterne',
+  'avatar.glyph.mask': 'Festmaske',
+  'avatar.glyph.pinata': 'Piñata',
+  'avatar.glyph.candle': 'Kerze',
+  'avatar.glyph.firework': 'Feuerwerk',
+  'avatar.glyph.bell': 'Glocke',
   'avatar.glyph.orbit': 'Umlaufbahn',
   'avatar.glyph.spiral': 'Spirale',
   'avatar.glyph.mosaic': 'Mosaik',
@@ -534,6 +583,11 @@ export const de: Messages = {
   'avatar.glyph.knot': 'Knoten',
   'avatar.glyph.mandala': 'Mandala',
   'avatar.glyph.comet': 'Komet',
+  'avatar.glyph.vortex': 'Wirbel',
+  'avatar.glyph.hexagon': 'Sechseck',
+  'avatar.glyph.aperture': 'Blende',
+  'avatar.glyph.kaleidoscope': 'Kaleidoskop',
+  'avatar.glyph.totem': 'Totem',
 
   'working.split.refsLabel': 'Breite des Referenzpanels',
   'working.split.detailsLabel': 'Breite des Detailpanels',
@@ -997,6 +1051,9 @@ export const de: Messages = {
   'working.diff.new': 'Neue Fassung von {path}, ab Zeile {from}',
   'working.diff.horizontalScroll': 'Horizontaler Bildlauf für {label}',
   'working.diff.file': 'Datei {path}',
+  'working.diff.copySelection': 'Auswahl kopieren',
+  'working.diff.selectAll': 'Alles auswählen',
+  'working.commitDetails.copySha': 'Vollständigen SHA kopieren',
   'working.diff.fold': 'Block einklappen',
   'working.diff.unfold': 'Block ausklappen',
   'working.diff.folded': '…',
@@ -1197,6 +1254,18 @@ export const de: Messages = {
   'undo.revert': 'Commits rückgängig machen (revert)',
   'undo.reset': 'Branch zurücksetzen',
   'undo.stash': 'Stash erstellen',
+  'working.menu.file.applyStashFile': 'Datei aus dem Stash anwenden',
+  'working.status.stashFileApplied': 'Datei aus dem Stash angewendet',
+  'working.menu.file.applyStashSelection': '{count} Dateien aus dem Stash anwenden',
+  'working.status.stashFilesApplied': '{count} Dateien aus dem Stash angewendet',
+  'undo.applyStashPaths': 'Stash-Dateien anwenden',
+  'error.stash.partialConflict.title':
+    'Die ausgewählten Stash-Dateien konnten nicht angewendet werden',
+  'error.stash.partialConflict.cause':
+    'Die Auswahl lässt sich nicht auf den aktuellen Inhalt anwenden. Prüfe lokale Änderungen und vorhandene Pfade. Der Stash bleibt erhalten.',
+  'error.stash.partialUnsupported.title': 'Diese Auswahl lässt sich nicht teilweise anwenden',
+  'error.stash.partialUnsupported.cause':
+    'Wähle Dateien aus einem vorhandenen Stash und schließe laufende Vorgänge oder Konflikte ab. Submodule erfordern das Anwenden des gesamten Stash.',
   'undo.applyStash': 'Stash anwenden',
   'error.undo.snapshotUnavailable.title':
     'Keine Wiederherstellungskopie erstellt; Änderung nicht angewendet',
@@ -1399,7 +1468,8 @@ export const de: Messages = {
   'settings.appearance.toastPosition.top-end': 'Oben rechts',
   'settings.appearance.toastPosition.bottom-start': 'Unten links',
   'settings.appearance.toastPosition.bottom-end': 'Unten rechts',
-  'settings.appearance.toastPositionHint': 'Hinweise halten Abstand zu den Leisten der Anwendung.',
+  'settings.appearance.toastPositionHint':
+    'Wähle eine Fensterecke für Benachrichtigungen. Dort wird eine Beispielbenachrichtigung angezeigt.',
   'settings.appearance.modeAutoResolved': 'Das System verwendet aktuell den Modus {value}.',
   'settings.appearance.modeHint': 'Fest eingestellt, folgt dem System nicht.',
   'settings.appearance.fonts': 'Schriften und Größen',
@@ -1921,9 +1991,57 @@ export const de: Messages = {
   'settings.backup.enabled': 'Automatische Sicherungen',
   'settings.backup.maxMiB': 'Globales Speicherlimit (MiB)',
   'settings.backup.invalidLimit': 'Gib eine ganze Zahl zwischen {min} und {max} ein.',
+  'settings.backup.limitSaved': 'Speicherlimit für Sicherungen aktualisiert.',
+  'settings.backup.limitHint':
+    'Bei einem niedrigeren Limit werden nur so viele ältere Versionen wie nötig entfernt. Die neuesten Kopien bleiben erhalten; eine neue Sicherung benötigt zusätzlich vorübergehenden Speicherplatz.',
+  'settings.backup.limitReviewing': 'Neues Limit wird berechnet…',
+  'settings.backup.limitApplying': 'Speicherlimit für Sicherungen wird angewendet…',
+  'settings.backup.autoPruned':
+    'Durch das Entfernen von {count} älteren Versionen wurden {size} für die Vorbereitung einer Sicherung freigegeben. Die neuesten Kopien blieben erhalten.',
+  'settings.backup.limitTitle': 'Speicherlimit für Sicherungen prüfen',
+  'settings.backup.limitImpossibleDescription':
+    'Das Limit von {limit} kann nicht angewendet werden. Das bisherige Limit bleibt erhalten.',
+  'settings.backup.limitDescription':
+    'Neues Limit: {limit}. Prüfe die Speicherbelegung und die Sicherungen, die endgültig gelöscht werden.',
+  'settings.backup.confirmLimit': 'Limit anwenden',
+  'settings.backup.reviewLimit': 'Erneut prüfen',
+  'settings.backup.limitCurrent': 'Aktuell belegter Speicherplatz',
+  'settings.backup.limitDeleteCount': 'Zu löschende Sicherungen',
+  'settings.backup.limitProjected': 'Speicherbelegung nach dem Anwenden',
+  'settings.backup.limitMinimum':
+    'Mit diesem Limit können nicht alle geschützten Kopien erhalten bleiben. Mindestens {minimum} MiB sind erforderlich. Dieses Minimum garantiert keinen ausreichenden Platz für eine neue Sicherung.',
+  'settings.backup.limitProtected':
+    'Die neuesten gültigen Kopien jedes Repositorys und alle gemeinsam genutzten Daten bleiben erhalten.',
+  'settings.backup.limitChangedReview': 'Prüfe die aktualisierte Berechnung vor der Bestätigung.',
+  'settings.backup.error.limitChanged':
+    'Die Sicherungen haben sich seit der Prüfung geändert. Prüfe die neue Berechnung und bestätige erneut.',
+  'settings.backup.error.limitTooSmall':
+    'Das Limit reicht nicht aus, um alle geschützten Sicherungen zu erhalten.',
   'settings.backup.retention':
     'Bei ausreichend Speicher bleiben bis zu 7 tägliche, 4 wöchentliche und 3 monatliche Versionen erhalten. Die letzte gültige Sicherung jedes Repositorys wird immer behalten.',
   'settings.backup.total': 'Sicherungen: {size} von {limit}',
+  'settings.backup.usage': 'Belegter Speicher für Sicherungen',
+  'settings.backup.usagePercent': '{percent} belegt',
+  'settings.backup.usageDescription': '{size} von {limit}; {percent} des Limits',
+  'settings.backup.delete': 'Löschen…',
+  'settings.backup.deleteTitle': 'Sicherung löschen',
+  'settings.backup.deleteDescription':
+    'Die Sicherung von „{repository}“ vom {date} wird endgültig gelöscht. Das ursprüngliche Repository und seine neueste gültige Sicherung bleiben erhalten.',
+  'settings.backup.confirmDelete': 'Sicherung löschen',
+  'settings.backup.deleted': 'Sicherung gelöscht.',
+  'settings.backup.scanning': 'Verfügbare Sicherungen werden geprüft…',
+  'settings.backup.deleting': 'Sicherung wird geprüft und gelöscht…',
+  'settings.backup.prune': 'Sicherungen bereinigen…',
+  'settings.backup.pruneTitle': 'Sicherungen bereinigen',
+  'settings.backup.pruneDescription':
+    '{count} ungeschützte Sicherungen werden endgültig gelöscht. Die neueste gültige Sicherung jedes Repositorys und alle dafür benötigten Daten bleiben erhalten.',
+  'settings.backup.confirmPrune': 'Ungeschützte Sicherungen löschen',
+  'settings.backup.pruned': 'Bereinigung abgeschlossen. Geschützte Sicherungen bleiben erhalten.',
+  'settings.backup.pruning': 'Sicherungen werden geprüft und bereinigt…',
+  'settings.backup.deleteProtected':
+    'Die neueste gültige Sicherung dieses Repositorys bleibt erhalten.',
+  'settings.backup.error.protected':
+    'Die neueste gültige Sicherung jedes Repositorys ist geschützt und kann nicht gelöscht werden.',
   'settings.backup.overBudget':
     'Die gespeicherten Sicherungen überschreiten das globale Speicherlimit. Die letzte gültige Sicherung jedes Repositorys bleibt erhalten; neue Sicherungen warten, bis mehr Speicherplatz verfügbar ist.',
   'settings.backup.corruptNotice':
@@ -1943,9 +2061,9 @@ export const de: Messages = {
   'settings.backup.refresh': 'Aktualisieren',
   'settings.backup.error.unknown': 'Die Sicherungsaktion konnte nicht abgeschlossen werden.',
   'settings.backup.error.invalid':
-    'Die Sicherung ist unvollständig oder beschädigt und kann nicht wiederhergestellt werden.',
+    'Die Sicherungsdaten konnten nicht überprüft werden. Die Aktion kann mit unvollständigen oder beschädigten Daten nicht fortgesetzt werden.',
   'settings.backup.error.unavailable':
-    'Der Sicherungsspeicher ist nicht zugänglich. Prüfe den freien Speicherplatz und die Berechtigungen.',
+    'Der Sicherungsspeicher ist nicht verfügbar oder wird gerade verwendet. Warte, bis der aktuelle Vorgang abgeschlossen ist, und prüfe den freien Speicherplatz und die Zugriffsrechte.',
   'settings.backup.error.destination':
     'Wähle einen neuen Zielordner. Vorhandene Dateien können nicht überschrieben werden.',
   'settings.backup.error.stale':

@@ -1,5 +1,18 @@
 # Diff e historial de un archivo
 
+## Copiar texto y SHA
+
+En los diffs de commits, WIP y stashes, selecciona texto y abre el menú contextual
+para **Copiar selección** o **Seleccionar todo**. También puedes copiar con
+**Ctrl+C** en Linux y Windows, o **Cmd+C** en macOS. En la vista dividida,
+Seleccionar todo se aplica al lado del diff donde abriste el menú.
+
+La copia conserva el texto del visor, sin los números de línea ni las marcas
+visuales de espacios y tabuladores. Al seleccionar un commit o stash, el botón
+junto a su SHA en la cabecera del panel derecho copia el identificador completo.
+
+## Consultar el historial
+
 Al abrir un archivo desde Cambios, Staging, un commit o una comparación, la
 barra del diff incluye un botón con un reloj para consultar su historial.
 El reloj es el primer control de la barra.

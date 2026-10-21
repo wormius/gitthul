@@ -85,7 +85,7 @@ describe('profile creation', () => {
     await user.click(screen.getByRole('button', { name: /Elegir avatar/ }));
     expect(screen.queryByLabelText('Color personalizado')).not.toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Plantas' }));
-    await user.click(screen.getByRole('button', { name: 'Cactus' }));
+    await user.click(screen.getByRole('button', { name: 'Monstera' }));
     await user.click(screen.getByRole('button', { name: 'Color 7' }));
     await user.click(screen.getByRole('tab', { name: 'Festividades' }));
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
@@ -93,7 +93,7 @@ describe('profile creation', () => {
       expect(persisted[0]).toMatchObject({
         name: 'Ada Lovelace',
         email: 'ada@example.test',
-        avatarGlyph: 'cactus',
+        avatarGlyph: 'monstera',
         avatarTone: 7,
       }),
     );
@@ -102,10 +102,13 @@ describe('profile creation', () => {
     await user.click(screen.getByRole('button', { name: 'Editar' }));
     await user.click(screen.getByRole('button', { name: /Elegir avatar/ }));
     expect(screen.getByRole('tab', { name: 'Plantas' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: 'Cactus' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Monstera' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(screen.getByRole('button', { name: 'Color 7' })).toHaveAttribute('aria-pressed', 'true');
     await user.click(screen.getByRole('tab', { name: 'Animales' }));
-    await user.click(screen.getByRole('button', { name: 'Ballena' }));
+    await user.click(screen.getByRole('button', { name: 'Ajolote' }));
     await user.click(screen.getByRole('button', { name: 'Color 13' }));
     await user.click(screen.getByRole('tab', { name: 'Abstractos' }));
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
@@ -115,7 +118,7 @@ describe('profile creation', () => {
           id: profileId,
           name: 'Ada Lovelace',
           email: 'ada@example.test',
-          avatarGlyph: 'whale',
+          avatarGlyph: 'axolotl',
           avatarTone: 13,
         },
       ]),

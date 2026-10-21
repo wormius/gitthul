@@ -1,4 +1,10 @@
-import type { RepoSort, Space, SpaceId } from '@core/domain/library';
+import {
+  repositoryName,
+  type Library,
+  type RepoSort,
+  type Space,
+  type SpaceId,
+} from '@core/domain/library';
 import type { RepoId, RepoSummary } from '@core/domain/repository';
 
 export const RECENT_LIMIT = 5;
@@ -10,34 +16,47 @@ export function fold(value: string): string {
     .toLowerCase();
 }
 
-export function matchesQuery(repo: RepoSummary, needle: string): boolean {
-  return fold(repo.name).includes(needle) || fold(repo.path).includes(needle);
+export function matchesQuery(
+  repo: RepoSummary,
+  needle: string,
+  aliases?: Library['aliases'],
+): boolean {
+  return (
+    fold(repositoryName(repo, aliases)).includes(needle) ||
+    fold(repo.name).includes(needle) ||
+    fold(repo.path).includes(needle)
+  );
 }
 
 export function filterRepositories(
   repositories: readonly RepoSummary[],
   query: string,
+  aliases?: Library['aliases'],
 ): readonly RepoSummary[] {
   const needle = fold(query.trim());
-  return needle === '' ? repositories : repositories.filter((repo) => matchesQuery(repo, needle));
+  return needle === ''
+    ? repositories
+    : repositories.filter((repo) => matchesQuery(repo, needle, aliases));
 }
 
 export function sortRepositories(
   repositories: readonly RepoSummary[],
   sort: RepoSort,
   collator: Intl.Collator,
+  aliases?: Library['aliases'],
 ): readonly RepoSummary[] {
   const ordered = [...repositories];
   if (sort === 'name') {
     ordered.sort(
       (left, right) =>
-        collator.compare(left.name, right.name) || collator.compare(left.path, right.path),
+        collator.compare(repositoryName(left, aliases), repositoryName(right, aliases)) ||
+        collator.compare(left.path, right.path),
     );
   } else {
     ordered.sort(
       (left, right) =>
         (right.lastOpenedAt ?? 0) - (left.lastOpenedAt ?? 0) ||
-        collator.compare(left.name, right.name),
+        collator.compare(repositoryName(left, aliases), repositoryName(right, aliases)),
     );
   }
   return ordered;
@@ -57,6 +76,7 @@ export interface VisibleRequest {
   repositories: readonly RepoSummary[];
   sort: RepoSort;
   filter: string;
+  aliases?: Library['aliases'];
   collator: Intl.Collator;
 }
 
@@ -65,8 +85,14 @@ export function visibleRepositories({
   sort,
   filter,
   collator,
+  aliases,
 }: VisibleRequest): readonly RepoSummary[] {
-  return sortRepositories(filterRepositories(repositories, filter), sort, collator);
+  return sortRepositories(
+    filterRepositories(repositories, filter, aliases),
+    sort,
+    collator,
+    aliases,
+  );
 }
 
 export function nextSelection(

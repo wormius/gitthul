@@ -114,3 +114,13 @@ describe('createMockLibraryPort', () => {
     expect(write).toHaveBeenCalledOnce();
   });
 });
+
+it('persists aliases across instances and restores the original name when cleared', async () => {
+  const storage = memoryStorage();
+  const port = createMockLibraryPort({ storage });
+  await port.setAlias('repo', ' My project ');
+  const reopened = createMockLibraryPort({ storage });
+  expect((await reopened.read()).aliases).toEqual({ repo: 'My project' });
+  await reopened.setAlias('repo', null);
+  expect((await createMockLibraryPort({ storage }).read()).aliases).toEqual({});
+});

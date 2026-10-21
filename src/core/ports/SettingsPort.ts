@@ -1,5 +1,10 @@
 import type { Settings, SettingsPatch } from '@core/domain/settings';
 
+export interface SettingsPatchOptions {
+  /** Authorizes only the exact backup space plan returned by previewLimit. */
+  backupLimitToken?: string;
+}
+
 /**
  * Dónde sobreviven los ajustes entre arranques.
  *
@@ -15,8 +20,11 @@ import type { Settings, SettingsPatch } from '@core/domain/settings';
  */
 export interface SettingsPort {
   read: () => Promise<Settings>;
-  /** Funde el parche con lo que ya había. Puede tardar en llegar al disco. */
-  patch: (patch: SettingsPatch) => Promise<void>;
+  /**
+   * Funde el parche con lo confirmado. Los cambios maxMiB o con backupLimitToken
+   * esperan su propia persistencia y no requieren flush; los demás pueden agruparse.
+   */
+  patch: (patch: SettingsPatch, options?: SettingsPatchOptions) => Promise<void>;
   /** Escribe ya lo que quede pendiente. */
   flush: () => Promise<void>;
 }

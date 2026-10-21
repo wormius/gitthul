@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import { usePorts } from '@app/PortsContext';
 import type { RepoId } from '@core/domain/repository';
+import { useRepositoriesStore } from '@features/repositories/repositoriesStore';
 import type { RepoAvatar } from '@core/domain/library';
 
 /**
@@ -12,7 +13,7 @@ import type { RepoAvatar } from '@core/domain/library';
  */
 export function useRepoAvatar(repoId: RepoId): RepoAvatar | null {
   const { library } = usePorts();
-  const [avatar, setAvatar] = useState<RepoAvatar | null>(null);
+  const avatar = useRepositoriesStore((state) => state.library?.avatars[repoId] ?? null);
 
   useEffect(() => {
     let active = true;
@@ -20,12 +21,11 @@ export function useRepoAvatar(repoId: RepoId): RepoAvatar | null {
     void library
       .read()
       .then((current) => {
-        if (active) setAvatar(current.avatars[repoId] ?? null);
+        if (active) useRepositoriesStore.getState().setLibrary(current);
       })
       .catch(() => {
         // El avatar es decoración opcional: la vista ya tiene las iniciales
         // deterministas como respaldo y no necesita un panel de error propio.
-        if (active) setAvatar(null);
       });
 
     return () => {
