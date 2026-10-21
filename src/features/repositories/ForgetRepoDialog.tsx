@@ -1,8 +1,11 @@
+import { repositoryName } from '@core/domain/library';
+import { useRepositoriesStore } from './repositoriesStore';
 import type { RepoSummary } from '@core/domain/repository';
 import { useI18n } from '@i18n/useI18n';
 import { Button } from '@ui/Button';
 import { Dialog } from '@ui/Dialog';
 
+import { useRepositoryName } from './useRepositoryName';
 import styles from './ForgetRepoDialog.module.css';
 
 interface ForgetRepoDialogProps {
@@ -19,6 +22,8 @@ interface ForgetRepoDialogProps {
  */
 export function ForgetRepoDialog({ repo, repos, onConfirm, onCancel }: ForgetRepoDialogProps) {
   const { t } = useI18n();
+  const aliases = useRepositoriesStore((state) => state.library?.aliases);
+  const name = useRepositoryName(repo?.id ?? '', repo?.name ?? '');
 
   if (repos && repos.length > 0) {
     const unique = [...new Map(repos.map((item) => [item.id, item])).values()];
@@ -48,7 +53,7 @@ export function ForgetRepoDialog({ repo, repos, onConfirm, onCancel }: ForgetRep
         >
           {unique.map((item) => (
             <li key={item.id} className={styles.repository}>
-              <strong>{item.name}</strong>
+              <strong>{repositoryName(item, aliases)}</strong>
               <span className={styles.path}>{item.path}</span>
             </li>
           ))}
@@ -59,7 +64,7 @@ export function ForgetRepoDialog({ repo, repos, onConfirm, onCancel }: ForgetRep
 
   if (!repo) return null;
 
-  const named = { repo: repo.name };
+  const named = { repo: name };
 
   return (
     <Dialog
@@ -67,7 +72,7 @@ export function ForgetRepoDialog({ repo, repos, onConfirm, onCancel }: ForgetRep
       onClose={onCancel}
       size="sm"
       title={t('gesture.repos.forget', named)}
-      description={t('repositories.forget.description', { repo: repo.name, path: repo.path })}
+      description={t('repositories.forget.description', { repo: name, path: repo.path })}
       closeLabel={t('repositories.forget.close', named)}
       footer={
         <>

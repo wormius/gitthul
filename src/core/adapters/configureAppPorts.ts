@@ -19,8 +19,8 @@ export function configureAppPorts(raw: AppPorts): AppPorts {
       log.setDebugEnabled(value.logging.debugEnabled);
       return value;
     },
-    patch: async (patch) => {
-      await settings.patch(patch);
+    patch: async (patch, options) => {
+      await settings.patch(patch, options);
       if (patch.logging) {
         await settings.flush();
         const enabled = (await settings.read()).logging.debugEnabled;

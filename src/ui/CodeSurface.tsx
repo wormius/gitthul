@@ -25,6 +25,12 @@ import {
 } from '@codemirror/view';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { detectPlatform } from '@app/platform';
+
+import { selectedCodeText } from './codeSurfaceClipboardUtils';
+import { Menu } from './Menu';
+import type { MenuEntry } from './menuUtils';
+
 import {
   foldRangeAt,
   truncateDisplayLines,
@@ -68,6 +74,16 @@ interface CodeSurfaceProps {
   /** Por defecto sí: el visor se lee y se selecciona, no se escribe. */
   readOnly?: boolean;
   onChange?: (value: string) => void;
+  /** Explicit copy action supplied by the system adapter's consumer. */
+  clipboard?: {
+    copy: (text: string) => void;
+    copyLabel: string;
+    selectAllLabel: string;
+    /** Fuente de solo lectura, sin los saltos de relleno usados para alinear paneles. */
+    sourceText?: string;
+  };
+  /** Additional actions for the same selection, such as partial Stage. */
+  contextMenuItems?: readonly MenuEntry[];
   onScrollMap?: (map: {
     total: number;
     from: number;
@@ -197,6 +213,7 @@ class BlockSpacerWidget extends WidgetType {
       spacer.classList.add('gitthul-editable-spacer');
       spacer.setAttribute('aria-label', this.control.label);
       spacer.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) return;
         event.preventDefault();
         this.control?.onActivateEmpty?.();
       });
@@ -572,6 +589,8 @@ export function CodeSurface({
   encoding = 'UTF-8',
   readOnly = true,
   onChange,
+  clipboard,
+  contextMenuItems,
   onScrollMap,
   focusLine,
   showLineNumbers = true,
@@ -594,14 +613,22 @@ export function CodeSurface({
   scrollToBlockRevision,
   className,
 }: CodeSurfaceProps) {
-  const value = useMemo(
-    () =>
-      readOnly && !wrap && longLineLabel
-        ? truncateDisplayLines(originalValue, longLineLabel)
-        : originalValue,
-    [originalValue, readOnly, wrap, longLineLabel],
-  );
+  const value = useMemo(() => {
+    // CodeMirror normalizes line breaks. Diffing its document against raw
+    // CRLF would insert an extra newline during the controlled-value update.
+    const normalized = originalValue.replace(/\r\n?/g, '\n');
+    return readOnly && !wrap && longLineLabel
+      ? truncateDisplayLines(normalized, longLineLabel)
+      : normalized;
+  }, [originalValue, readOnly, wrap, longLineLabel]);
   const [lineHeight, setLineHeight] = useState(20);
+  const hasClipboard = clipboard !== undefined;
+  const [clipboardMenu, setClipboardMenu] = useState<{
+    x: number;
+    y: number;
+    text: string;
+    document: string;
+  } | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const lastScrolledBlockRef = useRef<string | undefined>(undefined);
@@ -708,7 +735,10 @@ export function CodeSurface({
       drawSelection(),
       EditorView.editable.of(!readOnly),
       EditorState.readOnly.of(readOnly),
-      EditorView.contentAttributes.of({ 'aria-label': label }),
+      EditorView.contentAttributes.of({
+        'aria-label': label,
+        ...(hasClipboard ? { tabindex: '0' } : {}),
+      }),
       EditorView.updateListener.of((update) => {
         if (
           update.geometryChanged &&
@@ -835,6 +865,7 @@ export function CodeSurface({
   }, [
     activeLine,
     choiceGutter,
+    hasClipboard,
     folding,
     foldingGutter,
     label,
@@ -1311,11 +1342,105 @@ export function CodeSurface({
     };
   }, [fitContent, label, value]);
 
+  const selectionText = () => {
+    const view = viewRef.current;
+    if (!view) return '';
+    return selectedCodeText(
+      view.state,
+      readOnly ? (clipboard?.sourceText ?? originalValue) : view.state.doc.toString(),
+      readOnly && !wrap && Boolean(longLineLabel),
+    );
+  };
+  const selectAll = () => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+    view.focus();
+  };
+  const closeClipboardMenu = () => {
+    setClipboardMenu(null);
+    viewRef.current?.focus();
+  };
+
   return (
-    <div
-      ref={hostRef}
-      className={[styles.surface, fitContent && styles.fit, className].filter(Boolean).join(' ')}
-      data-encoding={encoding}
-    />
+    <>
+      <div
+        ref={hostRef}
+        className={[styles.surface, fitContent && styles.fit, className].filter(Boolean).join(' ')}
+        data-encoding={encoding}
+        onCopyCapture={(event) => {
+          if (!clipboard) return;
+          // Browser edit commands may dispatch Copy without a keydown. Keep
+          // them on the same source-text/native-port path as the custom menu.
+          event.preventDefault();
+          event.stopPropagation();
+          const text = selectionText();
+          if (text) clipboard.copy(text);
+        }}
+        onContextMenuCapture={(event) => {
+          if (!clipboard) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setClipboardMenu({
+            x: event.clientX,
+            y: event.clientY,
+            text: selectionText(),
+            document: value,
+          });
+        }}
+        onKeyDownCapture={(event) => {
+          if (!clipboard || event.defaultPrevented || event.nativeEvent.isComposing) return;
+          if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+            event.preventDefault();
+            event.stopPropagation();
+            const rect = hostRef.current!.getBoundingClientRect();
+            setClipboardMenu({
+              x: rect.left + rect.width / 2,
+              y: rect.top + rect.height / 2,
+              text: selectionText(),
+              document: value,
+            });
+            return;
+          }
+          if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+          if (event.key.toLowerCase() === 'c') {
+            const text = selectionText();
+            if (!text) return;
+            event.preventDefault();
+            event.stopPropagation();
+            clipboard.copy(text);
+          } else if (event.key.toLowerCase() === 'a') {
+            event.preventDefault();
+            event.stopPropagation();
+            selectAll();
+          }
+        }}
+      />
+      {clipboard && clipboardMenu && clipboardMenu.document === value && (
+        <Menu
+          label={label}
+          anchor={clipboardMenu}
+          onClose={closeClipboardMenu}
+          items={[
+            {
+              key: 'copy-selection',
+              label: clipboard.copyLabel,
+              shortcut: detectPlatform() === 'mac' ? '⌘C' : 'Ctrl+C',
+              disabled: clipboardMenu.text.length === 0,
+              onSelect: () => clipboard.copy(clipboardMenu.text),
+            },
+            {
+              key: 'select-all-text',
+              label: clipboard.selectAllLabel,
+              shortcut: detectPlatform() === 'mac' ? '⌘A' : 'Ctrl+A',
+              onSelect: selectAll,
+            },
+            ...(contextMenuItems?.length
+              ? [{ key: 'text-actions-separator', kind: 'separator' } as const, ...contextMenuItems]
+              : []),
+          ]}
+        />
+      )}
+    </>
   );
 }

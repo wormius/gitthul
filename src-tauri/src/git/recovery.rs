@@ -139,16 +139,22 @@ pub(crate) fn schedule_cleanup() {
     });
 }
 
-pub(crate) fn update_policy(policy: recovery_store::RecoveryPolicy) -> Result<(), String> {
-    if recovery_store::policy() == policy {
-        CONFIGURATION_WARNING.store(false, Ordering::Relaxed);
-        return Ok(());
-    }
-    recovery_store::update_policy(policy)
-        .map_err(|_| "No se pudieron aplicar los límites de recuperación".to_owned())?;
+pub(crate) struct PreparedPolicy(recovery_store::PreparedPolicy);
+
+pub(crate) fn prepare_policy(
+    policy: recovery_store::RecoveryPolicy,
+) -> Result<PreparedPolicy, String> {
+    recovery_store::prepare_policy(policy)
+        .map(PreparedPolicy)
+        .map_err(|_| "Los límites de recuperación no son válidos".to_owned())
+}
+
+pub(crate) fn apply_policy(policy: PreparedPolicy) {
+    let changed = recovery_store::apply_policy(policy.0);
     CONFIGURATION_WARNING.store(false, Ordering::Relaxed);
-    schedule_cleanup();
-    Ok(())
+    if changed {
+        schedule_cleanup();
+    }
 }
 
 #[tauri::command]

@@ -55,6 +55,7 @@ export function createMockLibraryPort(
     setSort: (sort) => save(library.setSort(load(), sort)),
     setLayout: (layout) => save(library.setLayout(load(), layout)),
     setAvatar: (repo, avatar) => save(library.setAvatar(load(), repo, avatar)),
+    setAlias: (repo, alias) => save(library.setAlias(load(), repo, alias)),
     recordOpening: (_repo, at) => save(library.recordOpening(load(), at ?? now())),
     flush: () => Promise.resolve(),
   };

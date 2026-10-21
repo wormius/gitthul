@@ -7,6 +7,7 @@ import { CodeSurface, type CodeBlockControl } from '@ui/CodeSurface';
 import { syntaxLanguageForPath, type CodeLineMark } from '@ui/codeSurfaceUtils';
 
 import type { LineOrigin } from './conflict';
+import { useResolverClipboard } from './useResolverClipboard';
 import styles from './ResolutionReview.module.css';
 import resultStyles from './ResolvedResult.module.css';
 
@@ -29,6 +30,7 @@ export function ResolvedResult({
   onClose,
 }: ResolvedResultProps) {
   const { t } = useI18n();
+  const clipboard = useResolverClipboard();
   const scroller = useRef<HTMLElement | null>(null);
   const attachScroller = useCallback((element: HTMLElement | null) => {
     scroller.current = element;
@@ -103,6 +105,7 @@ export function ResolvedResult({
       </header>
       <div className={resultStyles.body}>
         <CodeSurface
+          clipboard={clipboard}
           className={resultStyles.editor}
           value={result}
           encoding={encoding}

@@ -67,6 +67,7 @@ function makeActions(): WorkingMenuActions {
     viewFileHistory: vi.fn(),
     openDiff: vi.fn(),
     stashPaths: vi.fn(),
+    applyStashPaths: vi.fn(),
     pop: vi.fn(),
     dropStash: vi.fn(),
     reveal: vi.fn(),
@@ -628,6 +629,21 @@ describe('menús de archivo', () => {
     select(commitFileMenu({ ...context(), actions }, 'src/app.ts', range), 'diff');
 
     expect(actions.openDiff).toHaveBeenCalledWith('src/app.ts', range);
+  });
+
+  it('el menú de stash aplica una selección literal sin incluir otros archivos', () => {
+    const actions = makeActions();
+    const source = { kind: 'stash', sha: 'saved-sha' } as const;
+    select(
+      commitFileMenu({ ...context(), actions }, 'src/a.ts', source, ['src/a.ts', 'src/b.ts']),
+      'applyStashPaths',
+    );
+    expect(actions.applyStashPaths).toHaveBeenCalledWith('saved-sha', ['src/a.ts', 'src/b.ts']);
+    expect(
+      commitFileMenu(context(), 'src/a.ts', { kind: 'commit', sha: 'saved-sha' }).some(
+        (item) => item.key === 'applyStashPaths',
+      ),
+    ).toBe(false);
   });
 
   it('el de Stage solo quita del staging, y nombra el archivo', () => {

@@ -15,6 +15,7 @@ import {
   toGitOperationError,
 } from '@core/domain/errors';
 import { stashName, type RefsSnapshot } from '@core/domain/refs';
+import { useRepositoryName } from '@features/repositories/useRepositoryName';
 import type { RepoId, Repository, UndoEntry } from '@core/domain/repository';
 import type { WorkingStatus } from '@core/domain/status';
 import type { GitQuery } from '@core/ports/GitPort';
@@ -113,6 +114,7 @@ function resolutionOperationKey(
  * cuando una de ellas devuelve referencias nuevas.
  */
 export function WorkingView({ base }: WorkingViewProps) {
+  const repoName = useRepositoryName(base.repoId, base.repoName);
   const searchNavigation = useShellStore((state) => state.searchNavigation);
   useEffect(() => {
     if (!searchNavigation || searchNavigation.repoId !== base.repoId) return;
@@ -1058,7 +1060,7 @@ export function WorkingView({ base }: WorkingViewProps) {
     ) : data.status === 'failed' || !refs || !status ? null : (
       <CommitTable
         repoId={base.repoId}
-        repoName={data.data.repository.name}
+        repoName={repoName}
         status={status}
         refs={refs}
         menuContext={menuContext}

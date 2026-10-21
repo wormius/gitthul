@@ -13,6 +13,7 @@ export type RepositoriesDialog =
   | { kind: 'create'; parentPath?: string }
   | { kind: 'clone' }
   | { kind: 'avatar'; repo: RepoSummary }
+  | { kind: 'alias'; repo: RepoSummary }
   | { kind: 'createSpace'; repo?: RepoSummary; repos?: readonly RepoSummary[] }
   | { kind: 'deleteSpace'; space: Space };
 
@@ -110,10 +111,20 @@ export const useRepositoriesStore = create<RepositoriesState & RepositoriesActio
       library,
       readAt: Date.now(),
       listError: null,
-      ...reconcileSelection(filterRepositories(repositories, state.filter), state.selectedIds),
+      ...reconcileSelection(
+        filterRepositories(repositories, state.filter, library.aliases),
+        state.selectedIds,
+      ),
     })),
   failList: (listError) => set({ listError }),
-  setLibrary: (library) => set({ library }),
+  setLibrary: (library) =>
+    set((state) => ({
+      library,
+      ...reconcileSelection(
+        filterRepositories(state.repositories ?? [], state.filter, library.aliases),
+        state.selectedIds,
+      ),
+    })),
   select: (selected, selectedFrom = ALL_ORIGIN) =>
     set({
       selected,
@@ -123,7 +134,10 @@ export const useRepositoriesStore = create<RepositoriesState & RepositoriesActio
     }),
   selectMany: (ids, selectedFrom = ALL_ORIGIN) =>
     set((state) => ({
-      ...reconcileSelection(filterRepositories(state.repositories ?? [], state.filter), ids),
+      ...reconcileSelection(
+        filterRepositories(state.repositories ?? [], state.filter, state.library?.aliases),
+        ids,
+      ),
       selectedFrom,
       openError: null,
     })),
@@ -133,7 +147,7 @@ export const useRepositoriesStore = create<RepositoriesState & RepositoriesActio
     set((state) => ({
       filter,
       ...reconcileSelection(
-        filterRepositories(state.repositories ?? [], filter),
+        filterRepositories(state.repositories ?? [], filter, state.library?.aliases),
         state.selectedIds,
       ),
       openError: null,

@@ -12,6 +12,7 @@ import type { MenuEntry } from '@ui/menuUtils';
 
 import { RepoDragPreview } from './RepoDragPreview';
 import { RepoIcon } from './RepositoryIcons';
+import { useRepositoryName } from './useRepositoryName';
 import styles from './RepoRow.module.css';
 
 interface RepoRowProps {
@@ -86,6 +87,7 @@ export function RepoRow({
   onDragStart,
   onDragEnd,
 }: RepoRowProps) {
+  const name = useRepositoryName(repo.id, repo.name);
   const { t } = useI18n();
   const wasSelected = useRef(false);
   const pendingClickSelection = useRef(false);
@@ -127,7 +129,7 @@ export function RepoRow({
   return (
     <ContextMenu
       items={menu}
-      label={t('repositories.list.menu', { repo: repo.name })}
+      label={t('repositories.list.menu', { repo: name })}
       className={styles.region}
     >
       <div
@@ -149,7 +151,7 @@ export function RepoRow({
         <RepoDragPreview ref={dragPreview} repo={repo} avatar={avatar} count={dragCount} />
         {avatar ? (
           <Avatar
-            name={repo.name}
+            name={name}
             glyph={avatar.glyph}
             tone={avatar.tone}
             color={avatar.color}
@@ -159,7 +161,7 @@ export function RepoRow({
         ) : (
           <RepoIcon className={styles.repoIcon} />
         )}
-        <span className={styles.name}>{repo.name}</span>
+        <span className={styles.name}>{name}</span>
         <span className={styles.path}>{repo.path}</span>
 
         {repo.worktreeOf !== undefined && (

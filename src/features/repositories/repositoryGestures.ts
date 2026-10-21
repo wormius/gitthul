@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import type { GestureDefinition } from '@app/gestures';
 import { useShellStore } from '@app/shellStore';
 import { isHome } from '@app/tabs';
+import { repositoryName } from '@core/domain/library';
 import { useI18n } from '@i18n/useI18n';
 
 import { useRepositoriesStore } from './repositoriesStore';
@@ -36,7 +37,7 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
     const chosen = (repositories ?? []).filter((candidate) => selectedIds.has(candidate.id));
     const multiple = chosen.length > 1;
     const counted = { count: chosen.length };
-    const named = { repo: repo?.name ?? '' };
+    const named = { repo: repo ? repositoryName(repo, library?.aliases) : '' };
     const spaces = library?.spaces ?? [];
     const showingSpaces = library?.layout === 'spaces';
     const view = library?.view;
@@ -45,7 +46,7 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
     const index = current ? spaces.findIndex((space) => space.id === current.id) : -1;
     const inSpace = { space: current?.name ?? '' };
     const inCurrent = Boolean(repo && current?.repos.includes(repo.id));
-    const bothNamed = { repo: repo?.name ?? '', space: current?.name ?? '' };
+    const bothNamed = { ...named, space: current?.name ?? '' };
     const currentMembers = current
       ? (repositories ?? []).filter((candidate) => current.repos.includes(candidate.id))
       : [];
@@ -285,7 +286,7 @@ export function useRepositoryGestureDefinitions(): readonly GestureDefinition[] 
                     ? 'repositories.menu.removeOneFromSpace'
                     : 'gesture.repos.removeFromSpace',
                   {
-                    repo: onlyRemovable.name,
+                    repo: repositoryName(onlyRemovable, library?.aliases),
                     space: selectedSpace.name,
                   },
                 )

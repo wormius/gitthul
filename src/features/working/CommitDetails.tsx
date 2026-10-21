@@ -12,11 +12,12 @@ import { useI18n } from '@i18n/useI18n';
 import { Avatar } from '@ui/Avatar';
 import { Button } from '@ui/Button';
 import { Badge } from '@ui/Badge';
+import { IconButton } from '@ui/IconButton';
 import { Skeleton } from '@ui/Skeleton';
 import { Spinner } from '@ui/Spinner';
 
 import styles from './CommitDetails.module.css';
-import { commitFileMenu, type MenuBuildContext } from './contextMenus';
+import { commitFileMenu, stashFileActions, type MenuBuildContext } from './contextMenus';
 import { FileList, type FileMenuTarget } from './FileList';
 import { FileListToolbar } from './FileListToolbar';
 import type { RowMenu } from './CommitRow';
@@ -96,9 +97,12 @@ export function CommitDetails({
   const menuFor = useCallback(
     (target: FileMenuTarget): RowMenu =>
       target.kind === 'folder'
-        ? { items: [], label: t('working.menu.folder.label', { folder: target.path }) }
+        ? {
+            items: stashFileActions(menuContext, source, target.paths),
+            label: t('working.menu.folder.label', { folder: target.path }),
+          }
         : {
-            items: commitFileMenu(menuContext, target.file.path, source),
+            items: commitFileMenu(menuContext, target.file.path, source, target.paths),
             label: t('working.menu.file.label', { path: target.file.path }),
           },
     [menuContext, source, t],
@@ -173,9 +177,23 @@ export function CommitDetails({
         </div>
 
         <div className={styles.meta}>
-          <code className={styles.sha} title={commit.sha}>
-            {shortSha(commit.sha, 10)}
-          </code>
+          <span className={styles.shaGroup}>
+            <code className={styles.sha} title={commit.sha}>
+              {shortSha(commit.sha, 10)}
+            </code>
+            <IconButton
+              size="sm"
+              aria-label={t('working.commitDetails.copySha')}
+              title={t('working.commitDetails.copySha')}
+              onClick={() => menuContext.actions.copy(commit.sha)}
+              icon={
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+                  <rect x="5.5" y="5.5" width="8" height="8" rx="1.2" />
+                  <path d="M10.5 5.5V3.7a1.2 1.2 0 0 0-1.2-1.2H3.7a1.2 1.2 0 0 0-1.2 1.2v5.6a1.2 1.2 0 0 0 1.2 1.2h1.8" />
+                </svg>
+              }
+            />
+          </span>
           {refs.map((name) => (
             <Badge key={name}>{name}</Badge>
           ))}

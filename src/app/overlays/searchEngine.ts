@@ -1,3 +1,4 @@
+import { repositoryName, type Library } from '@core/domain/library';
 import { OperationCancelledError } from '@core/domain/errors';
 import type { CommitPageRequest } from '@core/domain/commit';
 import type { RepoSummary } from '@core/domain/repository';
@@ -74,6 +75,7 @@ export interface SearchContext {
   query: string;
   activeRepo?: string;
   repositories: readonly RepoSummary[];
+  aliases?: Library['aliases'];
   app: readonly SearchResult[];
   git: GitPort;
   signal: AbortSignal;
@@ -174,6 +176,7 @@ async function* searchEvents(context: SearchContext): AsyncGenerator<SearchEvent
   const needle = fold(context.query.trim());
   const matches = (text: string) => fold(text).includes(needle);
   const repos = orderedRepositories(context.repositories);
+  const name = (repo: RepoSummary) => repositoryName(repo, context.aliases);
   const refRepos = repos.filter(
     (repo) => !repo.worktreeOf || !repos.some((parent) => parent.id === repo.worktreeOf),
   );
@@ -190,12 +193,13 @@ async function* searchEvents(context: SearchContext): AsyncGenerator<SearchEvent
       }
   };
   const names = function* () {
-    for (const repo of [...repos].sort((a, b) => byQuality(a.name, b.name)))
-      if (!repo.worktreeOf && matches(repo.name)) {
+    for (const repo of [...repos].sort((a, b) => byQuality(name(a), name(b))))
+      if (!repo.worktreeOf && (matches(name(repo)) || matches(repo.name) || matches(repo.path))) {
         yield {
           key: `repo:${repo.id}`,
           kind: 'repositories' as const,
-          label: repo.name,
+          label: name(repo),
+          matchTexts: [repo.name, repo.path],
           description: repo.path,
           onSelect: () => open(repo),
         };
@@ -217,7 +221,7 @@ async function* searchEvents(context: SearchContext): AsyncGenerator<SearchEvent
             ? { matchTexts: [target.path.split('/').at(-1) ?? target.path] }
             : {}),
           description:
-            target.kind === 'commit' ? `${repo.name} · ${target.sha.slice(0, 8)}` : repo.name,
+            target.kind === 'commit' ? `${name(repo)} · ${target.sha.slice(0, 8)}` : name(repo),
           onSelect: () => open(repo, target),
         });
         if (['worktrees', 'branches', 'stashes', 'tags'].includes(kind)) {
@@ -233,7 +237,7 @@ async function* searchEvents(context: SearchContext): AsyncGenerator<SearchEvent
                   key: `worktree:${wt.path}`,
                   kind,
                   label: wt.name,
-                  description: `${repo.name} · ${wt.path}`,
+                  description: `${name(repo)} · ${wt.path}`,
                   onSelect: () => context.openWorktree(wt.path),
                 };
           }

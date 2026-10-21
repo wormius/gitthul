@@ -53,6 +53,9 @@ impl BackupPolicy {
 pub(crate) enum BackupError {
     Cancelled,
     Changed,
+    Protected,
+    LimitTooSmall,
+    LimitChanged,
     NoSpace,
     Incomplete,
     InvalidPath,
@@ -90,6 +93,36 @@ pub(crate) struct BackupCatalog {
     pub total_bytes: u64,
     pub points: Vec<BackupPoint>,
     pub corrupt_points: usize,
+}
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BackupLimitPlan {
+    #[serde(rename = "maxMiB")]
+    pub max_mi_b: u64,
+    pub current_bytes: u64,
+    pub projected_bytes: u64,
+    pub minimum_bytes: u64,
+    pub delete_count: usize,
+    pub feasible: bool,
+    pub token: String,
+}
+struct LimitPlan {
+    summary: BackupLimitPlan,
+    manifests: Vec<Manifest>,
+    keep: HashSet<String>,
+}
+#[derive(Debug)]
+pub(crate) struct PolicyChangeFailure {
+    pub error: BackupError,
+    pub rollback_failed: bool,
+    pub output: Option<String>,
+}
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AutoPruneReceipt {
+    pub id: String,
+    pub removed_count: usize,
+    pub freed_bytes: u64,
 }
 #[derive(Clone, Debug)]
 pub(crate) enum CaptureOutcome {
@@ -155,6 +188,29 @@ pub(crate) struct BackupStore {
     root: PathBuf,
     policy: Mutex<BackupPolicy>,
     gate: Mutex<()>,
+    auto_prune: Mutex<Option<AutoPruneReceipt>>,
+    #[cfg(test)]
+    capture_pause: Mutex<Option<(std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>)>>,
+    #[cfg(test)]
+    fail_delete_after: Mutex<Option<usize>>,
+}
+
+#[cfg(test)]
+pub(crate) struct CapturePause {
+    entered: std::sync::mpsc::Receiver<()>,
+    release: std::sync::mpsc::Sender<()>,
+}
+#[cfg(test)]
+impl CapturePause {
+    pub(crate) fn wait(&self) {
+        self.entered.recv_timeout(Duration::from_secs(10)).unwrap();
+    }
+}
+#[cfg(test)]
+impl Drop for CapturePause {
+    fn drop(&mut self) {
+        let _ = self.release.send(());
+    }
 }
 impl Drop for BackupStore {
     fn drop(&mut self) {
@@ -191,11 +247,39 @@ impl BackupStore {
             root,
             policy: Mutex::new(policy),
             gate: Mutex::new(()),
+            auto_prune: Mutex::new(None),
+            #[cfg(test)]
+            capture_pause: Mutex::new(None),
+            #[cfg(test)]
+            fail_delete_after: Mutex::new(None),
         })
     }
     #[cfg(test)]
     pub(crate) fn directory(&self) -> &Path {
         &self.root
+    }
+    #[cfg(test)]
+    pub(crate) fn pause_next_capture(&self) -> CapturePause {
+        let (entered, waiting) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        assert!(self
+            .capture_pause
+            .lock()
+            .unwrap()
+            .replace((entered, released))
+            .is_none());
+        CapturePause {
+            entered: waiting,
+            release,
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn lock_for_test(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.gate.lock().unwrap()
+    }
+    #[cfg(test)]
+    pub(crate) fn fail_next_deletion(&self) {
+        *self.fail_delete_after.lock().unwrap() = Some(1);
     }
     pub(crate) fn update_policy(&self, policy: BackupPolicy) -> Result<(), BackupError> {
         policy.validate()?;
@@ -204,14 +288,157 @@ impl BackupStore {
         *self.policy.lock().map_err(|_| BackupError::Io)? = policy;
         // Invalid manifests suspend cleanup; retained points are never guessed at.
         let manifests = self.manifests()?;
-        self.prune(&manifests, now(), self.policy()?.max_mi_b * 1024 * 1024)?;
+        self.apply_retention(&manifests, now(), self.policy()?.max_mi_b * 1024 * 1024)?;
         Ok(())
     }
-    fn policy(&self) -> Result<BackupPolicy, BackupError> {
+    pub(crate) fn policy(&self) -> Result<BackupPolicy, BackupError> {
         self.policy
             .lock()
             .map(|p| p.clone())
             .map_err(|_| BackupError::Io)
+    }
+    pub(crate) fn take_auto_prune(&self) -> Option<AutoPruneReceipt> {
+        self.auto_prune
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
+    }
+    pub(crate) fn set_policy_without_cleanup(&self, policy: BackupPolicy) {
+        *self.policy.lock().unwrap_or_else(|e| e.into_inner()) = policy;
+    }
+    pub(crate) fn preview_limit(&self, max_mi_b: u64) -> Result<BackupLimitPlan, BackupError> {
+        let _gate = self.gate.lock().map_err(|_| BackupError::Io)?;
+        Ok(self.limit_plan(max_mi_b)?.summary)
+    }
+    fn limit_plan(&self, max_mi_b: u64) -> Result<LimitPlan, BackupError> {
+        BackupPolicy {
+            max_mi_b,
+            ..Default::default()
+        }
+        .validate()?;
+        let manifests = self.manifests()?;
+        self.verify_contents(&manifests)?;
+        let sizes = self.chunk_sizes(None)?;
+        let current_bytes = self.total_bytes()?;
+        let manifest_sizes = self.manifest_sizes(&manifests)?;
+        let all: HashSet<_> = manifests.iter().map(|m| m.point.id.clone()).collect();
+        let cost = |keep: &HashSet<String>| stored_bytes(&manifests, keep, &sizes, &manifest_sizes);
+        let fixed = current_bytes
+            .checked_sub(cost(&all)?)
+            .ok_or(BackupError::Corrupt)?;
+        let protected = protected_latest(&manifests);
+        let minimum_bytes = fixed.saturating_add(cost(&protected)?);
+        let budget = max_mi_b * 1024 * 1024;
+        let feasible = minimum_bytes <= budget;
+        let keep = if feasible {
+            select_for_budget(&manifests, all.clone(), budget.saturating_sub(fixed), cost)?
+        } else {
+            all
+        };
+        let projected_bytes = if feasible {
+            fixed.saturating_add(cost(&keep)?)
+        } else {
+            minimum_bytes
+        };
+        let mut ordered = manifests.clone();
+        ordered.sort_by(|a, b| a.point.id.cmp(&b.point.id));
+        let ordered_sizes: BTreeMap<_, _> = sizes.into_iter().collect();
+        let ordered_keep: BTreeSet<_> = keep.iter().collect();
+        let token = digest(
+            &serde_json::to_vec(&(
+                "backup-limit-v1",
+                &self.root,
+                self.policy()?,
+                max_mi_b,
+                current_bytes,
+                &ordered,
+                ordered_sizes,
+                &manifest_sizes,
+                ordered_keep,
+            ))
+            .map_err(|_| BackupError::Io)?,
+        );
+        Ok(LimitPlan {
+            summary: BackupLimitPlan {
+                max_mi_b,
+                current_bytes,
+                projected_bytes,
+                minimum_bytes,
+                delete_count: manifests.len() - keep.len(),
+                feasible,
+                token,
+            },
+            manifests,
+            keep,
+        })
+    }
+    fn manifest_sizes(&self, manifests: &[Manifest]) -> Result<BTreeMap<String, u64>, BackupError> {
+        manifests
+            .iter()
+            .map(|manifest| {
+                Ok((
+                    manifest.point.id.clone(),
+                    fs::metadata(
+                        self.root
+                            .join("points")
+                            .join(format!("{}.json", manifest.point.id)),
+                    )?
+                    .len(),
+                ))
+            })
+            .collect()
+    }
+    pub(crate) fn change_policy(
+        &self,
+        policy: BackupPolicy,
+        token: Option<&str>,
+        mut persist: impl FnMut(&BackupPolicy) -> Result<(), String>,
+    ) -> Result<(), PolicyChangeFailure> {
+        let plain = |error| PolicyChangeFailure {
+            error,
+            rollback_failed: false,
+            output: None,
+        };
+        policy.validate().map_err(plain)?;
+        let _gate = self.gate.lock().map_err(|_| plain(BackupError::Io))?;
+        let previous = self.policy().map_err(plain)?;
+        let plan = if policy.max_mi_b < previous.max_mi_b {
+            let plan = self.limit_plan(policy.max_mi_b).map_err(plain)?;
+            if !plan.summary.feasible {
+                return Err(plain(BackupError::LimitTooSmall));
+            }
+            if token.is_some_and(|token| token != plan.summary.token)
+                || (plan.summary.delete_count > 0 && token.is_none())
+            {
+                return Err(plain(BackupError::LimitChanged));
+            }
+            Some(plan)
+        } else {
+            None
+        };
+        persist(&policy).map_err(|output| PolicyChangeFailure {
+            output: Some(output),
+            ..plain(BackupError::Io)
+        })?;
+        self.set_policy_without_cleanup(policy);
+        let result = if let Some(plan) = plan.filter(|p| p.summary.delete_count > 0) {
+            self.delete_points(&plan.manifests, &plan.keep, false)
+        } else {
+            Ok(())
+        };
+        if let Err(error) = result {
+            let rollback_error = persist(&previous).err();
+            let rollback_failed = rollback_error.is_some();
+            if !rollback_failed {
+                *self.policy.lock().unwrap_or_else(|e| e.into_inner()) = previous;
+            }
+            return Err(PolicyChangeFailure {
+                error,
+                rollback_failed,
+                output: rollback_error.map(|output| format!("Backup cleanup failed; restoring the previous settings also failed: {output}")),
+            });
+        }
+        Ok(())
     }
     pub(crate) fn list(&self) -> Result<BackupCatalog, BackupError> {
         let _gate = self.gate.lock().map_err(|_| BackupError::Io)?;
@@ -256,6 +483,24 @@ impl BackupStore {
         at: u64,
     ) -> Result<CaptureOutcome, BackupError> {
         let _gate = self.gate.lock().map_err(|_| BackupError::Io)?;
+        let result = self.capture_attempt(repository, cancel, at, false);
+        if matches!(
+            result,
+            Err(BackupError::NoSpace) | Ok(CaptureOutcome::NoSpace)
+        ) {
+            // The failed attempt's temporary files have already been dropped.
+            // Only a capacity preflight can authorize removing older points.
+            return self.capture_attempt(repository, cancel, at, true);
+        }
+        result
+    }
+    fn capture_attempt(
+        &self,
+        repository: &Path,
+        cancel: &AtomicBool,
+        at: u64,
+        make_room: bool,
+    ) -> Result<CaptureOutcome, BackupError> {
         cancelled(cancel)?;
         let policy = self.policy()?;
         self.cleanup_staging()?;
@@ -315,7 +560,19 @@ impl BackupStore {
         if objects_changed {
             validate_external_content(&repository, &sources, cancel)?;
         }
-        self.prune(&manifests, at, policy.max_mi_b * 1024 * 1024)?;
+        if make_room {
+            self.make_capture_room(
+                &repository,
+                &repository_id,
+                &sources,
+                &stamps,
+                &previous,
+                &manifests,
+                at,
+                policy.max_mi_b * 1024 * 1024,
+                cancel,
+            )?;
+        }
         let manifests = self.manifests()?;
         let latest = manifests
             .iter()
@@ -553,24 +810,299 @@ impl BackupStore {
         }
         result
     }
-    /// Explicit deletion is separate from automatic retention; it may remove a last backup.
-    #[cfg(test)]
+    /// Revalidate the store itself; a catalog shown by the UI never authorizes deletion.
+    /// Every newest timestamp tie is protected, even when other repositories have points.
     pub(crate) fn delete(&self, id: &str) -> Result<(), BackupError> {
         let _gate = self.gate.lock().map_err(|_| BackupError::Io)?;
         if !valid_id(id) {
             return Err(BackupError::InvalidPath);
         }
+        match fs::symlink_metadata(self.root.join("points").join(format!("{id}.json"))) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(BackupError::Changed)
+            }
+            Err(error) => return Err(error.into()),
+            Ok(_) => {}
+        }
         let manifests = self.manifests()?;
         if !manifests.iter().any(|m| m.point.id == id) {
-            return Err(BackupError::InvalidPath);
+            return Err(BackupError::Changed);
         }
+        if protected_latest(&manifests).contains(id) {
+            return Err(BackupError::Protected);
+        }
+        // Cached stat signatures are sufficient for catalog reads, but not for
+        // destroying an alternative recovery point. Read and hash actual bytes.
+        self.verify_contents(&manifests)?;
         let keep = manifests
             .iter()
             .filter(|m| m.point.id != id)
             .map(|m| m.point.id.clone())
             .collect();
-        self.delete_except(&manifests, &keep)
+        self.delete_points(&manifests, &keep, false)
     }
+
+    /// Remove every older point as one verified operation. The latest points
+    /// come from the store under this gate, never from a caller's cached catalog.
+    pub(crate) fn prune(&self) -> Result<(), BackupError> {
+        let _gate = self.gate.lock().map_err(|_| BackupError::Io)?;
+        let manifests = self.manifests()?;
+        let keep = protected_latest(&manifests);
+        self.verify_contents(&manifests)?;
+        if keep.len() == manifests.len() {
+            self.chunk_sizes(None)?;
+            return Ok(());
+        }
+        self.delete_points(&manifests, &keep, false)
+    }
+
+    fn verify_contents(&self, manifests: &[Manifest]) -> Result<(), BackupError> {
+        self.verify_contents_cancellable(manifests, &AtomicBool::new(false))
+    }
+    fn verify_contents_cancellable(
+        &self,
+        manifests: &[Manifest],
+        cancel: &AtomicBool,
+    ) -> Result<(), BackupError> {
+        let mut verified = HashSet::new();
+        for manifest in manifests {
+            for entry in &manifest.entries {
+                cancelled(cancel)?;
+                let Content::File {
+                    size,
+                    digest: expected,
+                    chunks,
+                } = &entry.content
+                else {
+                    continue;
+                };
+                if !verified.insert((expected, size, chunks)) {
+                    continue;
+                }
+                let mut actual_size = 0u64;
+                let mut hash = Sha256::new();
+                for id in chunks {
+                    cancelled(cancel)?;
+                    let bytes = read_chunk(&self.root.join("chunks").join(id), id)?;
+                    actual_size = actual_size
+                        .checked_add(bytes.len() as u64)
+                        .ok_or(BackupError::Corrupt)?;
+                    hash.update(&bytes);
+                }
+                if actual_size != *size || hex(&hash.finalize()) != *expected {
+                    return Err(BackupError::Corrupt);
+                }
+            }
+        }
+        Ok(())
+    }
+    fn make_capture_room(
+        &self,
+        repository: &Path,
+        repository_id: &str,
+        sources: &Sources,
+        stamps: &BTreeMap<Vec<u8>, String>,
+        previous: &BTreeMap<Vec<u8>, &Entry>,
+        manifests: &[Manifest],
+        at: u64,
+        budget: u64,
+        cancel: &AtomicBool,
+    ) -> Result<(), BackupError> {
+        let sizes = self.chunk_sizes(None)?;
+        let mut planned_sizes = sizes.clone();
+        let mut entries = Vec::with_capacity(sources.len());
+        for (path, source) in sources {
+            cancelled(cancel)?;
+            let content = if let Some(entry) = previous
+                .get(path)
+                .filter(|entry| Some(&entry.source_stamp) == stamps.get(path))
+            {
+                entry.content.clone()
+            } else {
+                match &source.source {
+                    Source::Directory => Content::Directory,
+                    Source::Symlink { target, directory } => Content::Symlink {
+                        target: target.clone(),
+                        directory: *directory,
+                    },
+                    Source::File(path) => {
+                        measure_content(File::open(path)?, &mut planned_sizes, cancel)?
+                    }
+                    Source::Bytes(bytes) => {
+                        measure_content(bytes.as_slice(), &mut planned_sizes, cancel)?
+                    }
+                }
+            };
+            entries.push(Entry {
+                path: path.clone(),
+                mode: source.mode,
+                source_stamp: stamps.get(path).ok_or(BackupError::Changed)?.clone(),
+                content,
+            });
+        }
+        let chunks = entry_chunks(&entries);
+        let point = BackupPoint {
+            id: "0".repeat(64),
+            repository_id: repository_id.into(),
+            repository_path: repository.into(),
+            repository_name: repository
+                .file_name()
+                .unwrap_or(OsStr::new("repository"))
+                .to_string_lossy()
+                .into_owned(),
+            created_at: at,
+            size_bytes: chunks
+                .iter()
+                .map(|id| planned_sizes.get(id).copied().ok_or(BackupError::Corrupt))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .sum(),
+            file_count: entries
+                .iter()
+                .filter(|entry| !matches!(entry.content, Content::Directory))
+                .count() as u64,
+        };
+        let candidate = Manifest {
+            version: VERSION,
+            point,
+            fingerprint: fingerprint(&entries)?,
+            source_signature: stamps_signature(stamps),
+            chunk_signatures: chunks
+                .iter()
+                .map(|id| (id.clone(), "0".repeat(64)))
+                .collect(),
+            entries,
+        };
+        let manifest_bytes = serde_json::to_vec(&candidate)
+            .map_err(|_| BackupError::Io)?
+            .len() as u64;
+        if manifest_bytes > MANIFEST_BYTES {
+            return Err(BackupError::Incomplete);
+        }
+        let probe = tempfile::Builder::new()
+            .prefix("capture-plan-")
+            .tempdir_in(self.root.join("staging"))?;
+        let mut temporary_bytes = 0u64;
+        for entry in &candidate.entries {
+            cancelled(cancel)?;
+            let relative = decode_path(&entry.path)?;
+            if !git_metadata_path(&relative) {
+                continue;
+            }
+            if let Content::File { size, .. } = &entry.content {
+                let linked = immutable_object(&relative)
+                    && match &sources.get(&entry.path).ok_or(BackupError::Changed)?.source {
+                        Source::File(source) => {
+                            fs::hard_link(source, probe.path().join("object")).is_ok()
+                        }
+                        _ => false,
+                    };
+                if linked {
+                    fs::remove_file(probe.path().join("object"))?;
+                } else {
+                    temporary_bytes = temporary_bytes
+                        .checked_add(*size)
+                        .ok_or(BackupError::NoSpace)?;
+                }
+            }
+        }
+        drop(probe);
+        let new_chunks = chunks
+            .iter()
+            .filter(|id| !sizes.contains_key(*id))
+            .try_fold(0u64, |sum, id| {
+                sum.checked_add(*planned_sizes.get(id).ok_or(BackupError::Corrupt)?)
+                    .ok_or(BackupError::NoSpace)
+            })?;
+        let required = new_chunks
+            .checked_add(temporary_bytes)
+            .and_then(|bytes| bytes.checked_add(manifest_bytes))
+            .ok_or(BackupError::NoSpace)?;
+        let current_bytes = self.total_bytes()?;
+        let all: HashSet<_> = manifests.iter().map(|m| m.point.id.clone()).collect();
+        let manifest_sizes = self.manifest_sizes(manifests)?;
+        let all_references: HashSet<_> = manifests
+            .iter()
+            .flat_map(|m| entry_chunks(&m.entries))
+            .collect();
+        let fixed = current_bytes
+            .checked_sub(stored_bytes(manifests, &all, &sizes, &manifest_sizes)?)
+            .ok_or(BackupError::Corrupt)?;
+        let cost = |keep: &HashSet<String>| -> Result<u64, BackupError> {
+            let retained: HashSet<_> = manifests
+                .iter()
+                .filter(|m| keep.contains(&m.point.id))
+                .flat_map(|m| entry_chunks(&m.entries))
+                .collect();
+            let candidate_only = chunks
+                .iter()
+                .filter(|id| all_references.contains(*id) && !retained.contains(*id))
+                .try_fold(0u64, |sum, id| {
+                    sum.checked_add(*sizes.get(id).ok_or(BackupError::Corrupt)?)
+                        .ok_or(BackupError::NoSpace)
+                })?;
+            fixed
+                .checked_add(stored_bytes(manifests, keep, &sizes, &manifest_sizes)?)
+                .and_then(|bytes| bytes.checked_add(candidate_only))
+                .ok_or(BackupError::NoSpace)
+        };
+        if cost(&protected_latest(manifests))?
+            .checked_add(required)
+            .is_none_or(|bytes| bytes > budget)
+        {
+            return Err(BackupError::NoSpace);
+        }
+        let keep = select_for_budget(manifests, all, budget.saturating_sub(required), cost)?;
+        if keep.len() == manifests.len() {
+            return Ok(());
+        }
+        self.verify_contents_cancellable(manifests, cancel)?;
+        for id in chunks.iter().filter(|id| sizes.contains_key(*id)) {
+            cancelled(cancel)?;
+            read_chunk(&self.root.join("chunks").join(id), id)?;
+        }
+        // Capacity alone is insufficient: a source already known to be broken
+        // must not consume older recovery points before autonomous verification.
+        verify_repositories_with_hooks(
+            &candidate.entries,
+            repository,
+            &self.root.join("staging"),
+            cancel,
+            true,
+        )?;
+        if source_stamps(&collect_repository(repository, cancel)?, cancel)? != *stamps {
+            return Err(BackupError::Changed);
+        }
+        cancelled(cancel)?;
+        // A candidate can reuse a chunk referenced only by a point being removed.
+        // Keep those bytes until publication; an interrupted attempt leaves an orphan
+        // for later maintenance, never a broken published point.
+        let mut nonce = [0; 16];
+        getrandom::getrandom(&mut nonce).map_err(|_| BackupError::Io)?;
+        let result = self.delete_points_preserving(manifests, &keep, false, &chunks);
+        let removed_count = manifests
+            .iter()
+            .filter(|m| !keep.contains(&m.point.id))
+            .filter(|m| {
+                fs::symlink_metadata(
+                    self.root
+                        .join("points")
+                        .join(format!("{}.json", m.point.id)),
+                )
+                .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+            })
+            .count();
+        if removed_count > 0 {
+            *self.auto_prune.lock().unwrap_or_else(|e| e.into_inner()) = Some(AutoPruneReceipt {
+                id: digest(&nonce),
+                removed_count,
+                freed_bytes: current_bytes
+                    .saturating_sub(self.total_bytes().unwrap_or(current_bytes)),
+            });
+        }
+        result
+    }
+
     fn capture_reader(
         &self,
         mut reader: impl Read,
@@ -595,6 +1127,14 @@ impl BackupStore {
             }
             if filled == 0 {
                 break;
+            }
+            #[cfg(test)]
+            {
+                let pause = self.capture_pause.lock().unwrap().take();
+                if let Some((entered, released)) = pause {
+                    let _ = entered.send(());
+                    let _ = released.recv();
+                }
             }
             let bytes = &buffer[..filled];
             size += filled as u64;
@@ -822,7 +1362,7 @@ impl BackupStore {
         let _gate = self.gate.lock().map_err(|_| BackupError::Io)?;
         self.cleanup_staging()?;
         let manifests = self.manifests()?;
-        self.prune(&manifests, now(), self.policy()?.max_mi_b * 1024 * 1024)
+        self.apply_retention(&manifests, now(), self.policy()?.max_mi_b * 1024 * 1024)
     }
     fn cleanup_staging(&self) -> Result<(), BackupError> {
         // The native manager owns one Store per data root and serializes its mutations. Crash leftovers
@@ -852,7 +1392,11 @@ impl BackupStore {
                 let file = file?;
                 let id = file.file_name().to_string_lossy().into_owned();
                 let meta = fs::symlink_metadata(file.path())?;
-                if !valid_id(&id) || !meta.is_file() || meta.file_type().is_symlink() {
+                if !valid_id(&id)
+                    || !meta.is_file()
+                    || meta.file_type().is_symlink()
+                    || meta.len() > (2 * CHUNK_BYTES) as u64
+                {
                     return Err(BackupError::Corrupt);
                 }
                 sizes.insert(id, meta.len());
@@ -873,7 +1417,12 @@ impl BackupStore {
         size += directory_bytes(&self.root.join("staging"))?;
         Ok(size)
     }
-    fn prune(&self, manifests: &[Manifest], at: u64, budget: u64) -> Result<(), BackupError> {
+    fn apply_retention(
+        &self,
+        manifests: &[Manifest],
+        at: u64,
+        budget: u64,
+    ) -> Result<(), BackupError> {
         let sizes = self.chunk_sizes(None)?;
         let keep = fit_budget(manifests, retained(manifests, at), &sizes, budget)?;
         let referenced: HashSet<_> = manifests
@@ -905,25 +1454,78 @@ impl BackupStore {
         manifests: &[Manifest],
         keep: &HashSet<String>,
     ) -> Result<(), BackupError> {
-        let mut referenced = HashSet::new();
-        for manifest in manifests {
+        self.delete_points(manifests, keep, true)
+    }
+    fn delete_points(
+        &self,
+        manifests: &[Manifest],
+        keep: &HashSet<String>,
+        collect_orphans: bool,
+    ) -> Result<(), BackupError> {
+        self.delete_points_preserving(manifests, keep, collect_orphans, &HashSet::new())
+    }
+    fn delete_points_preserving(
+        &self,
+        manifests: &[Manifest],
+        keep: &HashSet<String>,
+        collect_orphans: bool,
+        preserve_chunks: &HashSet<String>,
+    ) -> Result<(), BackupError> {
+        // Preflight the complete inventory before deleting the first manifest.
+        // Unknown points/chunk names must never turn into an orphan sweep.
+        let current = self.manifests()?;
+        if current.len() != manifests.len()
+            || current.iter().any(|actual| {
+                !manifests.iter().any(|expected| {
+                    actual.point.id == expected.point.id
+                        && actual.point.repository_id == expected.point.repository_id
+                        && actual.point.created_at == expected.point.created_at
+                        && actual.fingerprint == expected.fingerprint
+                })
+            })
+            || keep
+                .iter()
+                .any(|id| !current.iter().any(|m| &m.point.id == id))
+        {
+            return Err(BackupError::Changed);
+        }
+        let sizes = self.chunk_sizes(None)?;
+        let mut referenced = preserve_chunks.clone();
+        let mut removed = HashSet::new();
+        for manifest in &current {
             if keep.contains(&manifest.point.id) {
                 referenced.extend(entry_chunks(&manifest.entries));
             } else {
+                removed.extend(entry_chunks(&manifest.entries));
+            }
+        }
+        #[cfg(test)]
+        let mut deleted = 0;
+        for manifest in &current {
+            if !keep.contains(&manifest.point.id) {
                 fs::remove_file(
                     self.root
                         .join("points")
                         .join(format!("{}.json", manifest.point.id)),
                 )?;
+                #[cfg(test)]
+                {
+                    deleted += 1;
+                    let mut fail = self.fail_delete_after.lock().unwrap();
+                    if *fail == Some(deleted) {
+                        *fail = None;
+                        return Err(BackupError::Io);
+                    }
+                }
             }
         }
         sync_directory(&self.root.join("points"))?;
-        for file in fs::read_dir(self.root.join("chunks"))? {
-            let file = file?;
-            if !referenced.contains(&file.file_name().to_string_lossy().into_owned()) {
-                fs::remove_file(file.path())?;
+        for id in sizes.keys() {
+            if !referenced.contains(id) && (collect_orphans || removed.contains(id)) {
+                fs::remove_file(self.root.join("chunks").join(id))?;
             }
         }
+        sync_directory(&self.root.join("chunks"))?;
         Ok(())
     }
 }
@@ -2047,12 +2649,9 @@ fn retained(manifests: &[Manifest], at: u64) -> HashSet<String> {
             .or_default()
             .push(manifest);
     }
-    let mut keep = HashSet::new();
+    let mut keep = protected_latest(manifests);
     for points in repositories.values_mut() {
         points.sort_by_key(|m| std::cmp::Reverse(m.point.created_at));
-        if let Some(latest) = points.first() {
-            keep.insert(latest.point.id.clone());
-        }
         let mut days = BTreeSet::new();
         let mut weeks = BTreeSet::new();
         let mut months = BTreeSet::new();
@@ -2073,6 +2672,18 @@ fn retained(manifests: &[Manifest], at: u64) -> HashSet<String> {
     }
     keep
 }
+fn protected_latest(manifests: &[Manifest]) -> HashSet<String> {
+    let mut latest = HashMap::<&str, u64>::new();
+    for manifest in manifests {
+        let timestamp = latest.entry(&manifest.point.repository_id).or_default();
+        *timestamp = (*timestamp).max(manifest.point.created_at);
+    }
+    manifests
+        .iter()
+        .filter(|m| latest.get(m.point.repository_id.as_str()) == Some(&m.point.created_at))
+        .map(|m| m.point.id.clone())
+        .collect()
+}
 fn month_bucket(days: u64) -> i64 {
     // Civil date from Unix days; Gregorian calendar, avoiding a new timezone dependency.
     let z = days as i64 + 719468;
@@ -2090,32 +2701,63 @@ fn month_bucket(days: u64) -> i64 {
 }
 fn fit_budget(
     manifests: &[Manifest],
-    mut keep: HashSet<String>,
+    keep: HashSet<String>,
     sizes: &HashMap<String, u64>,
     budget: u64,
 ) -> Result<HashSet<String>, BackupError> {
-    let mut latest: HashMap<&str, &Manifest> = HashMap::new();
-    for manifest in manifests {
-        let entry = latest
-            .entry(&manifest.point.repository_id)
-            .or_insert(manifest);
-        if manifest.point.created_at > entry.point.created_at {
-            *entry = manifest;
-        }
-    }
-    let protected: HashSet<_> = latest.values().map(|m| &m.point.id).collect();
+    select_for_budget(manifests, keep, budget, |keep| {
+        referenced_bytes(manifests, keep, sizes)
+    })
+}
+fn select_for_budget(
+    manifests: &[Manifest],
+    mut keep: HashSet<String>,
+    budget: u64,
+    cost: impl Fn(&HashSet<String>) -> Result<u64, BackupError>,
+) -> Result<HashSet<String>, BackupError> {
+    let protected = protected_latest(manifests);
     let mut removable: Vec<_> = manifests
         .iter()
         .filter(|m| keep.contains(&m.point.id) && !protected.contains(&m.point.id))
         .collect();
-    removable.sort_by_key(|m| m.point.created_at);
+    removable.sort_by(|a, b| {
+        a.point
+            .created_at
+            .cmp(&b.point.created_at)
+            .then_with(|| a.point.id.cmp(&b.point.id))
+    });
     for point in removable {
-        if referenced_bytes(manifests, &keep, sizes)? <= budget {
+        if cost(&keep)? <= budget {
             break;
         }
         keep.remove(&point.point.id);
     }
     Ok(keep)
+}
+fn stored_bytes(
+    manifests: &[Manifest],
+    keep: &HashSet<String>,
+    sizes: &HashMap<String, u64>,
+    manifest_sizes: &BTreeMap<String, u64>,
+) -> Result<u64, BackupError> {
+    let mut chunks = HashSet::new();
+    let mut bytes = 0u64;
+    for manifest in manifests.iter().filter(|m| keep.contains(&m.point.id)) {
+        chunks.extend(entry_chunks(&manifest.entries));
+        bytes = bytes
+            .checked_add(
+                *manifest_sizes
+                    .get(&manifest.point.id)
+                    .ok_or(BackupError::Corrupt)?,
+            )
+            .ok_or(BackupError::Corrupt)?;
+    }
+    for chunk in chunks {
+        bytes = bytes
+            .checked_add(*sizes.get(&chunk).ok_or(BackupError::Corrupt)?)
+            .ok_or(BackupError::Corrupt)?;
+    }
+    Ok(bytes)
 }
 fn referenced_bytes(
     manifests: &[Manifest],
@@ -2275,6 +2917,15 @@ fn verify_repositories(
     cancel: &AtomicBool,
     full: bool,
 ) -> Result<(), BackupError> {
+    verify_repositories_with_hooks(entries, destination, destination, cancel, full)
+}
+fn verify_repositories_with_hooks(
+    entries: &[Entry],
+    destination: &Path,
+    hooks_root: &Path,
+    cancel: &AtomicBool,
+    full: bool,
+) -> Result<(), BackupError> {
     let mut repositories = Vec::new();
     for entry in entries {
         let path = decode_path(&entry.path)?;
@@ -2295,9 +2946,7 @@ fn verify_repositories(
     }
     // A real, empty directory also works with Windows verbatim paths. Device
     // names such as NUL are not ordinary directories and cannot safely disable hooks.
-    let hooks = tempfile::Builder::new()
-        .prefix(".gitthul-verify-hooks-")
-        .tempdir_in(destination)?;
+    let hooks = verification_hooks(hooks_root)?;
     let hooks_setting = format!("core.hooksPath={}", hooks.path().to_string_lossy());
     for repository in repositories {
         git(
@@ -2328,6 +2977,13 @@ fn verify_repositories(
         })?;
     }
     Ok(())
+}
+fn verification_hooks(root: &Path) -> Result<tempfile::TempDir, BackupError> {
+    // Capacity preflight places these directly in staging. Keep the capture
+    // prefix so a crash cannot leave an unrecognized directory blocking backups.
+    Ok(tempfile::Builder::new()
+        .prefix("capture-verify-hooks-")
+        .tempdir_in(root)?)
 }
 fn git_metadata_path(path: &Path) -> bool {
     path.components()
@@ -2499,6 +3155,48 @@ fn hash_reader(mut reader: impl Read, cancel: &AtomicBool) -> Result<(String, u6
         thread::yield_now();
     }
     Ok((hex(&hash.finalize()), total))
+}
+fn measure_content(
+    mut reader: impl Read,
+    sizes: &mut HashMap<String, u64>,
+    cancel: &AtomicBool,
+) -> Result<Content, BackupError> {
+    let mut hash = Sha256::new();
+    let mut size = 0u64;
+    let mut chunks = Vec::new();
+    let mut buffer = vec![0u8; CHUNK_BYTES];
+    loop {
+        cancelled(cancel)?;
+        let mut filled = 0;
+        while filled < buffer.len() {
+            let count = reader.read(&mut buffer[filled..])?;
+            if count == 0 {
+                break;
+            }
+            filled += count;
+            cancelled(cancel)?;
+        }
+        if filled == 0 {
+            break;
+        }
+        let bytes = &buffer[..filled];
+        size = size
+            .checked_add(filled as u64)
+            .ok_or(BackupError::NoSpace)?;
+        hash.update(bytes);
+        let id = digest(bytes);
+        if !sizes.contains_key(&id) {
+            let mut encoded = GzEncoder::new(Vec::new(), Compression::fast());
+            encoded.write_all(bytes)?;
+            sizes.insert(id.clone(), encoded.finish()?.len() as u64);
+        }
+        chunks.push(id);
+    }
+    Ok(Content::File {
+        size,
+        digest: hex(&hash.finalize()),
+        chunks,
+    })
 }
 fn read_chunk(path: &Path, expected: &str) -> Result<Vec<u8>, BackupError> {
     let meta = fs::symlink_metadata(path).map_err(|_| BackupError::Corrupt)?;
@@ -3070,6 +3768,386 @@ mod tests {
             )
             .unwrap();
     }
+    fn random_bytes(size: usize) -> Vec<u8> {
+        let mut bytes = vec![0; size];
+        getrandom::getrandom(&mut bytes).unwrap();
+        bytes
+    }
+
+    #[test]
+    fn limit_plan_is_exact_for_shared_chunks_other_repositories_and_only_required_extras() {
+        let (root, repository, store) = fixture();
+        fs::write(repository.join("shared.bin"), random_bytes(300 * 1024)).unwrap();
+        let mut points = Vec::new();
+        for day in 0..4 {
+            fs::write(repository.join("version.bin"), random_bytes(250 * 1024)).unwrap();
+            points.push(create(&store, &repository, START + day * DAY));
+        }
+        let (_other_root, other_repository, _unused) = fixture();
+        fs::write(other_repository.join("other.bin"), random_bytes(100 * 1024)).unwrap();
+        let other = create(&store, &other_repository, START + 4 * DAY);
+        let first_path = store
+            .root
+            .join("points")
+            .join(format!("{}.json", points[0].id));
+        let pretty =
+            serde_json::to_string_pretty(&store.read_manifest(&first_path).unwrap()).unwrap();
+        fs::write(&first_path, pretty).unwrap();
+        let before = inventory(&store);
+        let plan = store.preview_limit(1).unwrap();
+        assert!(plan.feasible);
+        assert_eq!(plan.delete_count, 2);
+        assert_eq!(plan.current_bytes, store.list().unwrap().total_bytes);
+        assert!(plan.projected_bytes <= 1024 * 1024);
+        assert!(plan.minimum_bytes < plan.projected_bytes);
+        assert_eq!(plan.token, store.preview_limit(1).unwrap().token);
+        assert_eq!(inventory(&store), before);
+        let mut saved = None;
+        store
+            .change_policy(
+                BackupPolicy {
+                    enabled: true,
+                    max_mi_b: 1,
+                },
+                Some(&plan.token),
+                |policy| {
+                    saved = Some(policy.clone());
+                    Ok(())
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            saved,
+            Some(BackupPolicy {
+                enabled: true,
+                max_mi_b: 1
+            })
+        );
+        let catalog = store.list().unwrap();
+        assert_eq!(catalog.total_bytes, plan.projected_bytes);
+        assert_eq!(catalog.points.len(), 3);
+        assert!(catalog.points.iter().any(|p| p.id == points[2].id));
+        assert!(catalog.points.iter().any(|p| p.id == points[3].id));
+        assert!(catalog.points.iter().any(|p| p.id == other.id));
+        fs::remove_dir_all(&repository).unwrap();
+        fs::remove_dir_all(&other_repository).unwrap();
+        for (id, directory) in [
+            (&points[3].id, "latest-restored"),
+            (&other.id, "other-restored"),
+        ] {
+            let destination = root.path().join(directory);
+            store
+                .restore(id, &destination, &AtomicBool::new(false))
+                .unwrap();
+            run(&destination, &["fsck", "--full", "--strict"]);
+        }
+    }
+
+    #[test]
+    fn limit_reduction_rejects_missing_or_stale_confirmation_and_persistence_failure_without_deleting(
+    ) {
+        let (_root, repository, store) = fixture();
+        for day in 0..3 {
+            fs::write(repository.join("version.bin"), random_bytes(400 * 1024)).unwrap();
+            create(&store, &repository, START + day * DAY);
+        }
+        let policy = BackupPolicy {
+            enabled: true,
+            max_mi_b: 1,
+        };
+        let plan = store.preview_limit(1).unwrap();
+        let before = inventory(&store);
+        let mut called = false;
+        assert_eq!(
+            store
+                .change_policy(policy.clone(), None, |_| {
+                    called = true;
+                    Ok(())
+                })
+                .unwrap_err()
+                .error,
+            BackupError::LimitChanged
+        );
+        assert!(!called);
+        assert_eq!(inventory(&store), before);
+        assert_eq!(
+            store
+                .change_policy(policy.clone(), Some(&plan.token), |_| Err(
+                    "persistence failed".into()
+                ))
+                .unwrap_err()
+                .error,
+            BackupError::Io
+        );
+        assert_eq!(inventory(&store), before);
+        assert_eq!(store.policy().unwrap(), BackupPolicy::default());
+        fs::write(
+            store.root.join("chunks").join("0".repeat(64)),
+            b"preserve orphan",
+        )
+        .unwrap();
+        let changed = inventory(&store);
+        assert_eq!(
+            store
+                .change_policy(policy, Some(&plan.token), |_| {
+                    called = true;
+                    Ok(())
+                })
+                .unwrap_err()
+                .error,
+            BackupError::LimitChanged
+        );
+        assert!(!called);
+        assert_eq!(inventory(&store), changed);
+    }
+
+    #[test]
+    fn impossible_limit_preserves_every_latest_tie_and_unrelated_bytes() {
+        let (_root, repository, store) = fixture();
+        fs::write(repository.join("version.bin"), random_bytes(600 * 1024)).unwrap();
+        let first = create(&store, &repository, START);
+        fs::write(repository.join("version.bin"), random_bytes(600 * 1024)).unwrap();
+        let latest = create(&store, &repository, START + DAY);
+        let path = store.root.join("points").join(format!("{}.json", first.id));
+        let mut tied = store.read_manifest(&path).unwrap();
+        tied.point.created_at = latest.created_at;
+        write_json_replace(&path, &tied).unwrap();
+        let plan = store.preview_limit(1).unwrap();
+        assert!(!plan.feasible);
+        assert_eq!(plan.delete_count, 0);
+        assert!(plan.minimum_bytes > 1024 * 1024);
+        let before = inventory(&store);
+        assert_eq!(
+            store
+                .change_policy(
+                    BackupPolicy {
+                        enabled: true,
+                        max_mi_b: 1
+                    },
+                    Some(&plan.token),
+                    |_| panic!("must not persist impossible limit")
+                )
+                .unwrap_err()
+                .error,
+            BackupError::LimitTooSmall
+        );
+        assert_eq!(inventory(&store), before);
+        fs::write(
+            store.root.join("chunks").join("0".repeat(64)),
+            vec![1; 1024 * 1024],
+        )
+        .unwrap();
+        let with_orphan = store.preview_limit(1).unwrap();
+        assert_eq!(with_orphan.minimum_bytes, plan.minimum_bytes + 1024 * 1024);
+    }
+
+    #[test]
+    fn cleanup_failure_rolls_policy_back_and_leaves_remaining_points_restorable() {
+        for rollback_fails in [false, true] {
+            let (root, repository, store) = fixture();
+            let mut latest = None;
+            for day in 0..3 {
+                fs::write(repository.join("version.bin"), random_bytes(400 * 1024)).unwrap();
+                latest = Some(create(&store, &repository, START + day * DAY));
+            }
+            let latest = latest.unwrap();
+            let plan = store.preview_limit(1).unwrap();
+            let previous = store.policy().unwrap();
+            store.fail_next_deletion();
+            let next = BackupPolicy {
+                enabled: true,
+                max_mi_b: 1,
+            };
+            let mut writes = Vec::new();
+            let error = store
+                .change_policy(next.clone(), Some(&plan.token), |policy| {
+                    writes.push(policy.clone());
+                    if writes.len() > 1 && rollback_fails {
+                        Err("rollback failed".into())
+                    } else {
+                        Ok(())
+                    }
+                })
+                .unwrap_err();
+            assert_eq!(error.error, BackupError::Io);
+            assert_eq!(error.rollback_failed, rollback_fails);
+            assert_eq!(writes, vec![next.clone(), previous.clone()]);
+            assert_eq!(
+                store.policy().unwrap(),
+                if rollback_fails { next } else { previous }
+            );
+            let catalog = store.list().unwrap();
+            assert_eq!(catalog.points.len(), 2);
+            assert!(catalog.points.iter().any(|p| p.id == latest.id));
+            fs::remove_dir_all(&repository).unwrap();
+            let restored = root.path().join("restored-after-failure");
+            store
+                .restore(&latest.id, &restored, &AtomicBool::new(false))
+                .unwrap();
+            run(&restored, &["fsck", "--full", "--strict"]);
+        }
+    }
+
+    #[test]
+    fn capture_reclaims_only_needed_global_extras_and_preserves_candidate_shared_chunks() {
+        for reuse_old_chunk in [false, true] {
+            let (root, repository, store) = fixture();
+            let old_bytes = random_bytes(500 * 1024);
+            let mut points = Vec::new();
+            for day in 0..4 {
+                let bytes = if day == 0 {
+                    old_bytes.clone()
+                } else {
+                    random_bytes(if day == 3 { 300 * 1024 } else { 500 * 1024 })
+                };
+                fs::write(repository.join("version.bin"), bytes).unwrap();
+                points.push(create(&store, &repository, START + day * DAY));
+            }
+            let (_other_root, other_repository, _unused) = fixture();
+            let incoming = random_bytes(400 * 1024);
+            fs::write(other_repository.join("incoming.bin"), &incoming).unwrap();
+            if reuse_old_chunk {
+                fs::write(other_repository.join("reused.bin"), &old_bytes).unwrap();
+            }
+            store.set_policy_without_cleanup(BackupPolicy {
+                enabled: true,
+                max_mi_b: 2,
+            });
+            let added = create(&store, &other_repository, START + 4 * DAY);
+            let receipt = store
+                .take_auto_prune()
+                .expect("capture must reclaim extras");
+            assert_eq!(receipt.removed_count, if reuse_old_chunk { 2 } else { 1 });
+            assert!(receipt.freed_bytes > 400 * 1024);
+            let catalog = store.list().unwrap();
+            assert!(catalog.total_bytes <= 2 * 1024 * 1024);
+            assert!(catalog.points.iter().any(|p| p.id == points[3].id));
+            assert!(catalog.points.iter().any(|p| p.id == points[2].id));
+            assert!(!catalog.points.iter().any(|p| p.id == points[0].id));
+            assert_eq!(
+                catalog.points.iter().any(|p| p.id == points[1].id),
+                !reuse_old_chunk
+            );
+            fs::remove_dir_all(&repository).unwrap();
+            fs::remove_dir_all(&other_repository).unwrap();
+            let restored = root.path().join("incoming-restored");
+            store
+                .restore(&added.id, &restored, &AtomicBool::new(false))
+                .unwrap();
+            assert_eq!(fs::read(restored.join("incoming.bin")).unwrap(), incoming);
+            if reuse_old_chunk {
+                assert_eq!(fs::read(restored.join("reused.bin")).unwrap(), old_bytes);
+            }
+            store
+                .restore(
+                    &points[3].id,
+                    &root.path().join("previous-restored"),
+                    &AtomicBool::new(false),
+                )
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn impossible_capture_including_temporary_verification_preserves_all_extras() {
+        for temporary_pressure in [false, true] {
+            let (_root, repository, store) = fixture();
+            for day in 0..3 {
+                fs::write(repository.join("version.bin"), random_bytes(300 * 1024)).unwrap();
+                create(&store, &repository, START + day * DAY);
+            }
+            let (_other_root, other_repository, _unused) = fixture();
+            fs::write(
+                other_repository.join("incoming.bin"),
+                random_bytes(if temporary_pressure {
+                    500 * 1024
+                } else {
+                    900 * 1024
+                }),
+            )
+            .unwrap();
+            if temporary_pressure {
+                let log = fs::read(other_repository.join(".git/logs/HEAD")).unwrap();
+                let mut large = Vec::new();
+                while large.len() < 400 * 1024 {
+                    large.extend_from_slice(&log);
+                }
+                fs::write(other_repository.join(".git/logs/HEAD"), large).unwrap();
+            }
+            store.set_policy_without_cleanup(BackupPolicy {
+                enabled: true,
+                max_mi_b: 1,
+            });
+            let before = inventory(&store);
+            assert!(matches!(
+                store.capture_at(&other_repository, &AtomicBool::new(false), START + 3 * DAY),
+                Err(BackupError::NoSpace) | Ok(CaptureOutcome::NoSpace)
+            ));
+            assert_eq!(inventory(&store), before);
+            assert!(store.take_auto_prune().is_none());
+            assert!(fs::read_dir(store.root.join("staging"))
+                .unwrap()
+                .next()
+                .is_none());
+        }
+    }
+    #[test]
+    fn capture_preflight_never_evicts_when_candidate_or_retained_contents_are_corrupt() {
+        for corrupt_source in [false, true] {
+            let (_root, repository, store) = fixture();
+            for day in 0..3 {
+                fs::write(repository.join("version.bin"), random_bytes(300 * 1024)).unwrap();
+                create(&store, &repository, START + day * DAY);
+            }
+            let (_other_root, other_repository, _unused) = fixture();
+            fs::write(
+                other_repository.join("incoming.bin"),
+                random_bytes(400 * 1024),
+            )
+            .unwrap();
+            if corrupt_source {
+                fs::write(
+                    other_repository.join(".git/refs/heads/main"),
+                    format!("{}\n", "f".repeat(40)),
+                )
+                .unwrap();
+            } else {
+                let manifests = store.manifests().unwrap();
+                let id = entry_chunks(&manifests[0].entries)
+                    .into_iter()
+                    .next()
+                    .unwrap();
+                let path = store.root.join("chunks").join(&id);
+                fs::write(&path, b"corrupt").unwrap();
+                // Match cached stat signatures to exercise the full content check.
+                for mut point in manifests {
+                    if point.chunk_signatures.contains_key(&id) {
+                        point
+                            .chunk_signatures
+                            .insert(id.clone(), chunk_signature(&path).unwrap());
+                        write_json_replace(
+                            &store
+                                .root
+                                .join("points")
+                                .join(format!("{}.json", point.point.id)),
+                            &point,
+                        )
+                        .unwrap();
+                    }
+                }
+            }
+            store.set_policy_without_cleanup(BackupPolicy {
+                enabled: true,
+                max_mi_b: 1,
+            });
+            let before = inventory(&store);
+            assert!(store
+                .capture_at(&other_repository, &AtomicBool::new(false), START + 3 * DAY)
+                .is_err());
+            assert_eq!(inventory(&store), before);
+            assert!(store.take_auto_prune().is_none());
+        }
+    }
     #[test]
     fn retention_uses_daily_weekly_monthly_without_duplicates_and_never_expires_last_point() {
         let (_root, repository, store) = fixture();
@@ -3087,7 +4165,9 @@ mod tests {
         let latest = all.last().unwrap().id.clone();
         let gate = store.gate.lock().unwrap();
         let manifests = store.manifests().unwrap();
-        store.prune(&manifests, START + 1000 * DAY, 1).unwrap();
+        store
+            .apply_retention(&manifests, START + 1000 * DAY, 1)
+            .unwrap();
         drop(gate);
         let remaining = store.list().unwrap().points;
         assert_eq!(remaining.len(), 1);
@@ -3111,7 +4191,9 @@ mod tests {
         let second_point = create(&store, &second, START + DAY);
         let gate = store.gate.lock().unwrap();
         let manifests = store.manifests().unwrap();
-        store.prune(&manifests, START + 1000 * DAY, 1).unwrap();
+        store
+            .apply_retention(&manifests, START + 1000 * DAY, 1)
+            .unwrap();
         drop(gate);
         let points = store.list().unwrap().points;
         assert_eq!(points.len(), 2);
@@ -3382,17 +4464,349 @@ mod tests {
     }
     #[test]
     fn explicit_deletion_removes_only_its_point_and_unshared_chunks() {
-        let (_root, repository, store) = fixture();
+        let (root, repository, store) = fixture();
         let first = create(&store, &repository, START);
         fs::write(repository.join("untracked.txt"), "second").unwrap();
         let second = create(&store, &repository, START + DAY);
+        let remaining = store
+            .read_manifest(
+                &store
+                    .root
+                    .join("points")
+                    .join(format!("{}.json", second.id)),
+            )
+            .unwrap();
+        let shared = entry_chunks(&remaining.entries)
+            .into_iter()
+            .map(|id| {
+                let bytes = fs::read(store.root.join("chunks").join(&id)).unwrap();
+                (id, bytes)
+            })
+            .collect::<BTreeMap<_, _>>();
         let before = store.chunk_sizes(None).unwrap().len();
         store.delete(&first.id).unwrap();
         assert_eq!(store.list().unwrap().points[0].id, second.id);
         assert!(store.chunk_sizes(None).unwrap().len() <= before);
-        store.delete(&second.id).unwrap();
-        assert!(store.list().unwrap().points.is_empty());
-        assert_eq!(store.total_bytes().unwrap(), 0);
+        assert_eq!(store.delete(&second.id), Err(BackupError::Protected));
+        for (id, bytes) in shared {
+            assert_eq!(fs::read(store.root.join("chunks").join(id)).unwrap(), bytes);
+        }
+        fs::remove_dir_all(&repository).unwrap();
+        let restored = root.path().join("restored-after-deletion");
+        store
+            .restore(&second.id, &restored, &AtomicBool::new(false))
+            .unwrap();
+        assert_eq!(
+            fs::read_to_string(restored.join("tracked.txt")).unwrap(),
+            "original\n"
+        );
+        assert_eq!(
+            fs::read_to_string(restored.join("untracked.txt")).unwrap(),
+            "second"
+        );
+        run(&restored, &["fsck", "--full", "--strict"]);
+    }
+
+    fn inventory(store: &BackupStore) -> BTreeMap<PathBuf, Vec<u8>> {
+        ["points", "chunks"]
+            .into_iter()
+            .flat_map(|directory| {
+                fs::read_dir(store.root.join(directory))
+                    .unwrap()
+                    .map(|entry| {
+                        let path = entry.unwrap().path();
+                        (path.clone(), fs::read(path).unwrap())
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn deletion_protects_newest_per_repository_and_every_newest_timestamp_tie() {
+        let (_root, repository, store) = fixture();
+        let first = create(&store, &repository, START);
+        fs::write(repository.join("next.txt"), "next").unwrap();
+        let second = create(&store, &repository, START + DAY);
+        let (_other_root, other_repository, _unused_store) = fixture();
+        let other = create(&store, &other_repository, START + 2 * DAY);
+        let before = inventory(&store);
+        assert_eq!(store.delete(&second.id), Err(BackupError::Protected));
+        assert_eq!(store.delete(&other.id), Err(BackupError::Protected));
+        assert_eq!(inventory(&store), before);
+
+        let path = store.root.join("points").join(format!("{}.json", first.id));
+        let mut tied = store.read_manifest(&path).unwrap();
+        tied.point.created_at = second.created_at;
+        write_json_replace(&path, &tied).unwrap();
+        let before = inventory(&store);
+        assert_eq!(store.delete(&first.id), Err(BackupError::Protected));
+        assert_eq!(store.delete(&second.id), Err(BackupError::Protected));
+        assert_eq!(inventory(&store), before);
+        let all = store.manifests().unwrap();
+        let keep = retained(&all, START + 200 * DAY);
+        assert!(keep.contains(&first.id) && keep.contains(&second.id));
+        let budgeted = fit_budget(&all, keep, &store.chunk_sizes(None).unwrap(), 1).unwrap();
+        assert!(
+            budgeted.contains(&first.id)
+                && budgeted.contains(&second.id)
+                && budgeted.contains(&other.id)
+        );
+    }
+
+    #[test]
+    fn deletion_rejects_stale_and_traversal_ids_without_touching_storage() {
+        let (_root, repository, store) = fixture();
+        create(&store, &repository, START);
+        let before = inventory(&store);
+        assert_eq!(store.delete(&"0".repeat(64)), Err(BackupError::Changed));
+        for id in ["../points", "..\\points", "/tmp/elsewhere", ""] {
+            assert_eq!(store.delete(id), Err(BackupError::InvalidPath));
+        }
+        assert_eq!(inventory(&store), before);
+    }
+
+    #[test]
+    fn deletion_checks_actual_remaining_bytes_even_when_cached_signatures_match() {
+        let (_root, repository, store) = fixture();
+        let first = create(&store, &repository, START);
+        fs::write(repository.join("next.txt"), "distinct newest contents").unwrap();
+        let second = create(&store, &repository, START + DAY);
+        let path = store
+            .root
+            .join("points")
+            .join(format!("{}.json", second.id));
+        let mut latest = store.read_manifest(&path).unwrap();
+        let entry = latest
+            .entries
+            .iter()
+            .find(|entry| entry.path == b"next.txt")
+            .unwrap();
+        let Content::File { chunks, .. } = &entry.content else {
+            panic!("expected file")
+        };
+        let id = chunks[0].clone();
+        let chunk = store.root.join("chunks").join(&id);
+        fs::write(&chunk, b"corrupt payload").unwrap();
+        latest
+            .chunk_signatures
+            .insert(id, chunk_signature(&chunk).unwrap());
+        write_json_replace(&path, &latest).unwrap();
+        // Catalog metadata alone cannot prove these files can still be restored.
+        assert_eq!(store.list().unwrap().corrupt_points, 0);
+        let before = inventory(&store);
+        assert_eq!(store.delete(&first.id), Err(BackupError::Corrupt));
+        assert_eq!(inventory(&store), before);
+        assert_eq!(store.prune(), Err(BackupError::Corrupt));
+        assert_eq!(inventory(&store), before);
+        assert_eq!(store.preview_limit(1).unwrap_err(), BackupError::Corrupt);
+        assert_eq!(
+            store
+                .change_policy(
+                    BackupPolicy {
+                        enabled: true,
+                        max_mi_b: 1
+                    },
+                    None,
+                    |_| panic!("corruption must reject before persistence")
+                )
+                .unwrap_err()
+                .error,
+            BackupError::Corrupt
+        );
+        assert_eq!(inventory(&store), before);
+    }
+
+    #[test]
+    fn invalid_manifest_or_unknown_chunk_blocks_deletion_before_any_removal() {
+        for corrupt_manifest in [true, false] {
+            let (_root, repository, store) = fixture();
+            let first = create(&store, &repository, START);
+            fs::write(repository.join("next.txt"), "next").unwrap();
+            let second = create(&store, &repository, START + DAY);
+            if corrupt_manifest {
+                fs::write(
+                    store
+                        .root
+                        .join("points")
+                        .join(format!("{}.json", second.id)),
+                    b"broken manifest",
+                )
+                .unwrap();
+            } else {
+                fs::write(
+                    store.root.join("chunks").join("unknown-data"),
+                    b"preserve uncertain bytes",
+                )
+                .unwrap();
+            }
+            let before = inventory(&store);
+            assert_eq!(store.delete(&first.id), Err(BackupError::Corrupt));
+            assert_eq!(inventory(&store), before);
+            assert_eq!(store.prune(), Err(BackupError::Corrupt));
+            assert_eq!(inventory(&store), before);
+        }
+    }
+
+    #[test]
+    fn manual_deletion_preserves_unrelated_orphan_chunks() {
+        let (_root, repository, store) = fixture();
+        let first = create(&store, &repository, START);
+        fs::write(repository.join("next.txt"), "next").unwrap();
+        create(&store, &repository, START + DAY);
+        let orphan = store.root.join("chunks").join("0".repeat(64));
+        fs::write(&orphan, b"unrelated crash residue").unwrap();
+        store.delete(&first.id).unwrap();
+        assert_eq!(fs::read(orphan).unwrap(), b"unrelated crash residue");
+    }
+
+    #[test]
+    fn pruning_preserves_each_repository_latest_ties_shared_data_and_restoration_without_sources() {
+        let (root, repository, store) = fixture();
+        let first = create(&store, &repository, START);
+        fs::write(repository.join("next.txt"), "middle").unwrap();
+        let middle = create(&store, &repository, START + DAY);
+        fs::write(repository.join("next.txt"), "latest").unwrap();
+        let latest = create(&store, &repository, START + 2 * DAY);
+        let middle_path = store
+            .root
+            .join("points")
+            .join(format!("{}.json", middle.id));
+        let mut tied = store.read_manifest(&middle_path).unwrap();
+        tied.point.created_at = latest.created_at;
+        write_json_replace(&middle_path, &tied).unwrap();
+
+        let (_other_root, other_repository, _unused_store) = fixture();
+        let other_first = create(&store, &other_repository, START);
+        fs::write(other_repository.join("other.txt"), "other latest").unwrap();
+        let other_latest = create(&store, &other_repository, START + DAY);
+        let manifests = store.manifests().unwrap();
+        let keep = protected_latest(&manifests);
+        let kept_chunks = manifests
+            .iter()
+            .filter(|m| keep.contains(&m.point.id))
+            .flat_map(|m| entry_chunks(&m.entries))
+            .map(|id| {
+                let bytes = fs::read(store.root.join("chunks").join(&id)).unwrap();
+                (id, bytes)
+            })
+            .collect::<BTreeMap<_, _>>();
+        let orphan = store.root.join("chunks").join("0".repeat(64));
+        fs::write(&orphan, b"unrelated bytes").unwrap();
+        store.prune().unwrap();
+        let remaining = store
+            .list()
+            .unwrap()
+            .points
+            .into_iter()
+            .map(|p| p.id)
+            .collect::<HashSet<_>>();
+        assert_eq!(remaining, keep);
+        assert!(!remaining.contains(&first.id));
+        assert!(!remaining.contains(&other_first.id));
+        assert!(remaining.contains(&middle.id));
+        assert!(remaining.contains(&latest.id));
+        assert!(remaining.contains(&other_latest.id));
+        for (id, bytes) in kept_chunks {
+            assert_eq!(fs::read(store.root.join("chunks").join(id)).unwrap(), bytes);
+        }
+        assert_eq!(fs::read(&orphan).unwrap(), b"unrelated bytes");
+        fs::remove_dir_all(&repository).unwrap();
+        fs::remove_dir_all(&other_repository).unwrap();
+        for (id, directory, filename, expected) in [
+            (&middle.id, "middle-restored", "next.txt", "middle"),
+            (&latest.id, "latest-restored", "next.txt", "latest"),
+            (
+                &other_latest.id,
+                "other-restored",
+                "other.txt",
+                "other latest",
+            ),
+        ] {
+            let restored = root.path().join(directory);
+            store
+                .restore(id, &restored, &AtomicBool::new(false))
+                .unwrap();
+            assert_eq!(
+                fs::read_to_string(restored.join(filename)).unwrap(),
+                expected
+            );
+            run(&restored, &["fsck", "--full", "--strict"]);
+        }
+    }
+
+    #[test]
+    fn pruning_an_empty_or_all_protected_store_is_a_noop_and_still_checks_ambiguous_inventory() {
+        let (_root, repository, store) = fixture();
+        let before = inventory(&store);
+        store.prune().unwrap();
+        assert_eq!(inventory(&store), before);
+        create(&store, &repository, START);
+        let orphan = store.root.join("chunks").join("0".repeat(64));
+        fs::write(&orphan, b"preserve orphan").unwrap();
+        let before = inventory(&store);
+        store.prune().unwrap();
+        assert_eq!(inventory(&store), before);
+        fs::write(store.root.join("chunks").join("unknown"), b"ambiguous").unwrap();
+        let before = inventory(&store);
+        assert_eq!(store.prune(), Err(BackupError::Corrupt));
+        assert_eq!(inventory(&store), before);
+    }
+
+    #[test]
+    fn pruning_waits_for_the_store_gate_and_recomputes_protected_points_after_waiting() {
+        let (_root, repository, store) = fixture();
+        let first = create(&store, &repository, START);
+        fs::write(repository.join("next.txt"), "next").unwrap();
+        let latest = create(&store, &repository, START + DAY);
+        let store = std::sync::Arc::new(store);
+        let gate = store.gate.lock().unwrap();
+        let (sent, received) = std::sync::mpsc::channel();
+        let pruning = store.clone();
+        let task = thread::spawn(move || sent.send(pruning.prune()).unwrap());
+        assert!(received.recv_timeout(Duration::from_millis(50)).is_err());
+        // Simulate a point that becomes newest while the queued operation waits.
+        let path = store.root.join("points").join(format!("{}.json", first.id));
+        let mut newest = store.read_manifest(&path).unwrap();
+        newest.point.created_at = latest.created_at + 1;
+        write_json_replace(&path, &newest).unwrap();
+        drop(gate);
+        assert_eq!(
+            received.recv_timeout(Duration::from_secs(10)).unwrap(),
+            Ok(())
+        );
+        task.join().unwrap();
+        let points = store.list().unwrap().points;
+        assert_eq!(points.len(), 1);
+        assert_eq!(points[0].id, first.id);
+    }
+
+    #[test]
+    fn deleting_waits_for_the_same_gate_as_capture_restore_and_maintenance() {
+        let (_root, repository, store) = fixture();
+        let first = create(&store, &repository, START);
+        fs::write(repository.join("next.txt"), "next").unwrap();
+        let second = create(&store, &repository, START + DAY);
+        let store = std::sync::Arc::new(store);
+        let gate = store.gate.lock().unwrap();
+        let (sent, received) = std::sync::mpsc::channel();
+        let deleting = store.clone();
+        let task = thread::spawn(move || {
+            sent.send(deleting.delete(&first.id)).unwrap();
+        });
+        assert!(received.recv_timeout(Duration::from_millis(50)).is_err());
+        assert!(store
+            .root
+            .join("points")
+            .join(format!("{}.json", second.id))
+            .exists());
+        drop(gate);
+        assert_eq!(
+            received.recv_timeout(Duration::from_secs(10)).unwrap(),
+            Ok(())
+        );
+        task.join().unwrap();
+        assert_eq!(store.list().unwrap().points[0].id, second.id);
     }
     #[cfg(unix)]
     #[test]
@@ -3457,6 +4871,37 @@ mod tests {
             "raw name"
         );
     }
+    #[test]
+    fn restart_cleans_abandoned_verification_hooks_and_can_capture_and_restore_again() {
+        let (root, repository, store) = fixture();
+        let first = create(&store, &repository, START);
+        // Use the same factory as capacity preflight and retain its directory,
+        // modeling a process exit that cannot run TempDir's destructor.
+        let abandoned = verification_hooks(&store.root.join("staging"))
+            .unwrap()
+            .keep();
+        assert!(abandoned.is_dir());
+        let directory = store.root.clone();
+        drop(store);
+
+        let reopened = BackupStore::new(directory, BackupPolicy::default()).unwrap();
+        reopened.maintenance().unwrap();
+        assert!(!abandoned.exists());
+        assert_eq!(reopened.list().unwrap().points[0].id, first.id);
+        fs::write(repository.join("tracked.txt"), "after restart\n").unwrap();
+        let next = create(&reopened, &repository, START + DAY);
+        fs::remove_dir_all(&repository).unwrap();
+        let destination = root.path().join("restored-after-restart");
+        reopened
+            .restore(&next.id, &destination, &AtomicBool::new(false))
+            .unwrap();
+        assert_eq!(
+            fs::read_to_string(destination.join("tracked.txt")).unwrap(),
+            "after restart\n"
+        );
+        run(&destination, &["fsck", "--full", "--strict"]);
+    }
+
     #[test]
     fn abandoned_capture_and_manifest_files_are_removed_before_budget_checks() {
         let (_root, repository, store) = fixture();

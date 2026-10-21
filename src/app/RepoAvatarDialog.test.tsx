@@ -40,11 +40,11 @@ describe('RepoAvatarDialog', () => {
       target: { value: CUSTOM_COLOR },
     });
     await user.click(screen.getByRole('tab', { name: 'Plantas' }));
-    await user.click(screen.getByRole('button', { name: 'Cactus' }));
+    await user.click(screen.getByRole('button', { name: 'Bonsái' }));
     await user.click(screen.getByRole('tab', { name: 'Festividades' }));
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(handlers.onConfirm).toHaveBeenCalledExactlyOnceWith({
-      glyph: 'cactus',
+      glyph: 'bonsai',
       tone: 12,
       color: CUSTOM_COLOR,
     });

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { localBranches, stashName } from '@core/domain/refs';
 import type { Branch, RefsSnapshot } from '@core/domain/refs';
 import type { Repository } from '@core/domain/repository';
+import { useRepositoryName } from '@features/repositories/useRepositoryName';
 import { useI18n } from '@i18n/useI18n';
 import { CollapsibleRail, type RailSection } from '@ui/CollapsibleRail';
 import { ContextMenu } from '@ui/ContextMenu';
@@ -69,6 +70,7 @@ export function RefPanel({
   onGoToHead,
 }: RefPanelProps) {
   const { t } = useI18n();
+  const repoName = useRepositoryName(repository.id, repository.name);
   const { collapsed: sectionsCollapsed, toggle } = sectionCollapse;
   const { actions } = menuContext;
   const openActionPreview = useWorkingStore((s) => s.openActionPreview);
@@ -624,7 +626,7 @@ export function RefPanel({
 
   return (
     <CollapsibleRail
-      label={t('working.refPanel.label', { repo: repository.name })}
+      label={t('working.refPanel.label', { repo: repoName })}
       sections={sections}
       collapsed={collapsed}
       onCollapsedChange={onCollapsedChange}

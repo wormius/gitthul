@@ -114,6 +114,142 @@ describe('Shell', () => {
    * Repositorios no es una pestaña: es el hogar. La tira arranca vacía y quien
    * marca dónde se está es su botón de la barra, que es su pestaña.
    */
+  it.each(['list', 'spaces'] as const)(
+    'sets aliases from repository context menus in %s layout',
+    async (layout) => {
+      const library = createMockLibraryPort();
+      await library.createSpaceAndAddMany('Team', ['gitthul']);
+      await library.setLayout(layout);
+      const user = userEvent.setup();
+      renderShell('es-MX', undefined, { ...ports, library });
+      const rows = await screen.findAllByRole('option');
+      const row = rows.find((candidate) =>
+        within(candidate).queryByText('/home/example/projects/gitthul'),
+      );
+      expect(row).toBeDefined();
+      fireEvent.contextMenu(within(row!).getByText('/home/example/projects/gitthul'));
+      await user.click(screen.getByRole('menuitem', { name: 'Asignar alias…' }));
+      await user.type(screen.getByRole('textbox', { name: 'Alias' }), 'Project');
+      await user.click(screen.getByRole('button', { name: 'Guardar' }));
+      await waitFor(() => expect(within(row!).getByText('Project')).toBeInTheDocument());
+      expect((await library.read()).aliases.gitthul).toBe('Project');
+      expect((await library.read()).spaces[0]?.repos).toEqual(['gitthul']);
+    },
+  );
+
+  it('changes and clears a repository alias from its tab and keeps lists and GitWorking synchronized', async () => {
+    const library = createMockLibraryPort();
+    const user = userEvent.setup();
+    renderShell('es-MX', undefined, { ...ports, library });
+    await openRepo(user, '/home/example/projects/gitthul');
+    const tabs = screen.getByRole('list', { name: 'Pestañas abiertas' });
+    fireEvent.contextMenu(within(tabs).getByRole('button', { name: 'gitthul' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Asignar alias…' }));
+    await user.type(screen.getByRole('textbox', { name: 'Alias' }), 'Mi proyecto');
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(tabNames()).toEqual(['Mi proyecto']));
+    expect(
+      await screen.findByRole('button', { name: /Mi proyecto/, expanded: true }),
+    ).toBeInTheDocument();
+    await user.click(launcher('Ir a Repositorios'));
+    expect(
+      (await screen.findAllByRole('option')).some((row) => within(row).queryByText('Mi proyecto')),
+    ).toBe(true);
+    expect((await ports.git.listRepositories()).find((repo) => repo.id === 'gitthul')?.name).toBe(
+      'gitthul',
+    );
+    fireEvent.contextMenu(within(tabs).getByRole('button', { name: 'Mi proyecto' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Asignar alias…' }));
+    await user.clear(screen.getByRole('textbox', { name: 'Alias' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(tabNames()).toEqual(['gitthul']));
+    expect((await library.read()).aliases).toEqual({});
+  });
+
+  it('edita el alias con doble clic en una pestaña y sincroniza todas las del repositorio', async () => {
+    const library = createMockLibraryPort();
+    const save = vi.spyOn(library, 'setAlias');
+    const user = userEvent.setup();
+    renderShell('es-MX', undefined, { ...ports, library });
+    await openRepo(user, '/home/example/projects/gitthul');
+    const workingId = useShellStore.getState().activeId!;
+    act(() => useShellStore.getState().openTerminalFrom(workingId));
+    const tabs = screen.getByRole('list', { name: 'Pestañas abiertas' });
+    expect(tabNames()).toEqual(['gitthul', 'gitthul']);
+
+    // El primer clic activa la pestaña inactiva; el segundo empieza a editarla.
+    await user.dblClick(within(tabs).getAllByRole('button', { name: 'gitthul' })[0]!);
+    const input = within(tabs).getByRole('textbox', { name: 'Alias de gitthul' });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('gitthul');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(useShellStore.getState().activeId).toBe(workingId);
+    await user.clear(input);
+    await user.type(input, '  Mi proyecto  ');
+    expect(save).not.toHaveBeenCalled();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(tabNames()).toEqual(['Mi proyecto', 'Mi proyecto']));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect((await library.read()).aliases.gitthul).toBe('Mi proyecto');
+    expect(
+      await screen.findByRole('button', { name: /Mi proyecto/, expanded: true }),
+    ).toBeInTheDocument();
+
+    await user.dblClick(within(tabs).getAllByRole('button', { name: 'Mi proyecto' })[0]!);
+    await user.clear(within(tabs).getByRole('textbox'));
+    await user.type(within(tabs).getByRole('textbox'), 'Borrador');
+    await user.keyboard('{Escape}');
+    expect(tabNames()).toEqual(['Mi proyecto', 'Mi proyecto']);
+    expect(save).toHaveBeenCalledTimes(1);
+
+    // La pestaña de terminal conserva el mismo repositorio y permite quitar su alias.
+    await user.dblClick(within(tabs).getAllByRole('button', { name: 'Mi proyecto' })[1]!);
+    await user.clear(within(tabs).getByRole('textbox'));
+    await user.click(launcher('Ir a Repositorios'));
+    await waitFor(() => expect(tabNames()).toEqual(['gitthul', 'gitthul']));
+    expect(save).toHaveBeenCalledTimes(2);
+    expect((await library.read()).aliases).toEqual({});
+    expect(
+      (await screen.findAllByRole('option')).some((row) => within(row).queryByText('gitthul')),
+    ).toBe(true);
+    expect(
+      useShellStore.getState().tabs.every((tab) => tab.context.repository?.repoName === 'gitthul'),
+    ).toBe(true);
+  });
+
+  it('no ofrece edición de alias al hacer doble clic en una terminal sin repositorio', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(launcher('Abrir una pestaña de terminal'));
+    const tabs = screen.getByRole('list', { name: 'Pestañas abiertas' });
+    await user.dblClick(within(tabs).getByRole('button', { name: 'Terminal' }));
+    expect(within(tabs).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(tabNames()).toEqual(['Terminal']);
+  });
+
+  it('conserva el alias y el borrador inline si falla guardar y permite reintentarlo', async () => {
+    const library = createMockLibraryPort();
+    await library.setAlias('gitthul', 'Actual');
+    const save = vi.spyOn(library, 'setAlias').mockRejectedValueOnce(new Error('Write failed'));
+    const user = userEvent.setup();
+    renderShell('es-MX', undefined, { ...ports, library });
+    await openRepo(user, '/home/example/projects/gitthul');
+    const tabs = screen.getByRole('list', { name: 'Pestañas abiertas' });
+    await user.dblClick(within(tabs).getByRole('button', { name: 'Actual' }));
+    const input = within(tabs).getByRole('textbox', { name: 'Alias de gitthul' });
+    await user.clear(input);
+    await user.type(input, 'Nuevo');
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(input).toHaveAttribute('aria-invalid', 'true'));
+    expect(input).toHaveValue('Nuevo');
+    expect((await library.read()).aliases.gitthul).toBe('Actual');
+    expect(useRepositoriesStore.getState().library?.aliases.gitthul).toBe('Actual');
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(tabNames()).toEqual(['Nuevo']));
+    expect((await library.read()).aliases.gitthul).toBe('Nuevo');
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
   it('arranca en Repositorios, sin ninguna pestaña', () => {
     renderShell();
 

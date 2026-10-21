@@ -41,3 +41,9 @@ descripción.
 Los diálogos, listas y menús conservan su navegación con Tab, flechas, Enter y
 Escape. Las combinaciones de copiar y pegar en la terminal se describen en
 [Terminal integrada](terminal.md).
+
+En el visor de diff y en todos los editores de Resolver, **Mod+C** copia el texto
+seleccionado y **Mod+A** selecciona todo el texto del panel enfocado. Ambas acciones
+también están en su menú contextual. En Resolver puedes copiar desde A, B, el
+resultado editable y las vistas de resultado resuelto y revisión, sin cambiar las
+decisiones del conflicto.

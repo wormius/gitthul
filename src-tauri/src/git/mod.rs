@@ -1759,6 +1759,21 @@ fn apply_stash_with_recovery(
     index: usize,
     options: &stash::ApplyStashOptions,
 ) -> Result<status::WorkingStatus, GitCommandError> {
+    if let Some(prepared) =
+        stash::paths::prepare(repository, index, options).map_err(map_stash_error)?
+    {
+        let before =
+            undo_checkpoint::Checkpoint::capture_selected(repository, prepared.paths.clone())
+                .map_err(|_| GitCommandError::new("undo.snapshotUnavailable", json!({})))?;
+        return with_prepared_checkpoint(
+            id,
+            repository,
+            undo,
+            "undo.applyStashPaths",
+            before,
+            || stash::paths::apply(repository, index, options, &prepared).map_err(map_stash_error),
+        );
+    }
     let before = undo_checkpoint::Checkpoint::capture_stash(repository, &options.expected_stash)
         .map_err(|_| GitCommandError::new("undo.snapshotUnavailable", json!({})))?;
     with_prepared_checkpoint(id, repository, undo, "undo.applyStash", before, || {
@@ -1917,6 +1932,12 @@ fn map_integration_error(error: integration::IntegrationError) -> GitCommandErro
 
 fn map_stash_error(error: stash::StashError) -> GitCommandError {
     match error {
+        stash::StashError::PartialConflict(diagnostic) => {
+            GitCommandError::new("stash.partialConflict", json!({})).with_diagnostic(diagnostic)
+        }
+        stash::StashError::PartialUnsupported => {
+            GitCommandError::new("stash.partialUnsupported", json!({}))
+        }
         stash::StashError::Stale(reference) => {
             GitCommandError::new("ref.stale", json!({ "ref": reference }))
         }

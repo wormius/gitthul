@@ -117,3 +117,78 @@ it('los cambios de apariencia conservan su escritura agrupada y la elección del
   expect(hook.flush).not.toHaveBeenCalled();
   expect(hook.result.current.settings.updates).toEqual(initial.updates);
 });
+
+it('el límite espera a su persistencia sin sobrescribir otro ajuste concurrente', async () => {
+  let finishPatch!: () => void;
+  const hook = mount();
+  hook.patch.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finishPatch = resolve;
+      }),
+  );
+  let pending!: Promise<void>;
+  act(() => {
+    pending = hook.result.current.patch(
+      { backup: { maxMiB: 512 } },
+      { backupLimitToken: 'reviewed' },
+    );
+  });
+  expect(getSettingsSnapshot().backup.maxMiB).toBe(1024);
+  expect(hook.patch).toHaveBeenCalledWith(
+    { backup: { maxMiB: 512 } },
+    { backupLimitToken: 'reviewed' },
+  );
+  await act(async () => {
+    await hook.result.current.patch({ appearance: { density: 'compact' } });
+    finishPatch();
+    await pending;
+  });
+  expect(hook.flush).not.toHaveBeenCalled();
+  expect(getSettingsSnapshot().backup.maxMiB).toBe(512);
+  expect(getSettingsSnapshot().appearance.density).toBe('compact');
+});
+
+it('un límite rechazado no queda en memoria aunque otro ajuste cambie durante la escritura', async () => {
+  const failure = new Error('backup.limitChanged');
+  let rejectPatch!: (error: Error) => void;
+  const hook = mount();
+  hook.patch.mockImplementationOnce(
+    () =>
+      new Promise<void>((_, reject) => {
+        rejectPatch = reject;
+      }),
+  );
+  let pending!: Promise<void>;
+  act(() => {
+    pending = hook.result.current.patch({ backup: { maxMiB: 512 } }, { backupLimitToken: 'old' });
+  });
+  await act(async () => {
+    await hook.result.current.patch({ appearance: { density: 'compact' } });
+    rejectPatch(failure);
+    await expect(pending).rejects.toBe(failure);
+  });
+  expect(getSettingsSnapshot().backup.maxMiB).toBe(1024);
+  expect(getSettingsSnapshot().appearance.density).toBe('compact');
+  expect(hook.flush).not.toHaveBeenCalled();
+  expect(hook.patch.mock.calls[1]).toEqual([{ appearance: { density: 'compact' } }]);
+});
+
+it('un fallo ajeno posterior no convierte un límite ya guardado en un fallo', async () => {
+  const failure = new Error('disk full');
+  const hook = mount(vi.fn(() => Promise.reject(failure)));
+  await act(async () => {
+    await hook.result.current.patch({ backup: { maxMiB: 2048 } });
+  });
+  expect(hook.flush).not.toHaveBeenCalled();
+  expect(hook.log).not.toHaveBeenCalled();
+  expect(getSettingsSnapshot().backup.maxMiB).toBe(2048);
+  await act(async () => {
+    await expect(hook.result.current.patch({ updates: { promptDismissed: true } })).rejects.toBe(
+      failure,
+    );
+  });
+  expect(getSettingsSnapshot().backup.maxMiB).toBe(2048);
+  expect(getSettingsSnapshot().updates).toEqual(DEFAULT_SETTINGS.updates);
+  expect(hook.patch).toHaveBeenCalledWith({ backup: { maxMiB: 2048 } });
+});

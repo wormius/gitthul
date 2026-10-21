@@ -13,6 +13,7 @@ import { syntaxLanguageForPath, type CodeLineMark } from '@ui/codeSurfaceUtils';
 import { Skeleton } from '@ui/Skeleton';
 
 import { useResolveStore } from './resolveStore';
+import { useResolverClipboard } from './useResolverClipboard';
 import { diffLines, toLines } from './conflict';
 import styles from './ResolutionReview.module.css';
 
@@ -47,6 +48,7 @@ export function ResolutionReview({
 }: ResolutionReviewProps) {
   const { t } = useI18n();
   const { git } = usePorts();
+  const clipboard = useResolverClipboard();
 
   const encoding = useResolveStore((state) => state.encodings.get(path) ?? 'auto');
   const load = useCallback(
@@ -107,6 +109,7 @@ export function ResolutionReview({
 
       <div className={styles.body}>
         <CodeSurface
+          clipboard={clipboard}
           encoding={conflict.encoding ?? 'utf-8'}
           value={text}
           label={t('resolve.review.title', { branch: conflict.oursLabel })}

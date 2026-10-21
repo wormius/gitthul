@@ -11,7 +11,13 @@ import {
 import { GitErrorPanel } from '@app/GitErrorPanel';
 import { useGestures } from '@app/GestureContext';
 import type { GestureRegistry } from '@app/gestures';
-import type { RepoAvatar, RepoSort, Space, SpaceId } from '@core/domain/library';
+import {
+  repositoryName,
+  type RepoAvatar,
+  type RepoSort,
+  type Space,
+  type SpaceId,
+} from '@core/domain/library';
 import type { RepoId, RepoSummary } from '@core/domain/repository';
 import { useTheme } from '@design/useTheme';
 import type { I18nContextValue } from '@i18n/I18nContext';
@@ -32,6 +38,7 @@ import { HomePanel } from './HomePanel';
 import { OpenRepoFlow } from './OpenRepoFlow';
 import { relativeTime } from './relativeTime';
 import { RepoActionsBar } from './RepoActionsBar';
+import { RepoAliasDialog } from '@app/RepoAliasDialog';
 import { RepoAvatarDialog } from '@app/RepoAvatarDialog';
 import { RepoFilterBar } from './RepoFilterBar';
 import { RepoRow } from './RepoRow';
@@ -111,8 +118,11 @@ export function RepositoriesView() {
   const layout = library?.layout ?? 'list';
   const filtering = filter.trim() !== '';
   const visible = useMemo(
-    () => (repositories ? visibleRepositories({ repositories, sort, filter, collator }) : []),
-    [collator, filter, repositories, sort],
+    () =>
+      repositories
+        ? visibleRepositories({ repositories, sort, filter, collator, aliases: library?.aliases })
+        : [],
+    [collator, filter, repositories, sort, library?.aliases],
   );
   const recent = useMemo(() => recentRepositories(repositories ?? []), [repositories]);
   const rowHeight = repoRowHeight(settings.density, settings.uiFontSize, false);
@@ -496,7 +506,7 @@ export function RepositoriesView() {
                 <ul className={styles.failureList} aria-label={t('repositories.failures.list')}>
                   {batchFailures.map(({ repo, error }) => (
                     <li key={repo.id}>
-                      <h3>{repo.name}</h3>
+                      <h3>{repositoryName(repo, library?.aliases)}</h3>
                       <code className={styles.failurePath}>{repo.path}</code>
                       <GitErrorPanel error={error} />
                     </li>
@@ -559,6 +569,14 @@ export function RepositoriesView() {
         <CreateRepoDialog parentPath={dialog.parentPath} actions={actions} onClose={closeDialog} />
       )}
       {dialog.kind === 'clone' && <CloneRepoDialog actions={actions} onClose={closeDialog} />}
+      {dialog.kind === 'alias' && (
+        <RepoAliasDialog
+          key={dialog.repo.id}
+          repo={dialog.repo}
+          current={library?.aliases[dialog.repo.id] ?? null}
+          onClose={closeDialog}
+        />
+      )}
       {dialog.kind === 'avatar' && (
         <RepoAvatarDialog
           repo={dialog.repo}
@@ -652,6 +670,11 @@ function rowMenu({
       onSelect: () => actions.reveal(repo),
     },
     {
+      key: 'alias',
+      label: t('repositories.alias.menu'),
+      onSelect: () => openDialog({ kind: 'alias', repo }),
+    },
+    {
       key: 'avatar',
       label: t('repositories.menu.chooseAvatar'),
       onSelect: () => openDialog({ kind: 'avatar', repo }),
@@ -714,7 +737,10 @@ function removalMenu({
           ? space.name
           : t('repositories.menu.removeFromSpace', { space: space.name })
         : repos.length === 1
-          ? t('repositories.menu.removeOneFromSpace', { repo: repos[0]!.name, space: space.name })
+          ? t('repositories.menu.removeOneFromSpace', {
+              repo: repositoryName(repos[0]!, useRepositoriesStore.getState().library?.aliases),
+              space: space.name,
+            })
           : t('repositories.menu.removeSelectedFromSpace', {
               count: repos.length,
               space: space.name,

@@ -30,6 +30,8 @@ export interface Library {
   sort: RepoSort;
   layout: LibraryLayout;
   avatars: Readonly<Record<RepoId, RepoAvatar>>;
+  /** Local display names, independent from Git identity and directory names. */
+  aliases: Readonly<Record<RepoId, string>>;
   /** Aperturas agregadas por día, nunca repositorios concretos. */
   usage: Readonly<Record<string, number>>;
 }
@@ -40,6 +42,7 @@ export const DEFAULT_LIBRARY: Library = {
   sort: 'lastOpened',
   layout: 'list',
   avatars: {},
+  aliases: {},
   usage: {},
 };
 export const USAGE_MONTHS = 14;
@@ -234,6 +237,25 @@ export function setAvatar(library: Library, repo: RepoId, avatar: RepoAvatar | n
   return { ...library, avatars: { ...library.avatars, [repo]: avatar } };
 }
 
+/** A blank alias restores the directory name without changing repository identity. */
+export function setAlias(library: Library, repo: RepoId, alias: string | null): Library {
+  const clean = alias?.trim() ?? '';
+  if (clean === '') {
+    if (!Object.hasOwn(library.aliases, repo)) return library;
+    const { [repo]: _removed, ...aliases } = library.aliases;
+    return { ...library, aliases };
+  }
+  if (library.aliases[repo] === clean) return library;
+  return { ...library, aliases: { ...library.aliases, [repo]: clean } };
+}
+
+export function repositoryName(
+  repo: { id: RepoId; name: string },
+  aliases: Library['aliases'] = {},
+): string {
+  return Object.hasOwn(aliases, repo.id) ? aliases[repo.id]! : repo.name;
+}
+
 export function recordOpening(library: Library, at: number): Library {
   const day = isoDay(at);
   return {
@@ -331,6 +353,11 @@ export function normalizeLibrary(value: unknown, now: number = Date.now()): Libr
       ? (raw['layout'] as LibraryLayout)
       : DEFAULT_LIBRARY.layout,
     avatars: avatars(raw['avatars']),
+    aliases: Object.fromEntries(
+      Object.entries(record(raw['aliases']))
+        .map(([id, alias]) => [id, text(alias)] as const)
+        .filter(([id, alias]) => id.trim() !== '' && alias !== ''),
+    ),
     usage: usage(raw['usage'], now),
   };
 }

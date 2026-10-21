@@ -5,6 +5,7 @@ import { useRepositoryActions } from '@features/repositories/useRepositoryAction
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '@features/settings/sections';
 import { useI18n } from '@i18n/useI18n';
 import type { MessageKey } from '@i18n/messages';
+import { repositoryName } from '@core/domain/library';
 import { describeError } from '@core/domain/errors';
 import { CommandPalette, type CommandGroup } from '@ui/CommandPalette';
 import { Button } from '@ui/Button';
@@ -15,6 +16,7 @@ import { SearchResultIcon } from './SearchResultIcon';
 import { usePorts } from '../PortsContext';
 import { GestureContext } from '../GestureContext';
 import { newTerminalSurface, useShellStore } from '../shellStore';
+import { describeTab } from '../tabLabels';
 import { activeTab } from '../tabs';
 import {
   createSearchSession,
@@ -217,6 +219,7 @@ export function GlobalSearch() {
       query,
       ...(activeRepo ? { activeRepo } : {}),
       repositories: repositories ?? [],
+      aliases: library?.aliases,
       app,
       git,
       signal: controller.signal,
@@ -241,7 +244,9 @@ export function GlobalSearch() {
       onError: (repo) => {
         if (!controller.signal.aborted)
           setFailures((previous) =>
-            previous.includes(repo.name) ? previous : [...previous, repo.name],
+            previous.includes(repositoryName(repo, library?.aliases))
+              ? previous
+              : [...previous, repositoryName(repo, library?.aliases)],
           );
       },
     });
@@ -278,7 +283,7 @@ export function GlobalSearch() {
 
       if (session.current === current) session.current = null;
     };
-  }, [open, query, scope, view, activeRepo, repositories, app, git, actions]);
+  }, [open, query, scope, view, activeRepo, repositories, app, git, actions, library?.aliases]);
 
   const ranked = rankResults(
     category ? results.filter((result) => result.kind === category) : results,
@@ -371,8 +376,7 @@ export function GlobalSearch() {
           ))}
           <span className={styles.context}>
             {scope === 'view' && activeRepo && view !== 'settings'
-              ? shell.tabs.find((candidate) => candidate.context.repository?.repoId === activeRepo)
-                  ?.context.repository?.repoName
+              ? tab && describeTab(tab, t, library?.aliases).label
               : t(`search.context.${scope === 'all' ? 'all' : view}`)}
           </span>
         </>

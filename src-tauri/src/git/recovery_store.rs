@@ -85,10 +85,13 @@ pub(super) fn configure(root: PathBuf, policy: RecoveryPolicy) -> Result<(), Und
     let _guard = lock();
     private_directory(&root)?;
     let root = fs::canonicalize(root).map_err(|_| UndoError::GitFailed)?;
-    let config = Configuration {
+    set_configuration(Configuration {
         root: Some(root),
         policy,
-    };
+    });
+    Ok(())
+}
+fn set_configuration(config: Configuration) {
     #[cfg(test)]
     {
         TEST_CONFIG.with(|current| *current.borrow_mut() = Some(config));
@@ -100,7 +103,6 @@ pub(super) fn configure(root: PathBuf, policy: RecoveryPolicy) -> Result<(), Und
             .lock()
             .unwrap_or_else(|e| e.into_inner()) = config;
     }
-    Ok(())
 }
 pub(super) fn root_path() -> Result<PathBuf, UndoError> {
     configuration().root.ok_or(UndoError::GitFailed)
@@ -108,10 +110,30 @@ pub(super) fn root_path() -> Result<PathBuf, UndoError> {
 pub(super) fn policy() -> RecoveryPolicy {
     configuration().policy
 }
-pub(super) fn update_policy(policy: RecoveryPolicy) -> Result<(), UndoError> {
+/// Validation must finish before the settings file or emergency backups change.
+/// Updating this policy never changes the already configured storage location.
+pub(super) struct PreparedPolicy(RecoveryPolicy);
+
+pub(super) fn prepare_policy(policy: RecoveryPolicy) -> Result<PreparedPolicy, UndoError> {
     policy.validate()?;
-    let root = root_path()?;
-    configure(root, policy)
+    Ok(PreparedPolicy(policy))
+}
+
+/// Publish only in-memory state after persistence. Storage availability belongs
+/// to the next read/cleanup, not to the result of an already committed setting.
+pub(super) fn apply_policy(prepared: PreparedPolicy) -> bool {
+    let _guard = lock();
+    let mut config = configuration();
+    let changed = config.policy != prepared.0;
+    config.policy = prepared.0;
+    set_configuration(config);
+    changed
+}
+
+#[cfg(test)]
+pub(super) fn update_policy(policy: RecoveryPolicy) -> Result<(), UndoError> {
+    apply_policy(prepare_policy(policy)?);
+    Ok(())
 }
 pub(super) fn now() -> u64 {
     SystemTime::now()
@@ -996,6 +1018,68 @@ mod tests {
             ..RecoveryPolicy::default()
         }
     }
+
+    #[test]
+    fn preparing_or_rejecting_a_policy_does_not_enable_cleanup_before_persistence() {
+        let temporary = tempfile::tempdir().unwrap();
+        let original = policy_without_auto();
+        let _guard = test_store(temporary.path().join("recovery"), original.clone()).unwrap();
+        let root = root_path().unwrap();
+        let preserved = root.join("uncertain-data");
+        fs::write(&preserved, b"must survive a rejected settings write").unwrap();
+
+        let prepared = prepare_policy(RecoveryPolicy::default()).unwrap();
+        assert_eq!(policy(), original);
+        assert_eq!(root_path().unwrap(), root);
+        // A failed settings write drops the prepared update without committing it.
+        drop(prepared);
+        assert!(prepare_policy(RecoveryPolicy {
+            max_mi_b: 0,
+            ..Default::default()
+        })
+        .is_err());
+        assert_eq!(policy(), original);
+        assert_eq!(
+            fs::read(&preserved).unwrap(),
+            b"must survive a rejected settings write"
+        );
+    }
+
+    #[test]
+    fn committing_a_saved_policy_does_not_reopen_or_modify_an_unavailable_root() {
+        let temporary = tempfile::tempdir().unwrap();
+        let _guard = test_store(temporary.path().join("recovery"), policy_without_auto()).unwrap();
+        let root = root_path().unwrap();
+        let prepared = prepare_policy(RecoveryPolicy::default()).unwrap();
+        // Model the directory becoming unavailable after the durable settings
+        // write. Reconfiguring it here used to turn that success into an error.
+        fs::remove_dir(&root).unwrap();
+        fs::write(&root, b"unavailable recovery directory").unwrap();
+
+        assert!(apply_policy(prepared));
+        assert_eq!(policy(), RecoveryPolicy::default());
+        assert_eq!(root_path().unwrap(), root);
+        assert_eq!(fs::read(&root).unwrap(), b"unavailable recovery directory");
+        assert!(list().is_err());
+        assert!(!apply_policy(
+            prepare_policy(RecoveryPolicy::default()).unwrap()
+        ));
+    }
+
+    #[test]
+    fn applying_a_policy_preserves_the_current_configured_location() {
+        let temporary = tempfile::tempdir().unwrap();
+        let _guard = test_store(temporary.path().join("first"), policy_without_auto()).unwrap();
+        let prepared = prepare_policy(RecoveryPolicy::default()).unwrap();
+        let replacement = temporary.path().join("current");
+        configure(replacement.clone(), policy_without_auto()).unwrap();
+        let replacement = fs::canonicalize(replacement).unwrap();
+
+        assert!(apply_policy(prepared));
+        assert_eq!(root_path().unwrap(), replacement);
+        assert_eq!(policy(), RecoveryPolicy::default());
+    }
+
     #[test]
     fn external_store_loads_relative_manifests_after_session_and_export_survives_missing_repo() {
         let temporary = tempfile::tempdir().unwrap();

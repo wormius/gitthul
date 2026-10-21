@@ -1542,6 +1542,27 @@ describe('guardados', () => {
     expect(refs.stashes[0]?.sha).toBe(before.stashes[1]?.sha);
     expect(await git.dropStash('gitthul', 7)).toBe(refs);
   });
+
+  it('aplica archivos del stash sucesivamente y conserva índice y stash', async () => {
+    const initial = await git.readStatus('gitthul');
+    const refs = await git.createStash('gitthul', 'Selección', { includeUntracked: true });
+    const stash = refs.stashes[0]!;
+    const saved = await git.readCommit('gitthul', stash.sha);
+    const selected = saved.files.slice(0, 2).map((file) => file.path);
+    expect(selected).toHaveLength(2);
+    await git.applyStash('gitthul', 0, { paths: selected.slice(0, 1), expectedStash: stash.sha });
+    const applied = await git.applyStash('gitthul', 0, {
+      paths: selected.slice(1),
+      expectedStash: stash.sha,
+    });
+    expect(applied.unstaged.map((file) => file.path)).toEqual(selected);
+    expect(applied.staged).toEqual([]);
+    expect(initial.staged.length).toBeGreaterThan(0);
+    expect((await git.readRefs('gitthul')).stashes).toEqual(refs.stashes);
+    await expect(git.applyStash('gitthul', 0, { paths: selected })).rejects.toMatchObject({
+      code: 'stash.partialConflict',
+    });
+  });
 });
 
 describe('historia de un archivo', () => {

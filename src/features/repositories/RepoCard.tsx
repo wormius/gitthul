@@ -10,6 +10,7 @@ import { previewDrag } from '@ui/dragPreview';
 import type { MenuEntry } from '@ui/menuUtils';
 
 import { RepoDragPreview } from './RepoDragPreview';
+import { useRepositoryName } from './useRepositoryName';
 import styles from './RepoCard.module.css';
 
 interface RepoCardProps {
@@ -40,6 +41,7 @@ export function RepoCard({
   onDragStart,
   onDragEnd,
 }: RepoCardProps) {
+  const name = useRepositoryName(repo.id, repo.name);
   const { t } = useI18n();
   const wasSelected = useRef(false);
   const dragged = useRef(false);
@@ -91,7 +93,7 @@ export function RepoCard({
   return (
     <ContextMenu
       items={menu}
-      label={t('repositories.list.menu', { repo: repo.name })}
+      label={t('repositories.list.menu', { repo: name })}
       role="presentation"
     >
       <div
@@ -117,14 +119,14 @@ export function RepoCard({
         <RepoDragPreview ref={dragPreview} repo={repo} avatar={avatar} count={dragCount} />
         <div className={styles.region}>
           <Avatar
-            name={repo.name}
+            name={name}
             email={repo.id}
             size="md"
             className={styles.avatar}
             {...(avatar === null ? {} : avatar)}
           />
           <span className={styles.body}>
-            <span className={styles.name}>{repo.name}</span>
+            <span className={styles.name}>{name}</span>
             <span className={styles.path}>{repo.path}</span>
             <span className={styles.meta}>
               <BranchIcon className={styles.icon} />

@@ -430,7 +430,7 @@ describe('cambios sin diferencias de texto', () => {
   );
 });
 
-describe('WIP con muchos hunks', () => {
+describe.each([3, 200])('WIP con %s hunks', (count) => {
   it.each([
     ['unified', 'worktree'],
     ['split', 'worktree'],
@@ -450,7 +450,7 @@ describe('WIP con muchos hunks', () => {
       });
       if (file.content.kind !== 'text') throw new Error('El fixture debe ser textual');
       const first = file.content.hunks[0]!;
-      const hunks = Array.from({ length: 200 }, (_, index) => ({
+      const hunks = Array.from({ length: count }, (_, index) => ({
         ...first,
         id: `large-${String(index)}`,
         lines: [
@@ -461,7 +461,12 @@ describe('WIP con muchos hunks', () => {
             newLine: 10 + index * 100,
           },
           { kind: 'removed' as const, text: 'old', oldLine: 11 + index * 100, newLine: null },
-          { kind: 'added' as const, text: 'new', oldLine: null, newLine: 11 + index * 100 },
+          {
+            kind: 'added' as const,
+            text: `new-${index}`,
+            oldLine: null,
+            newLine: 11 + index * 100,
+          },
         ],
       }));
       vi.spyOn(git, 'readDiff').mockResolvedValue({
@@ -471,7 +476,8 @@ describe('WIP con muchos hunks', () => {
       useWorkingStore.getState().setDiffOptions({ columns, scope: 'hunks', content: 'diff' });
       const stageHunk = vi.fn();
       const stageLines = vi.fn();
-      const actions = { stageHunk, stageLines } as unknown as WorkingActions;
+      const copy = vi.fn();
+      const actions = { stageHunk, stageLines, copy } as unknown as WorkingActions;
       const { container } = render(
         <PortsContext value={{ ...selectPorts(), git }}>
           <I18nProvider initialLocale="es-MX">
@@ -496,6 +502,12 @@ describe('WIP con muchos hunks', () => {
         expect(editors.map((editor) => EditorView.findFromDOM(editor))).toEqual(views);
       }
       expect(destroy).not.toHaveBeenCalled();
+      fireEvent.keyDown(editors.at(-1)!, { key: 'a', ctrlKey: true });
+      fireEvent.keyDown(editors.at(-1)!, { key: 'c', ctrlKey: true });
+      expect(copy).toHaveBeenCalledOnce();
+      expect(copy.mock.calls[0]?.[0]).toContain('new-0');
+      expect(copy.mock.calls[0]?.[0]).toContain(`new-${count - 1}`);
+      expect(copy.mock.calls[0]?.[0]).not.toContain('Líneas');
       fireEvent.click(
         screen.getAllByRole('button', {
           name:
@@ -571,8 +583,9 @@ it.each([false, true])(
     act(() =>
       editorView.dispatch({ selection: { anchor: selectedLine.from, head: selectedLine.to } }),
     );
-    const selectedAction = screen.getByRole('button', { name: 'Agregar 1 líneas al staging' });
-    const states = editors.map((editor) => EditorView.findFromDOM(editor)!.state);
+    expect(screen.getByRole('button', { name: 'Agregar 1 líneas al staging' })).toBeInTheDocument();
+    const views = editors.map((editor) => EditorView.findFromDOM(editor)!);
+    const states = views.map((editor) => editor.state);
     rerender(view({ ...status }));
     await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
     expect(editors.every((editor) => editor.isConnected)).toBe(true);
@@ -595,6 +608,7 @@ it.each([false, true])(
       await refresh;
     });
     expect(screen.getAllByRole('textbox')).toEqual(editors);
+    expect(editors.map((editor) => EditorView.findFromDOM(editor))).toEqual(views);
     if (changed) {
       expect(
         screen.queryByRole('button', { name: 'Agregar 1 líneas al staging' }),
@@ -603,10 +617,13 @@ it.each([false, true])(
         'contenido actualizado',
       );
     } else {
-      expect(selectedAction).toBeInTheDocument();
-      editors.forEach((editor, index) =>
-        expect(EditorView.findFromDOM(editor)!.state).toBe(states[index]),
-      );
+      expect(
+        screen.getByRole('button', { name: 'Agregar 1 líneas al staging' }),
+      ).toBeInTheDocument();
+      views.forEach((editor, index) => {
+        expect(editor.state.doc).toBe(states[index]!.doc);
+        expect(editor.state.selection.eq(states[index]!.selection)).toBe(true);
+      });
     }
   },
 );
@@ -819,8 +836,8 @@ it.each(['hunks', 'file'] as const)(
 it.each([
   ['split', 'file', 'worktree', 30, 32],
   ['unified', 'file', 'worktree', 30, 34],
-  ['split', 'hunks', 'worktree', 4, 6],
-  ['unified', 'hunks', 'worktree', 4, 8],
+  ['split', 'hunks', 'worktree', 5, 7],
+  ['unified', 'hunks', 'worktree', 5, 9],
   ['unified', 'hunks', 'commit', 6, 10],
 ] as const)(
   'centra el primer tramo modificado y conserva el scroll al refrescar (%s, %s, %s)',
@@ -1136,5 +1153,64 @@ it.each(['added', 'deleted'] as const)(
       expect.objectContaining({ blob: snapshot.oid }),
     );
     expect(screen.getByText('En el stash saved-s')).toBeInTheDocument();
+  },
+);
+
+it.each([
+  [{ kind: 'commit', sha: 'commit' }, 'unified', 'hunks', 'diff'],
+  [{ kind: 'stash', sha: 'stash' }, 'split', 'hunks', 'diff'],
+  [{ kind: 'worktree' }, 'split', 'file', 'diff'],
+  [{ kind: 'index' }, 'unified', 'hunks', 'diff'],
+  [{ kind: 'commit', sha: 'commit' }, 'split', 'file', 'file'],
+] as const)(
+  'copia texto desde el menú y teclado en %j %s %s %s',
+  async (source, columns, scope, content) => {
+    const git = createMockGitPort({ latency: NO_LATENCY });
+    const path = 'src/design/roles.css';
+    const sample = await git.readDiff('gitthul', { path, source: { kind: 'worktree' } });
+    vi.spyOn(git, 'readDiff').mockResolvedValue({ ...sample, source });
+    vi.spyOn(git, 'readFile').mockResolvedValue({
+      path,
+      text: '  café\t中\r\nsegunda línea',
+      binary: false,
+      size: 30,
+      mediaType: 'text/css',
+      encoding: 'utf-8',
+    });
+    const copy = vi.fn();
+    useWorkingStore.getState().setDiffOptions({ columns, scope, content });
+    render(
+      <PortsContext value={{ ...selectPorts(), git }}>
+        <I18nProvider initialLocale="es-MX">
+          <DiffViewer
+            repoId="gitthul"
+            diff={{ path, source, returnTo: null }}
+            actions={
+              { copy, stageLines: vi.fn(), discardLines: vi.fn() } as unknown as WorkingActions
+            }
+            status={null}
+            onClose={() => {}}
+          />
+        </I18nProvider>
+      </PortsContext>,
+    );
+    const editors = await screen.findAllByRole('textbox');
+    const editor = editors.at(-1)!;
+    const view = EditorView.findFromDOM(editor)!;
+    act(() => view.dispatch({ selection: { anchor: 2, head: 7 } }));
+    const selected = view.state.sliceDoc(2, 7);
+    fireEvent.contextMenu(editor);
+    fireEvent.click(screen.getByRole('menuitem', { name: /Copiar selección/ }));
+    expect(copy).toHaveBeenLastCalledWith(selected);
+    fireEvent.keyDown(editor, { key: 'c', ctrlKey: true });
+    expect(copy).toHaveBeenCalledTimes(2);
+    expect(copy).toHaveBeenLastCalledWith(selected);
+    fireEvent.contextMenu(editor);
+    fireEvent.click(screen.getByRole('menuitem', { name: /Seleccionar todo/ }));
+    expect(view.state.selection.main.from).toBe(0);
+    expect(view.state.selection.main.to).toBe(view.state.doc.length);
+    for (const other of editors.filter((entry) => entry !== editor)) {
+      expect(EditorView.findFromDOM(other)!.state.selection.main.empty).toBe(true);
+    }
   },
 );

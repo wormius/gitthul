@@ -1,4 +1,32 @@
-# Seleccionar varios repositorios
+# Repositorios y alias
+
+Puedes asignar un alias desde el menú contextual de un repositorio en las listas
+o los espacios, o desde el menú contextual de su pestaña abierta. El alias aparece
+en esas vistas y en la cabecera de GitWorking; se guarda para las siguientes
+sesiones. Vacía el campo del alias para volver al nombre original.
+
+También puedes hacer **doble clic sobre el nombre de una pestaña** para editar
+el alias ahí mismo. Pulsa **Enter** o haz clic fuera para guardar, o **Escape**
+para cancelar. Dejar el campo vacío recupera el nombre original. El cambio se
+aplica a todas las pestañas del mismo repositorio, incluidas sus terminales.
+Si no se puede guardar, el texto permanece en el campo para que lo reintentes.
+
+El alias solo cambia cómo identificas el repositorio en GitThul. Su carpeta,
+remotos e identidad Git se conservan. Puedes encontrarlo por su alias, nombre
+original o ruta.
+
+## Elegir un avatar
+
+Abre **Cambiar avatar** en el menú contextual del repositorio para elegir una
+ilustración y su color. El catálogo incluye 128 dibujos repartidos en Símbolos,
+Animales, Plantas, Festividades y Abstractos, y también está disponible para los
+perfiles. Puedes usar uno de los tonos del tema, un color personalizado o volver
+a las iniciales.
+
+La versión 1.2.0 redibuja los 85 avatares anteriores y añade 43. Las elecciones
+guardadas conservan el mismo motivo y color; no necesitas volver a asignarlas.
+
+## Seleccionar varios repositorios
 
 En Repositorios, mantén **Ctrl** (Windows/Linux) o **Cmd** (macOS) mientras haces
 clic para añadir o quitar repositorios de la selección. **Shift + clic** selecciona

@@ -1,0 +1,222 @@
+.window {
+  inline-size: 100%;
+  max-inline-size: 32rem;
+  min-inline-size: 0;
+  margin-inline: auto;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.titleBar,
+.bottomBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-inline: var(--space-4);
+  background: var(--surface-panel);
+}
+
+.titleBar {
+  block-size: 1.75rem;
+  border-block-end: var(--border-width) solid var(--border-subtle);
+}
+
+.windowTitle {
+  inline-size: 22%;
+  block-size: 0.25rem;
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.windowControls {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.windowControls > span {
+  inline-size: 0.35rem;
+  block-size: 0.35rem;
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.viewport {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6) var(--space-3);
+  padding: var(--space-3);
+}
+
+/* Una sola aplicación tenue detrás de las cuatro posiciones posibles. */
+.content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: var(--space-5);
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.sidebar {
+  flex: 0 0 20%;
+  border-inline-end: var(--border-width) solid var(--border-subtle);
+  background: var(--surface-panel);
+}
+
+.document {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  padding-inline-end: var(--space-5);
+}
+
+.document > span {
+  block-size: 0.3rem;
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.document > span:nth-child(2) {
+  inline-size: 72%;
+}
+
+.document > span:nth-child(3) {
+  inline-size: 86%;
+}
+
+.corner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  inline-size: 100%;
+  max-inline-size: 12rem;
+  min-inline-size: 0;
+  padding: var(--space-2);
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  outline: var(--focus-ring-width) solid transparent;
+  outline-offset: var(--focus-ring-offset);
+}
+
+.corner[data-position$='end'] {
+  justify-self: end;
+  text-align: end;
+}
+
+.corner[data-position^='bottom'] {
+  flex-direction: column-reverse;
+}
+
+.corner:hover {
+  background: var(--surface-hover);
+}
+
+.corner:focus-visible {
+  outline-color: var(--focus-ring-color);
+}
+
+.corner[aria-checked='true'] {
+  color: var(--text-primary);
+  background: var(--surface-selected);
+  border-color: var(--border-accent);
+}
+
+.notification {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  min-block-size: 2.5rem;
+  padding: var(--space-3);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+}
+
+.notificationIcon {
+  flex: 0 0 auto;
+  inline-size: 0.45rem;
+  block-size: 0.45rem;
+  background: var(--text-muted);
+  border-radius: var(--radius-pill);
+}
+
+.lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-inline-size: 0;
+}
+
+.lines > span {
+  block-size: 0.25rem;
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.lines > span + span {
+  inline-size: 65%;
+  background: var(--border-subtle);
+}
+
+.check {
+  display: inline-flex;
+  flex: 0 0 auto;
+  inline-size: var(--icon-md);
+  block-size: var(--icon-md);
+  color: var(--text-on-accent);
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  opacity: 0;
+}
+
+.check > svg {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.corner[aria-checked='true'] .check {
+  opacity: 1;
+}
+
+.corner[aria-checked='true'] .notification {
+  border-color: var(--border-accent);
+}
+
+.label {
+  font-size: var(--text-sm);
+  line-height: var(--line-height-ui);
+  overflow-wrap: anywhere;
+}
+
+.bottomBar {
+  block-size: 1.1rem;
+  border-block-start: var(--border-width) solid var(--border-subtle);
+}
+
+.bottomBar > span {
+  inline-size: 18%;
+  block-size: 0.2rem;
+  background: var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.bottomBar > span + span {
+  inline-size: 10%;
+}

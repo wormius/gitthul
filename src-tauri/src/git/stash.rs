@@ -13,6 +13,8 @@ use super::refs::{self, RefsSnapshot};
 use super::repository::{self, RepoOperation};
 use super::status::{self, ResetPrecondition, WorkingStatus};
 
+pub(super) mod paths;
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateStashOptions {
@@ -40,6 +42,7 @@ impl CreateStashOptions {
 #[serde(rename_all = "camelCase")]
 pub struct ApplyStashOptions {
     drop: Option<bool>,
+    paths: Option<Vec<String>>,
     pub(super) expected_stash: String,
     precondition: ResetPrecondition,
 }
@@ -48,6 +51,8 @@ pub struct ApplyStashOptions {
 pub enum StashError {
     Stale(String),
     NothingToStash,
+    PartialConflict(Diagnostic),
+    PartialUnsupported,
     Conflict {
         stash: String,
         branch: String,
@@ -324,6 +329,10 @@ pub fn apply(
     index: usize,
     options: &ApplyStashOptions,
 ) -> Result<WorkingStatus, StashError> {
+    // Partial application must go through its prepared, scoped checkpoint path.
+    if options.paths.is_some() {
+        return Err(StashError::PartialUnsupported);
+    }
     verify_worktree(repository, &options.precondition)?;
     let selector = format!("stash@{{{index}}}");
     verify_stash(repository, &selector, &options.expected_stash)?;
@@ -1118,6 +1127,7 @@ mod tests {
         );
 
         let options = ApplyStashOptions {
+            paths: None,
             drop: Some(false),
             expected_stash: stash,
             precondition: status::reset_precondition(path),
@@ -1139,6 +1149,7 @@ mod tests {
         fs::write(path.join("tracked.txt"), "cambio\n").unwrap();
         create(path, "trabajo", &create_options(path)).unwrap();
         let options = ApplyStashOptions {
+            paths: None,
             drop: Some(true),
             expected_stash: resolve(path, "stash@{0}").unwrap(),
             precondition: status::reset_precondition(path),
@@ -1157,6 +1168,7 @@ mod tests {
         let clean = status::reset_precondition(path);
         fs::write(path.join("tracked.txt"), "externo\n").unwrap();
         let options = ApplyStashOptions {
+            paths: None,
             drop: Some(true),
             expected_stash: resolve(path, "stash@{0}").unwrap(),
             precondition: clean,
@@ -1207,6 +1219,7 @@ mod tests {
                 fs::write(path.join("tracked.txt"), "branch edit\n").unwrap();
                 git(path, &["commit", "-am", "diverged"]);
                 let options = ApplyStashOptions {
+                    paths: None,
                     drop: Some(pop),
                     expected_stash: target.clone(),
                     precondition: status::reset_precondition(path),
@@ -1256,6 +1269,7 @@ mod tests {
         fs::write(path.join("tracked.txt"), "staged\nunstaged\n").unwrap();
         create(path, "saved", &create_options(path)).unwrap();
         let options = ApplyStashOptions {
+            paths: None,
             drop: Some(false),
             expected_stash: resolve(path, "stash@{0}").unwrap(),
             precondition: status::reset_precondition(path),
@@ -1733,6 +1747,7 @@ mod tests {
         git(path, &["add", "tracked.txt"]);
         git(path, &["commit", "-m", "actual"]);
         let options = ApplyStashOptions {
+            paths: None,
             drop: Some(true),
             expected_stash,
             precondition: status::reset_precondition(path),
@@ -1760,6 +1775,7 @@ mod tests {
         let expected_stash = resolve(path, "stash@{0}").unwrap();
         fs::write(path.join("tracked.txt"), "wip local\n").unwrap();
         let options = ApplyStashOptions {
+            paths: None,
             drop: Some(true),
             expected_stash,
             precondition: status::reset_precondition(path),
@@ -1804,6 +1820,7 @@ mod tests {
         let before_staged = git(path, &["diff", "--cached"]);
         let before_unstaged = git(path, &["diff"]);
         let options = ApplyStashOptions {
+            paths: None,
             drop: Some(true),
             expected_stash,
             precondition: status::reset_precondition(path),
@@ -1840,6 +1857,7 @@ mod tests {
         git(path, &["add", "tracked.txt"]);
         git(path, &["commit", "-m", "actual"]);
         let options = ApplyStashOptions {
+            paths: None,
             drop: Some(true),
             expected_stash,
             precondition: status::reset_precondition(path),

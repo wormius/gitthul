@@ -6,6 +6,7 @@ import type { CommitRequest, CommitSequencePrecondition, Sha } from '@core/domai
 import { shortSha } from '@core/domain/commit';
 import type { DiffPrecondition, DiffSource } from '@core/domain/diff';
 import {
+  GitOperationError,
   describeError,
   isCancelled,
   isGitOperationError,
@@ -638,7 +639,7 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
       },
 
       copy: (text) => {
-        void copyText(text).then(
+        void system.writeClipboardText(text).then(
           () => {
             shell().setStatus({ tone: 'success', key: 'working.status.copied' });
           },
@@ -1069,6 +1070,35 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
         });
       },
 
+      applyStashPaths: (sha, paths) => {
+        if (paths.length === 0) return;
+        write(async () => {
+          const context = store().context;
+          const stash = context?.stashes?.find((candidate) => candidate.sha === sha);
+          if (!stash) throw new GitOperationError('ref.stale', { ref: sha });
+          try {
+            applyStatus(
+              await git.applyStash(repoId, stash.index, {
+                paths: [...new Set(paths)],
+                expectedStash: sha,
+                precondition: context?.resetPrecondition,
+              }),
+            );
+          } catch (error) {
+            await refreshOperationState();
+            throw error;
+          }
+          shell().setStatus({
+            tone: 'success',
+            key:
+              paths.length === 1
+                ? 'working.status.stashFileApplied'
+                : 'working.status.stashFilesApplied',
+            params: { count: paths.length },
+          });
+        });
+      },
+
       pop: (stash, drop) => {
         write(async () => {
           const precondition = store().context?.resetPrecondition;
@@ -1316,23 +1346,4 @@ export function revealFolderPath(repoPath: string, path: string): string {
   const root = repoPath.replace(/\/+$/, '');
 
   return relative === '' ? root : `${root}/${relative}`;
-}
-
-/**
- * Copiar al portapapeles, sin puerto propio.
- *
- * No es una salida al sistema como las de `SystemPort` —no abre nada, no lee
- * nada del disco— sino la misma API que cualquier página tiene, y en la ventana
- * de Tauri funciona igual. Va con respaldo porque `navigator.clipboard` no
- * existe en jsdom ni en contextos no seguros, y quedarse sin copiar un SHA no
- * puede tumbar la vista.
- */
-async function copyText(text: string): Promise<void> {
-  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-    await navigator.clipboard.writeText(text);
-
-    return;
-  }
-
-  throw new Error('sin portapapeles');
 }

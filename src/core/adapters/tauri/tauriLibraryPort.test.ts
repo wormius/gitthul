@@ -180,3 +180,24 @@ describe('createTauriLibraryPort', () => {
     },
   );
 });
+
+it('persists aliases through native JSON and preserves the old name when a write fails', async () => {
+  let disk = structuredClone(INITIAL);
+  let fail = false;
+  const call = vi.fn((command: string, args?: Record<string, unknown>) => {
+    if (command === 'library_read') return Promise.resolve(structuredClone(disk));
+    if (fail) return Promise.reject(new Error('Permission denied'));
+    disk = structuredClone(args?.['library']) as Library;
+    return Promise.resolve(undefined);
+  });
+  const port = createTauriLibraryPort(call);
+  await port.setAlias('uno', ' Delivery ');
+  expect((await createTauriLibraryPort(call).read()).aliases).toEqual({ uno: 'Delivery' });
+  fail = true;
+  await expect(port.setAlias('uno', 'Replacement')).rejects.toThrow('Permission denied');
+  expect((await port.read()).aliases).toEqual({ uno: 'Delivery' });
+  fail = false;
+  await Promise.all([port.setAlias('uno', null), port.setAlias('dos', 'Second')]);
+  expect((await createTauriLibraryPort(call).read()).aliases).toEqual({ dos: 'Second' });
+  expect(disk.spaces).toEqual(INITIAL.spaces);
+});

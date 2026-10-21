@@ -86,10 +86,11 @@ export function useRepositoryActions(): RepositoryActions {
     const load = async (signal?: AbortSignal) => {
       store().beginLoad();
       try {
-        const [repositories, library] = await Promise.all([
-          git.listRepositories({ signal }),
-          libraryPort.read(),
-        ]);
+        const repositories = await git.listRepositories({ signal });
+        if (signal?.aborted) return;
+        // Alias edits can finish while the catalog is loading. Read the latest
+        // library afterwards so a delayed listing cannot replace their labels.
+        const library = await libraryPort.read();
         if (!signal?.aborted) store().loaded(repositories, library);
       } catch (error) {
         if (!signal?.aborted && !isCancelled(error)) store().failList(toGitOperationError(error));

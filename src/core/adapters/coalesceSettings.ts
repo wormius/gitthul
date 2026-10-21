@@ -1,5 +1,5 @@
 import { mergeSettings, type SettingsPatch } from '@core/domain/settings';
-import type { SettingsPort } from '@core/ports/SettingsPort';
+import type { SettingsPatchOptions, SettingsPort } from '@core/ports/SettingsPort';
 
 export interface CoalesceOptions {
   /** Milisegundos de espera antes de escribir. */
@@ -28,8 +28,15 @@ export function coalesceSettingsWrites(
 
   let pending: SettingsPatch | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let writes: Promise<void> = Promise.resolve();
 
-  const flush = async () => {
+  const enqueue = (patch: SettingsPatch, writeOptions?: SettingsPatchOptions) => {
+    const write = writes.catch(() => undefined).then(() => port.patch(patch, writeOptions));
+    writes = write;
+    return write;
+  };
+
+  const drain = () => {
     if (timer !== null) {
       clearTimeout(timer);
       timer = null;
@@ -39,8 +46,11 @@ export function coalesceSettingsWrites(
 
     pending = null;
 
-    if (patch) await port.patch(patch);
+    return patch ? enqueue(patch) : writes;
+  };
 
+  const flush = async () => {
+    await drain();
     await port.flush();
   };
 
@@ -52,12 +62,20 @@ export function coalesceSettingsWrites(
 
   return {
     read: async () => {
+      await writes.catch(() => undefined);
       const current = await port.read();
       return pending ? mergeSettings(current, pending) : current;
     },
 
-    patch: (patch) => {
-      pending = pending ? mergePatch(pending, patch) : patch;
+    patch: (patch, writeOptions) => {
+      const change = structuredClone(patch);
+      if (writeOptions?.backupLimitToken !== undefined || patch.backup?.maxMiB !== undefined) {
+        // A limit and its approval form one operation. Queue the existing batch
+        // first and reserve this slot before any later changes can be grouped.
+        void drain().catch((error: unknown) => options.onError?.(error));
+        return enqueue(change, writeOptions ? { ...writeOptions } : undefined);
+      }
+      pending = pending ? mergePatch(pending, change) : change;
 
       if (timer === null) {
         timer = setTimeout(() => {

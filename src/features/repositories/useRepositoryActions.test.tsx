@@ -44,6 +44,43 @@ beforeEach(() => {
   useShellStore.getState().reset();
 });
 
+describe('repository loading', () => {
+  it('keeps an alias saved while listing repositories and preserves alias-filtered selection', async () => {
+    const ports = makePorts();
+    const actions = await loadedActions(ports);
+    const repositories = useRepositoriesStore.getState().repositories!;
+    const first = repositories[0]!;
+    act(() => useRepositoriesStore.getState().select(first));
+
+    let completeList!: (value: typeof repositories) => void;
+    const pendingList = new Promise<typeof repositories>((resolve) => {
+      completeList = resolve;
+    });
+    vi.spyOn(ports.git, 'listRepositories').mockReturnValueOnce(pendingList);
+    let loading!: Promise<void>;
+    act(() => {
+      loading = actions.load();
+    });
+
+    await act(async () => {
+      const saved = await ports.library.setAlias(first.id, 'Delivery');
+      useRepositoriesStore.getState().setLibrary(saved);
+      useRepositoriesStore.getState().setFilter('Delivery');
+    });
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first.id]));
+
+    await act(async () => {
+      completeList(repositories);
+      await loading;
+    });
+
+    expect(useRepositoriesStore.getState().library?.aliases[first.id]).toBe('Delivery');
+    expect(useRepositoriesStore.getState().filter).toBe('Delivery');
+    expect(useRepositoriesStore.getState().selectedIds).toEqual(new Set([first.id]));
+    expect(useRepositoriesStore.getState().selected?.id).toBe(first.id);
+  });
+});
+
 describe('repository batch actions', () => {
   it('opens each repository once, preserves existing tabs and serializes repeated triggers', async () => {
     const ports = makePorts();

@@ -1211,10 +1211,17 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
       const repo = find(id);
 
       return store(
-        remember(repo, applyStashIn(repo, index, options?.drop === true), 'undo.applyStash', {
-          branch: headName(repo),
-          index,
-        }),
+        remember(
+          repo,
+          options?.paths === undefined
+            ? applyStashIn(repo, index, options?.drop === true)
+            : applyStashPathsIn(repo, index, options),
+          options?.paths === undefined ? 'undo.applyStash' : 'undo.applyStashPaths',
+          {
+            branch: headName(repo),
+            index,
+          },
+        ),
       ).status;
     },
 
@@ -3159,6 +3166,44 @@ function applyStashIn(repo: MockRepo, index: number, drop: boolean): MockRepo {
   };
 
   return drop ? dropStashIn(next, index) : next;
+}
+
+function applyStashPathsIn(
+  repo: MockRepo,
+  index: number,
+  options: { paths?: readonly string[]; drop?: boolean; expectedStash?: Sha },
+): MockRepo {
+  const stash = repo.refs.stashes.find((candidate) => candidate.index === index);
+  if (!stash || (options.expectedStash !== undefined && stash.sha !== options.expectedStash)) {
+    throw new GitOperationError('ref.stale', { ref: `stash@{${String(index)}}` });
+  }
+  const paths = new Set(options.paths);
+  if (
+    paths.size === 0 ||
+    options.drop ||
+    repo.status.conflicted.length > 0 ||
+    repo.repository.operation.kind !== 'none'
+  ) {
+    throw new GitOperationError('stash.partialUnsupported', {});
+  }
+  const restored = filesOf(repo.history, stash.sha).filter((file) => paths.has(file.path));
+  if (restored.length !== paths.size) throw new GitOperationError('ref.stale', { ref: stash.sha });
+  const touched = new Set(
+    restored.flatMap((file) =>
+      file.change === 'renamed' && file.previousPath ? [file.path, file.previousPath] : [file.path],
+    ),
+  );
+  if ([...repo.status.staged, ...repo.status.unstaged].some((file) => touched.has(file.path))) {
+    throw new GitOperationError('stash.partialConflict', {});
+  }
+  return {
+    ...repo,
+    status: statusOf(
+      repo.status.staged,
+      [...repo.status.unstaged, ...restored],
+      repo.status.conflicted,
+    ),
+  };
 }
 
 /** Reapply WIP after switching HEAD; abort only returns to that destination state. */

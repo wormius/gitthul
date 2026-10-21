@@ -1,10 +1,12 @@
 import { useState } from 'react';
 
 import { usePorts } from '@app/PortsContext';
+import { RepoAliasDialog } from '@app/RepoAliasDialog';
+import { useRepositoriesStore } from '@features/repositories/repositoriesStore';
+import { useRepositoryName } from '@features/repositories/useRepositoryName';
 import { RepoAvatarDialog } from '@app/RepoAvatarDialog';
 import { useShellStore } from '@app/shellStore';
 import { shortSha } from '@core/domain/commit';
-import type { RepoAvatar } from '@core/domain/library';
 import type { Head } from '@core/domain/refs';
 import type { Repository } from '@core/domain/repository';
 import { useI18n } from '@i18n/useI18n';
@@ -42,14 +44,15 @@ export function RepoHeader({
   onToggle,
 }: RepoHeaderProps) {
   const { t } = useI18n();
+  const name = useRepositoryName(repository.id, repository.name);
+  const alias = useRepositoriesStore((state) => state.library?.aliases[repository.id] ?? null);
+  const [choosingAlias, setChoosingAlias] = useState(false);
   const { library } = usePorts();
   const activeId = useShellStore((state) => state.activeId);
   const closeTab = useShellStore((state) => state.closeTab);
   const label = head.detached || head.branch === null ? shortSha(head.sha) : head.branch;
-  const storedAvatar = useRepoAvatar(repository.id);
-  const [avatarOverride, setAvatarOverride] = useState<{ value: RepoAvatar | null } | null>(null);
+  const avatar = useRepoAvatar(repository.id);
   const [choosingAvatar, setChoosingAvatar] = useState(false);
-  const avatar = avatarOverride === null ? storedAvatar : avatarOverride.value;
   const menu: readonly MenuEntry[] = [
     {
       key: 'go-to-head',
@@ -59,7 +62,7 @@ export function RepoHeader({
     {
       key: 'copy-name',
       label: t('working.repoHeader.copyName'),
-      onSelect: () => onCopy(repository.name),
+      onSelect: () => onCopy(name),
     },
     {
       key: 'copy-path',
@@ -67,6 +70,11 @@ export function RepoHeader({
       onSelect: () => onCopy(repository.path),
     },
     { kind: 'separator', key: 'appearance' },
+    {
+      key: 'alias',
+      label: t('repositories.alias.menu'),
+      onSelect: () => setChoosingAlias(true),
+    },
     {
       key: 'avatar',
       label: t('working.repoHeader.changeAvatar'),
@@ -87,17 +95,17 @@ export function RepoHeader({
       <ContextMenu
         className={collapsed ? styles.collapsed : undefined}
         items={menu}
-        label={t('working.repoHeader.menu', { repo: repository.name })}
+        label={t('working.repoHeader.menu', { repo: name })}
       >
         <button
           type="button"
           className={styles.header}
           onClick={onToggle}
-          aria-label={`${t(collapsed ? 'working.refPanel.expand' : 'working.refPanel.collapse')}: ${repository.name}`}
+          aria-label={`${t(collapsed ? 'working.refPanel.expand' : 'working.refPanel.collapse')}: ${name}`}
           aria-expanded={!collapsed}
         >
           <Avatar
-            name={repository.name}
+            name={name}
             glyph={avatar?.glyph}
             tone={avatar?.tone}
             color={avatar?.color}
@@ -106,7 +114,7 @@ export function RepoHeader({
           />
           {!collapsed && (
             <span className={styles.info}>
-              <span className={styles.name}>{repository.name}</span>
+              <span className={styles.name}>{name}</span>
               <span
                 className={styles.branch}
                 onClick={(event) => {
@@ -122,6 +130,13 @@ export function RepoHeader({
         </button>
       </ContextMenu>
 
+      {choosingAlias && (
+        <RepoAliasDialog
+          repo={repository}
+          current={alias}
+          onClose={() => setChoosingAlias(false)}
+        />
+      )}
       {choosingAvatar && (
         <RepoAvatarDialog
           repo={repository}
@@ -129,8 +144,8 @@ export function RepoHeader({
           onCancel={() => setChoosingAvatar(false)}
           onConfirm={(next) => {
             void library.setAvatar(repository.id, next).then(
-              () => {
-                setAvatarOverride({ value: next });
+              (saved) => {
+                useRepositoriesStore.getState().setLibrary(saved);
                 setChoosingAvatar(false);
               },
               () => {

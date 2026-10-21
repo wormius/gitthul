@@ -14,6 +14,8 @@ import {
   removeManyFromSpaces,
   renameSpace,
   setAvatar,
+  setAlias,
+  repositoryName,
   setLayout,
   setSort,
   setSpaceCollapsed,
@@ -40,6 +42,7 @@ describe('biblioteca local', () => {
       sort: 'name',
       layout: 'spaces',
       avatars: { gitthul: { glyph: 'ship', tone: 2 } },
+      aliases: {},
       usage: { '2026-08-20': 3 },
     });
   });
@@ -55,6 +58,7 @@ describe('biblioteca local', () => {
       sort: 'name',
       layout: 'list',
       avatars: { gitthul: { glyph: 'ship', tone: 2 } },
+      aliases: {},
       usage: { '2026-08-21': 1 },
     });
   });
@@ -191,5 +195,28 @@ describe('biblioteca local', () => {
     expect(removeManyFromSpaces(initial, ['ausente'])).toBe(initial);
     expect(removeManyFromSpaces(initial, ['a'], ['ausente'])).toBe(initial);
     expect(initial.spaces[0]?.repos).toEqual(['a', 'b']);
+  });
+});
+
+describe('repository aliases', () => {
+  it('migrates old libraries, normalizes names, and rejects malformed values', () => {
+    expect(normalizeLibrary({}).aliases).toEqual({});
+    expect(
+      normalizeLibrary({ aliases: { a: '  Project A  ', b: '', c: 12, d: null, ' ': 'invalid' } })
+        .aliases,
+    ).toEqual({ a: 'Project A' });
+  });
+
+  it('sets and clears aliases without changing identity or memberships', () => {
+    const repo = { id: 'repo-a', name: 'folder', path: '/repos/folder' };
+    const original = createSpaceAndAddMany(DEFAULT_LIBRARY, 'Team', [repo.id]);
+    const aliased = setAlias(original, repo.id, '  Product  ');
+    expect(repositoryName(repo, aliased.aliases)).toBe('Product');
+    expect(repo).toEqual({ id: 'repo-a', name: 'folder', path: '/repos/folder' });
+    expect(aliased.spaces).toBe(original.spaces);
+    expect(setAlias(aliased, repo.id, 'Product')).toBe(aliased);
+    expect(setAlias(aliased, repo.id, '  ').aliases).toEqual({});
+    expect(setAlias(aliased, repo.id, null).aliases).toEqual({});
+    expect(repositoryName(repo, setAlias(aliased, repo.id, null).aliases)).toBe('folder');
   });
 });

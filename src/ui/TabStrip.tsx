@@ -83,6 +83,14 @@ export function TabStrip({ label, tabs, activeId, onActivate, onClose, onReorder
 
   // Las flechas recorren la tira sin activar nada: mirar antes de saltar.
   const onKeyDown = (event: KeyboardEvent<HTMLLIElement>, index: number) => {
+    if (
+      event.defaultPrevented ||
+      (event.target instanceof HTMLElement &&
+        event.target.closest('input, textarea, [contenteditable="true"]'))
+    ) {
+      return;
+    }
+
     const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
 
     if (step === 0 && event.key !== 'Home' && event.key !== 'End') return;

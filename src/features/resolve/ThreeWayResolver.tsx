@@ -35,6 +35,7 @@ import {
   type SideChoice,
 } from './conflict';
 import { useResolveStore } from './resolveStore';
+import { useResolverClipboard } from './useResolverClipboard';
 import styles from './ThreeWayResolver.module.css';
 import { WholeFileCard } from './WholeFileCard';
 
@@ -462,10 +463,7 @@ export function ThreeWayResolver({
                     encoding={conflict.encoding ?? 'utf-8'}
                     letter="A"
                     title={conflict.oursLabel}
-                    value={(conflict.ours.endsWith('\n')
-                      ? conflict.ours
-                      : `${conflict.ours}\n`
-                    ).replace(/\r\n/g, '\n')}
+                    value={conflict.ours}
                     marks={marksFor('ours')}
                     disabled={editing}
                     allSelected={
@@ -484,10 +482,7 @@ export function ThreeWayResolver({
                     encoding={conflict.encoding ?? 'utf-8'}
                     letter="B"
                     title={conflict.theirsLabel}
-                    value={(conflict.theirs.endsWith('\n')
-                      ? conflict.theirs
-                      : `${conflict.theirs}\n`
-                    ).replace(/\r\n/g, '\n')}
+                    value={conflict.theirs}
                     marks={marksFor('theirs')}
                     disabled={editing}
                     allSelected={
@@ -592,6 +587,7 @@ function SyncedSide({
 }) {
   const { t } = useI18n();
   const attach = useSyncedScroller();
+  const clipboard = useResolverClipboard();
 
   return (
     <div className={styles.side}>
@@ -611,7 +607,8 @@ function SyncedSide({
         </label>
       </header>
       <CodeSurface
-        value={value}
+        value={value.endsWith('\n') ? value : `${value}\n`}
+        clipboard={{ ...clipboard, sourceText: value }}
         encoding={encoding}
         label={`${letter} · ${title}`}
         showLineNumbers
@@ -649,12 +646,14 @@ function SyncedResult({
   language?: Parameters<typeof CodeSurface>[0]['language'];
 }) {
   const attach = useSyncedScroller();
+  const clipboard = useResolverClipboard();
 
   return (
     <section className={styles.side} aria-label={label}>
       <header className={styles.sideTitle}>{label}</header>
       <CodeSurface
         value={value}
+        clipboard={clipboard}
         encoding={encoding}
         label={label}
         showLineNumbers

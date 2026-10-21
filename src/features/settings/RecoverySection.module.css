@@ -2,6 +2,29 @@
   color: var(--text-secondary);
 }
 
+.operationProgress {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.limitPlan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-4);
+  margin-block: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.limitPlan dd {
+  margin: 0;
+  text-align: end;
+}
+
 .group {
   display: flex;
   flex-direction: column;
@@ -56,6 +79,42 @@
   margin-block: var(--space-2);
 }
 
+.usage {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-block: var(--space-2);
+}
+
+.usageSummary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.usageMeter {
+  block-size: var(--space-3);
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: var(--border-width) solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.usageFill {
+  display: block;
+  block-size: 100%;
+  background: var(--accent);
+}
+
+.usage[data-over-budget='true'] .usageFill {
+  background: var(--text-warning);
+}
+
 .storage code,
 .metadata code {
   overflow-wrap: anywhere;
@@ -82,6 +141,17 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--surface-panel);
+}
+
+.pointActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-inline-size: 100%;
+}
+
+.delete:not(:disabled) {
+  color: var(--text-danger);
 }
 
 .metadata {

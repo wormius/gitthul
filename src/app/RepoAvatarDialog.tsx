@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import type { RepoSummary } from '@core/domain/repository';
 import type { RepoAvatar } from '@core/domain/library';
+import { useRepositoryName } from '@features/repositories/useRepositoryName';
 import { useI18n } from '@i18n/useI18n';
 import { AvatarPicker } from '@ui/AvatarPicker';
 import { Button } from '@ui/Button';
@@ -19,6 +20,7 @@ interface RepoAvatarDialogProps {
 /** La elección es un borrador hasta que se confirma el diálogo. */
 export function RepoAvatarDialog({ repo, current, onConfirm, onCancel }: RepoAvatarDialogProps) {
   const { t } = useI18n();
+  const name = useRepositoryName(repo.id, repo.name);
   const [glyph, setGlyph] = useState<string | null>(current?.glyph ?? null);
   const [tone, setTone] = useState(current?.tone ?? 1);
   const [color, setColor] = useState<string | null>(current?.color ?? null);
@@ -31,8 +33,8 @@ export function RepoAvatarDialog({ repo, current, onConfirm, onCancel }: RepoAva
       open
       onClose={onCancel}
       size="md"
-      title={t('repositories.avatar.title', { repo: repo.name })}
-      closeLabel={t('repositories.avatar.close', { repo: repo.name })}
+      title={t('repositories.avatar.title', { repo: name })}
+      closeLabel={t('repositories.avatar.close', { repo: name })}
       footer={
         <>
           <Button onClick={onCancel}>{t('repositories.avatar.cancel')}</Button>
@@ -43,7 +45,7 @@ export function RepoAvatarDialog({ repo, current, onConfirm, onCancel }: RepoAva
       }
     >
       <AvatarPicker
-        name={repo.name}
+        name={name}
         seed={repo.id}
         glyph={glyph}
         tone={tone}
