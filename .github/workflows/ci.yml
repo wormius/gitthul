@@ -54,6 +54,8 @@ jobs:
           NODE
       - name: Install dependencies
         run: npm ci
+      - name: Verify AppImage security guards
+        run: node --test .github/scripts/appimage-security.test.js
       - name: Verify versions and third-party notices
         env:
           RELEASE_TAG: ${{ inputs.release-tag }}
@@ -151,7 +153,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libcanberra-gtk3-module libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 rpm xdg-utils
+          sudo apt-get install -y cmake build-essential binutils squashfs-tools libwebkit2gtk-4.1-dev libgtk-3-dev libcanberra-gtk3-module libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 rpm xdg-utils
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
@@ -224,71 +226,7 @@ jobs:
           NODE
       - name: Inventory AppImage libraries and system notices
         if: runner.os == 'Linux'
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import os from 'node:os';
-          import path from 'node:path';
-          import { execFileSync } from 'node:child_process';
-          import assert from 'node:assert/strict';
-          const version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
-          const image = fs.readdirSync('release-assets').find(name => name.endsWith('.AppImage'));
-          if (!image) throw new Error('Missing AppImage');
-          const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'gitthul-appimage-'));
-          const noticeDir = path.join(temp, 'system-notices');
-          fs.mkdirSync(noticeDir);
-          fs.chmodSync(path.resolve('release-assets', image), 0o755);
-          execFileSync(path.resolve('release-assets', image), ['--appimage-extract'], { cwd: temp, stdio: 'ignore' });
-          const installed = new Map(execFileSync('dpkg-query', ['-W', '-f=${binary:Package}\t${Version}\t${source:Package}\t${source:Version}\n'], { encoding: 'utf8' }).trim().split('\n').map(line => {
-            const [name, version, source, sourceVersion] = line.split('\t');
-            return [name, { name, version, source, sourceVersion }];
-          }));
-          const report = { image, libraries: [], packages: [], unmapped: [], reviewRequired: true };
-          const packages = new Set();
-          const appDir = path.join(temp, 'squashfs-root');
-          function walk(dir) {
-            for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
-              const file = path.join(dir, item.name);
-              if (item.isDirectory()) walk(file);
-              else if (item.isFile() && /\.so(?:\.\d+)*$/.test(item.name)) {
-                let owners = [];
-                try {
-                  const matches = execFileSync('dpkg-query', ['-S', `*/${item.name}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-                  owners = [...new Set(matches.trim().split('\n').flatMap(line => line.split(': /')[0].split(', ')).filter(name => installed.has(name)))];
-                } catch {}
-                const relative = path.relative(appDir, file);
-                report.libraries.push({ path: relative, packages: owners });
-                if (!owners.length) report.unmapped.push(relative);
-                for (const owner of owners) packages.add(owner);
-              }
-            }
-          }
-          walk(appDir);
-          assert.ok(!fs.readdirSync(appDir, { recursive: true }).some(file => /(?:^|\/)libwayland-client\.so(?:\.\d+)*$/.test(file)), 'Bundled Wayland client breaks EGL on newer Mesa');
-          const gtkHook = fs.readFileSync(path.join(appDir, 'apprun-hooks/linuxdeploy-plugin-gtk.sh'), 'utf8');
-          assert.doesNotMatch(gtkHook, /^\s*export\s+GDK_BACKEND=/m, 'AppImage must respect the session display backend');
-          const gioPath = gtkHook.match(/^\s*export\s+GIO_MODULE_DIR="\$APPDIR\/([^"]+)"/m)?.[1];
-          assert.ok(gioPath, 'AppImage must isolate its GIO modules from host GLib');
-          const gioDir = path.join(appDir, gioPath.replace(/^\/+/, ''));
-          assert.ok(fs.readdirSync(gioDir).some(name => name.endsWith('.so')), 'Missing bundled GIO modules');
-          assert.ok(fs.statSync(path.join(appDir, 'usr/lib/gtk-3.0/modules/libcanberra-gtk-module.so')).isFile(), 'Missing GTK sound module');
-          for (const name of [...packages].sort()) {
-            const pkg = installed.get(name);
-            const copyright = path.join('/usr/share/doc', name.split(':')[0], 'copyright');
-            const target = path.join(noticeDir, name.replaceAll(':', '_'));
-            fs.mkdirSync(target);
-            if (fs.existsSync(copyright)) fs.copyFileSync(copyright, path.join(target, 'copyright.txt'));
-            else report.unmapped.push(`Missing copyright: ${name}`);
-            report.packages.push({ ...pkg, sourceUrl: `https://launchpad.net/ubuntu/+source/${pkg.source}/${pkg.sourceVersion}` });
-          }
-          fs.cpSync('/usr/share/common-licenses', path.join(noticeDir, 'common-licenses'), { recursive: true, dereference: true });
-          fs.writeFileSync(path.join(noticeDir, 'inventory.json'), JSON.stringify(report, null, 2) + '\n');
-          fs.writeFileSync(path.join(noticeDir, 'README.txt'), 'Notices for system libraries found in the AppImage, mapped to the build runner packages. Review unmapped entries and corresponding source availability before publishing. This inventory does not include every possible bundled executable or static component.\n');
-          const archive = `GitThul_${version}_linux-x64-system-notices.tar.gz`;
-          execFileSync('tar', ['-czf', path.resolve('release-assets', archive), '-C', temp, 'system-notices']);
-          fs.rmSync(temp, { recursive: true, force: true });
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `AppImage: ${report.libraries.length} library files; ${report.packages.length} system packages; ${report.unmapped.length} entries require review. System notices and source locations are attached.\n`);
-          NODE
+        run: node .github/scripts/inventory-appimage.js release-assets/*.AppImage
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: inputs.packages || runner.os == 'Linux'
         with:

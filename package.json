@@ -1,12 +1,12 @@
 {
   "name": "gitthul",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Cliente gráfico de Git multiplataforma, de código abierto y claro.",
   "license": "MIT",
   "private": true,
   "type": "module",
   "engines": {
-    "node": "^20.19.0 || ^22.13.0 || >=24"
+    "node": "^24.22.1"
   },
   "scripts": {
     "dev": "vite",
@@ -69,5 +69,8 @@
     "typescript-eslint": "^8",
     "vite": "^7",
     "vitest": "^3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true
   }
 }
