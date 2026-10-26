@@ -7,7 +7,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     ffi::{OsStr, OsString},
     fs::{self, File, OpenOptions},
-    io::{Read, Write},
+    io::{BufReader, Read, Write},
     path::{Component, Path, PathBuf},
     process::Stdio,
     sync::{
@@ -1328,8 +1328,8 @@ impl BackupStore {
         {
             return Err(BackupError::Corrupt);
         }
-        let manifest: Manifest =
-            serde_json::from_reader(File::open(path)?).map_err(|_| BackupError::Corrupt)?;
+        let manifest: Manifest = serde_json::from_reader(BufReader::new(File::open(path)?))
+            .map_err(|_| BackupError::Corrupt)?;
         if manifest.version != VERSION
             || !valid_id(&manifest.point.id)
             || !valid_id(&manifest.point.repository_id)

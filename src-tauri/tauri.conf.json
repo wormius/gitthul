@@ -6,6 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
+    "beforeBundleCommand": "node .github/scripts/prepare-appimage-brotli.js",
     "devUrl": "http://localhost:5183",
     "frontendDist": "../dist"
   },
@@ -57,6 +58,11 @@
     "linux": {
       "appimage": {
         "files": {
+          "/usr/lib/libbrotlicommon.so.1": "target/appimage-brotli/lib/libbrotlicommon.so.1",
+          "/usr/lib/libbrotlidec.so.1": "target/appimage-brotli/lib/libbrotlidec.so.1",
+          "/usr/lib/libbrotlienc.so.1": "target/appimage-brotli/lib/libbrotlienc.so.1",
+          "/usr/share/gitthul/brotli/LICENSE": "target/appimage-brotli/LICENSE",
+          "/usr/share/gitthul/brotli/manifest.json": "target/appimage-brotli/manifest.json",
           "/usr/share/applications/GitThul.desktop": "linux/org.gitthul.GitThul.desktop"
         }
       },

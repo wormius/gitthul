@@ -1,0 +1,7 @@
+{
+  "version": "1.0.10",
+  "url": "https://github.com/google/brotli/archive/refs/tags/v1.0.10.tar.gz",
+  "sha256": "b517ebdb5266b963d28d6e639b973479874ec72086deb6ee4a2d639e1b13606b",
+  "licenseSha256": "3d180008e36922a4e8daec11c34c7af264fed5962d07924aea928c38e8663c94",
+  "advisory": "https://github.com/google/brotli/releases/tag/v1.0.10"
+}

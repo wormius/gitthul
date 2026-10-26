@@ -440,7 +440,7 @@ los cinco catálogos; src/i18n/i18n.test.ts comprueba claves, vacíos y placehol
 
 ## Desarrollo y validación
 
-Las herramientas seleccionadas son Node.js 20.20.2 (en .nvmrc), npm 10.8.2 y
+Las herramientas seleccionadas son Node.js 24.22.1 (en .nvmrc), npm 11.19.1 y
 Rust/Cargo 1.97.0 (en rust-toolchain.toml), además de Git y las dependencias nativas
 de Tauri 2 para la plataforma. rust-version = 1.89 declara el límite del grafo
 y de File::try_lock para la exclusión del almacén entre procesos,
@@ -448,6 +448,9 @@ sin afirmar que se haya certificado como mínimo efectivo en todos los sistemas.
 Python y Bash sirven a herramientas externas opcionales, no a las comprobaciones
 ordinarias. OpenSSH proporciona ssh y ssh-keygen para los remotos y las funciones
 de llaves SSH de la aplicación.
+package.json limita Node a la rama 24 corregida desde 24.22.1. npm 11 permite
+el instalador de esbuild mediante allowScripts fijado a su versión del lockfile;
+revisar ese instalador antes de autorizar una versión nueva.
 build.rs incorpora windows-common-controls.manifest mediante /MANIFESTINPUT
 también a los ejecutables de pruebas Windows, como hace Tauri en su propio
 workspace. En MSVC, WindowsAttributes::new_without_app_manifest conserva los
@@ -496,6 +499,22 @@ Los AppImages para Ubuntu 22.04/24.04 se compilan y empaquetan completos en
 Ubuntu 22.04. Trasladar solo el ejecutable no basta: el empaquetador incorpora
 bibliotecas de su entorno. Comprobar que todos los ELF del paquete requieren
 como máximo GLIBC 2.35 y probar el arranque con un perfil aislado en Ubuntu 24.04.
+beforeBundleCommand prepara Google Brotli 1.0.10 en cada empaquetado Linux x64 desde la fuente
+oficial y los SHA-256 de .github/appimage-brotli.json, en src-tauri/target, sin
+instalar bibliotecas en el sistema. Requiere CMake, compilador C, curl, tar,
+binutils y patchelf. El AppImage incorpora las tres bibliotecas, su licencia y
+el manifiesto de origen; DEB/RPM siguen usando las bibliotecas de la distribución.
+El gancho también se ejecuta al pedir solo DEB/RPM porque Tauri no le comunica
+los formatos seleccionados; esas compilaciones requieren las mismas herramientas.
+No sustituirlas por libbrotli1 de Ubuntu 22.04: contiene una versión anterior
+a la corrección de CVE-2026-111497. Para una compilación sin red se admite
+GITTHUL_BROTLI_ARCHIVE; su contenido debe coincidir con el mismo SHA-256 fijado.
+.github/scripts/inventory-appimage.js valida los bytes finales contra los
+preparados, rechaza copias adicionales de Brotli y verifica GLIBC, GIO y Wayland;
+requiere squashfs-tools y genera los avisos junto al AppImage. Ejecutarlo también
+al validar paquetes locales. El inventario distingue Brotli compilado desde
+upstream de las bibliotecas de la distribución. Las pruebas de estas guardas se
+ejecutan con node --test .github/scripts/appimage-security.test.js.
 
 .github/workflows/release.yml se activa con tags vX.Y.Z o manualmente con un tag
 existente. Resuelve su commit, exige coincidencia con la versión y notas en
