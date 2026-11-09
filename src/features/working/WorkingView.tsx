@@ -28,6 +28,7 @@ import { Checkbox } from '@ui/Checkbox';
 import { EmptyState } from '@ui/EmptyState';
 import { Banner } from '@ui/Banner';
 import { Button } from '@ui/Button';
+import { IconButton } from '@ui/IconButton';
 import { SplitPane } from '@ui/SplitPane';
 
 import { BranchNameDialog } from './BranchNameDialog';
@@ -61,6 +62,7 @@ import { useWorkingStore, type WorkingDialog } from './workingStore';
 import { WorktreeDialog } from './WorktreeDialog';
 import { useSettingsData } from '../settings/useSettingsData';
 import { WorkingProgress } from './WorkingProgress';
+import { DetailsToggleIcon } from './WorkingIcons';
 
 interface WorkingData {
   repository: Repository;
@@ -990,7 +992,7 @@ export function WorkingView({ base }: WorkingViewProps) {
 
         const tabId = activeTab(useShellStore.getState())?.id;
 
-        if (tabId) useShellStore.getState().closeTab(tabId);
+        if (tabId) await useShellStore.getState().closeTab(tabId);
 
         useShellStore.getState().openWorking({
           repoId: found.id,
@@ -1014,7 +1016,7 @@ export function WorkingView({ base }: WorkingViewProps) {
 
         const tabId = activeTab(useShellStore.getState())?.id;
 
-        if (tabId) useShellStore.getState().closeTab(tabId);
+        if (tabId) await useShellStore.getState().closeTab(tabId);
       } catch (error) {
         if (isCancelled(error)) return;
 
@@ -1383,6 +1385,11 @@ export function WorkingView({ base }: WorkingViewProps) {
         if (event.target instanceof Node && !event.currentTarget.contains(event.target)) return;
         if (event.target instanceof Element && event.target.closest('[data-diff-viewer]')) return;
         if (event.target instanceof Element && event.target.closest('[data-file-history]')) return;
+        if (
+          event.target instanceof Element &&
+          event.target.closest('[role="separator"], [data-pane-control]')
+        )
+          return;
 
         closeDiff();
       }}
@@ -1417,7 +1424,7 @@ export function WorkingView({ base }: WorkingViewProps) {
             minFirst={440}
             minSecond={280}
             collapsible="second"
-            collapsedSize={0}
+            collapsedSize="content"
             collapsed={detailsCollapsed}
             onCollapsedChange={() => {
               gestures.run('working.toggleDetails');
@@ -1447,7 +1454,30 @@ export function WorkingView({ base }: WorkingViewProps) {
                 </div>
               </div>
             }
-            second={details}
+            second={
+              <div className={styles.detailsPane}>
+                <div className={styles.detailsControl} data-pane-control="">
+                  <IconButton
+                    icon={<DetailsToggleIcon collapsed={detailsCollapsed} />}
+                    aria-label={t(
+                      detailsCollapsed
+                        ? 'gesture.working.expandDetails'
+                        : 'gesture.working.collapseDetails',
+                    )}
+                    title={t(
+                      detailsCollapsed
+                        ? 'gesture.working.expandDetails'
+                        : 'gesture.working.collapseDetails',
+                    )}
+                    aria-expanded={!detailsCollapsed}
+                    onClick={() => gestures.run('working.toggleDetails')}
+                  />
+                </div>
+                <div className={styles.detailsContent} hidden={detailsCollapsed}>
+                  {details}
+                </div>
+              </div>
+            }
           />
         }
       />

@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { GitPort } from '@core/ports/GitPort';
 import type { CommitPage } from '@core/domain/commit';
+import type { RepoSummary } from '@core/domain/repository';
+import type { TerminalLayout } from '@core/domain/terminal';
 import { NO_LATENCY } from '@core/adapters/mock/latency';
 import { createMockGitPort } from '@core/adapters/mock/mockGitPort';
 import { createMockTerminalPort } from '@core/adapters/mock/mockTerminalPort';
@@ -15,6 +17,14 @@ import { PaneStorageContext, memoryPaneSizeStore, type PaneSizeStore } from '@ui
 import { useVirtualViewport } from '../../test/virtualViewport';
 
 import { PortsContext } from '@app/PortsContext';
+import {
+  activateTab,
+  closeTab,
+  HOME,
+  openTerminalFrom,
+  openWorking,
+  updateContext,
+} from '@app/tabs';
 
 import { TerminalView } from './TerminalView';
 
@@ -29,6 +39,8 @@ function renderTerminal(props?: {
   repoId?: string | null;
   onOpenWorking?: () => void;
   onClose?: () => void;
+  layout?: TerminalLayout;
+  onContextChange?: (cwd: string, repository: RepoSummary | null) => void;
   sizes?: PaneSizeStore;
 }) {
   const {
@@ -36,6 +48,8 @@ function renderTerminal(props?: {
     repoId = 'repo-1',
     onOpenWorking,
     onClose,
+    layout,
+    onContextChange,
     sizes = memoryPaneSizeStore,
   } = props ?? {};
 
@@ -51,6 +65,8 @@ function renderTerminal(props?: {
                 repoId={repoId}
                 onOpenWorking={onOpenWorking}
                 onClose={onClose}
+                layout={layout}
+                onContextChange={onContextChange}
               />
             </PaneStorageContext>
           </ToastProvider>
@@ -587,6 +603,138 @@ describe('TerminalView', () => {
     expect(screen.getAllByRole('textbox')).toHaveLength(1);
     expect(screen.queryByText('Terminal 2')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cerrar este panel de terminal' })).toBeVisible();
+  });
+
+  it('al cerrar el panel activo actualiza el repo observado al panel que permanece', async () => {
+    const user = userEvent.setup();
+    const repository = await ports.git.readRepository('gitthul');
+    const read = vi.spyOn(ports.git, 'readRepository').mockResolvedValue(repository);
+    const onContextChange = vi.fn();
+    renderTerminal({
+      layout: {
+        root: {
+          kind: 'split',
+          id: 'split',
+          orientation: 'horizontal',
+          ratio: 0.5,
+          first: { kind: 'pane', id: 'pane-1', title: null, cwd: '/repos/first' },
+          second: { kind: 'pane', id: 'pane-2', title: null, cwd: '/repos/second' },
+        },
+        activePaneId: 'pane-2',
+      },
+      onContextChange,
+    });
+
+    await user.click(
+      within(screen.getByRole('region', { name: 'Terminal 2' })).getByRole('button', {
+        name: 'Cerrar este panel de terminal',
+      }),
+    );
+
+    expect(read).toHaveBeenCalledWith('/repos/first');
+    await waitFor(() => expect(onContextChange).toHaveBeenCalledWith('/repos/first', repository));
+  });
+
+  it('descarta una detección de repo pendiente al cerrar la vista de terminal', async () => {
+    const user = userEvent.setup();
+    const repository = await ports.git.readRepository('gitthul');
+    let resolve!: (value: typeof repository) => void;
+    const pending = new Promise<typeof repository>((done) => {
+      resolve = done;
+    });
+    vi.spyOn(ports.git, 'readRepository').mockReturnValue(pending);
+    const onContextChange = vi.fn();
+    const view = renderTerminal({
+      layout: {
+        root: {
+          kind: 'split',
+          id: 'split',
+          orientation: 'horizontal',
+          ratio: 0.5,
+          first: { kind: 'pane', id: 'pane-1', title: null, cwd: '/repos/first' },
+          second: { kind: 'pane', id: 'pane-2', title: null, cwd: '/repos/second' },
+        },
+        activePaneId: 'pane-2',
+      },
+      onContextChange,
+    });
+    await user.click(
+      within(screen.getByRole('region', { name: 'Terminal 2' })).getByRole('button', {
+        name: 'Cerrar este panel de terminal',
+      }),
+    );
+    expect(onContextChange).toHaveBeenCalledExactlyOnceWith(
+      '/repos/first',
+      null,
+      expect.any(Promise),
+    );
+    view.unmount();
+    await act(async () => {
+      resolve(repository);
+      await pending;
+    });
+
+    expect(onContextChange).toHaveBeenCalledOnce();
+  });
+
+  it('cerrar durante la detección de una carpeta sin repo usa el último repo enfocado', async () => {
+    const user = userEvent.setup();
+    let reject!: (reason: Error) => void;
+    const pending = new Promise<Awaited<ReturnType<GitPort['readRepository']>>>((_done, fail) => {
+      reject = fail;
+    });
+    vi.spyOn(ports.git, 'readRepository').mockReturnValue(pending);
+
+    const first = {
+      kind: 'working' as const,
+      repoId: 'first',
+      repoName: 'First',
+      repoPath: '/repos/first',
+      branch: 'main',
+    };
+    const second = { ...first, repoId: 'second', repoName: 'Second', repoPath: '/repos/second' };
+    let tabs = openWorking(HOME, 'first', first);
+    tabs = openWorking(tabs, 'second', second);
+    tabs = openTerminalFrom(tabs, 'terminal', 'second');
+    tabs = activateTab(tabs, 'first');
+    tabs = activateTab(tabs, 'terminal');
+    renderTerminal({
+      layout: {
+        root: {
+          kind: 'split',
+          id: 'split',
+          orientation: 'horizontal',
+          ratio: 0.5,
+          first: { kind: 'pane', id: 'pane-1', title: null, cwd: '/outside' },
+          second: { kind: 'pane', id: 'pane-2', title: null, cwd: '/repos/second' },
+        },
+        activePaneId: 'pane-2',
+      },
+      onContextChange: (cwd, repository) => {
+        tabs = updateContext(tabs, 'terminal', {
+          cwd,
+          repository: repository ? second : null,
+        });
+      },
+    });
+
+    await user.click(
+      within(screen.getByRole('region', { name: 'Terminal 2' })).getByRole('button', {
+        name: 'Cerrar este panel de terminal',
+      }),
+    );
+
+    expect(tabs.tabs.find((tab) => tab.id === 'terminal')?.context).toEqual({
+      cwd: '/outside',
+      repository: null,
+    });
+    expect(closeTab(tabs, 'terminal').activeId).toBe('first');
+
+    await act(async () => {
+      reject(new Error('not a repository'));
+      await pending.catch(() => undefined);
+    });
+    expect(closeTab(tabs, 'terminal').activeId).toBe('first');
   });
 
   it.each(['Dividir a la derecha', 'Dividir hacia abajo'])(

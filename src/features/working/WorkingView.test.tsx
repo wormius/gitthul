@@ -580,7 +580,10 @@ describe('WorkingView', () => {
     });
     expect(progress).toBeVisible();
     expect(progress.closest('[inert]')).toBeNull();
-    expect(detailsPane).toHaveAttribute('inert');
+    expect(within(detailsPane).queryByRole('textbox', { name: 'Resumen del commit' })).toBeNull();
+    expect(
+      within(detailsPane).getByRole('button', { name: 'Desplegar el panel de detalles' }),
+    ).toBeEnabled();
     expect(screen.queryByText('Procesando operación…')).not.toBeInTheDocument();
     expect(grid.closest('[inert]')).not.toBeNull();
     expect(refs.closest('[inert]')).not.toBeNull();
@@ -590,7 +593,10 @@ describe('WorkingView', () => {
 
     expect(progress.closest('[aria-hidden="true"]')).not.toBeNull();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-    expect(detailsPane).toHaveAttribute('inert');
+    expect(composer).not.toBeVisible();
+    expect(
+      within(detailsPane).getByRole('button', { name: 'Desplegar el panel de detalles' }),
+    ).toBeEnabled();
     expect(useWorkingStore.getState().detailsCollapsed).toBe(true);
     expect(grid.closest('[inert]')).toBeNull();
     expect(refs.closest('[inert]')).toBeNull();
@@ -631,7 +637,10 @@ describe('WorkingView', () => {
       await within(centerPane).findByRole('progressbar', { name: 'Recibiendo los objetos' }),
     ).toHaveAttribute('aria-valuenow', '40');
     expect(screen.queryByText('Recibiendo los objetos')).not.toBeInTheDocument();
-    expect(detailsPane).toHaveAttribute('inert');
+    expect(within(detailsPane).queryByRole('textbox', { name: 'Resumen del commit' })).toBeNull();
+    expect(
+      within(detailsPane).getByRole('button', { name: 'Desplegar el panel de detalles' }),
+    ).toBeEnabled();
     const fetchCall = fetch.mock.calls[0];
     expect(fetchCall?.slice(0, 2)).toEqual(['gitthul', null]);
     expect(typeof fetchCall?.[2]?.onProgress).toBe('function');
@@ -647,7 +656,10 @@ describe('WorkingView', () => {
     const fetchButton = screen.getByRole('button', { name: 'Hacer fetch' });
     expect(fetchButton).toBeEnabled();
     expect(fetchButton).toHaveFocus();
-    expect(detailsPane).toHaveAttribute('inert');
+    expect(within(detailsPane).queryByRole('textbox', { name: 'Resumen del commit' })).toBeNull();
+    expect(
+      within(detailsPane).getByRole('button', { name: 'Desplegar el panel de detalles' }),
+    ).toBeEnabled();
   }, 10_000);
 
   it('pull comparte progreso y cancelación y devuelve el foco a su propio botón', async () => {
@@ -3913,6 +3925,103 @@ describe('WorkingView', () => {
     expect(
       await screen.findByRole('region', { name: 'Referencias de gitthul' }),
     ).toBeInTheDocument();
+  });
+
+  it('redimensionar paneles conserva el diff, su selección y el borrador del commit', async () => {
+    const user = userEvent.setup();
+    const ports = makePorts();
+    const readDiff = vi.spyOn(ports.git, 'readDiff');
+    renderApp(ports);
+    await openRepo(user, GITTHUL_PATH);
+    const changes = await screen.findByRole('region', { name: 'Cambios' });
+    const summary = screen.getByRole('textbox', { name: 'Resumen del commit' });
+    await user.type(summary, 'Borrador conservado');
+    await user.click(within(changes).getByText('roles.css'));
+    const viewer = await screen.findByRole('region', { name: 'Diff de src/design/roles.css' });
+    await within(viewer).findAllByRole('textbox');
+    const before = useWorkingStore.getState();
+    const reads = readDiff.mock.calls.length;
+
+    for (const name of [
+      'Ancho del panel de referencias',
+      'Ancho del panel de detalles',
+      'Alto de los cambios y el staging',
+      'Alto de los archivos y el mensaje del commit',
+    ]) {
+      const separator = screen.getByRole('separator', { name });
+      Object.assign(separator, {
+        setPointerCapture: vi.fn(),
+        hasPointerCapture: () => true,
+        releasePointerCapture: vi.fn(),
+      });
+      vi.spyOn(separator.parentElement!, 'getBoundingClientRect').mockReturnValue({
+        left: 0,
+        top: 0,
+        width: 1200,
+        height: 900,
+      } as DOMRect);
+      const pointer = (type: string, position: number) => {
+        const event = new Event(type, { bubbles: true });
+        Object.assign(event, { button: 0, pointerId: 1, clientX: position, clientY: position });
+        fireEvent(separator.firstElementChild!, event);
+      };
+      pointer('pointerdown', 450);
+      pointer('pointermove', 500);
+      pointer('pointerup', 500);
+      fireEvent.keyDown(separator, { key: 'ArrowLeft' });
+      fireEvent.keyDown(separator, { key: 'ArrowUp' });
+
+      expect(viewer).toBeInTheDocument();
+      expect(useWorkingStore.getState().diff).toBe(before.diff);
+      expect(useWorkingStore.getState().selectedCommits).toBe(before.selectedCommits);
+      expect(useWorkingStore.getState().diffOptions).toBe(before.diffOptions);
+      expect(summary).toHaveValue('Borrador conservado');
+    }
+    expect(readDiff).toHaveBeenCalledTimes(reads);
+  });
+
+  it('recupera detalles con un botón visible sin desmontar contenido ni cerrar el diff', async () => {
+    const user = userEvent.setup();
+    renderApp(makePorts());
+    await openRepo(user, GITTHUL_PATH);
+    const changes = await screen.findByRole('region', { name: 'Cambios' });
+    const summary = screen.getByRole('textbox', { name: 'Resumen del commit' });
+    await user.type(summary, 'Seguir aquí');
+    await user.click(within(changes).getByText('roles.css'));
+    const viewer = await screen.findByRole('region', { name: 'Diff de src/design/roles.css' });
+    const separator = screen.getByRole('separator', { name: 'Ancho del panel de detalles' });
+    const ratio = separator.getAttribute('aria-valuenow');
+    const before = useWorkingStore.getState();
+    Object.assign(separator, {
+      setPointerCapture: vi.fn(),
+      hasPointerCapture: () => true,
+      releasePointerCapture: vi.fn(),
+    });
+
+    await user.dblClick(separator);
+    expect(useWorkingStore.getState().detailsCollapsed).toBe(true);
+    expect(changes).not.toBeVisible();
+    const expand = screen.getByRole('button', { name: 'Desplegar el panel de detalles' });
+    expect(expand).toBeVisible();
+    expect(expand.closest('[inert]')).toBeNull();
+    await user.click(expand);
+
+    expect(useWorkingStore.getState().detailsCollapsed).toBe(false);
+    expect(changes).toBeVisible();
+    expect(summary).toHaveValue('Seguir aquí');
+    expect(viewer).toBeInTheDocument();
+    expect(useWorkingStore.getState().diff).toBe(before.diff);
+    expect(useWorkingStore.getState().selectedCommits).toBe(before.selectedCommits);
+    expect(separator).toHaveAttribute('aria-valuenow', ratio);
+
+    const toggle = screen.getByRole('button', { name: 'Plegar el panel de detalles' });
+    toggle.focus();
+    await user.keyboard('{Enter}');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveFocus();
+    await user.keyboard(' ');
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(viewer).toBeInTheDocument();
   });
 
   it('la búsqueda pliega y despliega el panel de detalles', async () => {

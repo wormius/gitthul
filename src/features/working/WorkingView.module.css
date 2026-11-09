@@ -112,6 +112,26 @@
   min-height: 0;
 }
 
+.detailsPane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background-color: var(--surface-panel);
+}
+
+.detailsControl {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-1);
+}
+
+.detailsContent {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
 /* El vacío se centra; la lista de archivos ocupa el panel entero. */
 .centered {
   align-items: center;

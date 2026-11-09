@@ -36,7 +36,11 @@ interface TerminalViewProps {
   repoId: string | null;
   layout?: TerminalLayout;
   onLayoutChange?: (layout: TerminalLayout) => void;
-  onContextChange?: (cwd: string, repository: RepoSummary | null) => void;
+  onContextChange?: (
+    cwd: string,
+    repository: RepoSummary | null,
+    pending?: Promise<RepoSummary | null>,
+  ) => void;
   /** Abre o enfoca GitWorking para el repositorio observado por el pane activo. */
   onOpenWorking?: () => void;
   /** Cierra la superficie completa cuando se cierra su último panel. */
@@ -149,20 +153,24 @@ export function TerminalView({
   const updateContext = useCallback(
     (nextCwd: string) => {
       const generation = ++contextGeneration.current;
-      void git
-        .readRepository(nextCwd)
-        .then((repository) => {
-          if (contextGeneration.current !== generation) return;
-          setActiveRepoId(repository.id);
-          onContextChange?.(nextCwd, repository);
-        })
-        .catch(() => {
-          if (contextGeneration.current !== generation) return;
-          setActiveRepoId(null);
-          onContextChange?.(nextCwd, null);
-        });
+      // El directorio ya cambió; no conservar la identidad anterior durante
+      // la lectura. El shell espera esta consulta antes de cerrar la pestaña.
+      const pending = git.readRepository(nextCwd).catch(() => null);
+      onContextChange?.(nextCwd, null, pending);
+      void pending.then((repository) => {
+        if (contextGeneration.current !== generation) return;
+        setActiveRepoId(repository?.id ?? null);
+        onContextChange?.(nextCwd, repository);
+      });
     },
     [git, onContextChange],
+  );
+
+  useEffect(
+    () => () => {
+      contextGeneration.current += 1;
+    },
+    [],
   );
 
   const handleActivate = useCallback(
@@ -188,9 +196,14 @@ export function TerminalView({
         onClose?.();
         return;
       }
-      updateLayout(closeTerminalPane(currentLayout, paneId));
+      const next = closeTerminalPane(currentLayout, paneId);
+      updateLayout(next);
+      if (next.activePaneId !== currentLayout.activePaneId) {
+        const active = terminalPanes(next.root).find((pane) => pane.id === next.activePaneId);
+        if (active) updateContext(active.cwd);
+      }
     },
-    [currentLayout, onClose, panes.length, updateLayout],
+    [currentLayout, onClose, panes.length, updateContext, updateLayout],
   );
 
   return (

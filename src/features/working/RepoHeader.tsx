@@ -85,7 +85,7 @@ export function RepoHeader({
       key: 'close',
       label: t('working.repoHeader.close'),
       onSelect: () => {
-        if (activeId) closeTab(activeId);
+        if (activeId) void closeTab(activeId);
       },
     },
   ];

@@ -52,6 +52,20 @@ src-tauri/src contiene Git, PTY, autenticación, persistencia, watchers y sistem
 src-tauri/capabilities contiene permisos; src-tauri/icons, activos de empaquetado.
 src/assets/brand/logo.svg es el maestro del logotipo utilizado por la aplicación.
 
+En GitWorking, los separadores y el control de plegado de detalles no cierran el
+diff ni cambian la selección. El panel de detalles plegado conserva una tira con su
+botón de despliegue y mantiene montado su contenido oculto para conservar
+borradores y filtros. SplitPane recupera ratios inválidos con su reparto inicial;
+cuando no caben ambos mínimos, distribuye el espacio en proporción a ellos.
+
+Cerrar una terminal activa prioriza la pestaña del repositorio de su panel
+activo; sin coincidencia usa el historial de foco de repositorios de la sesión.
+closeTab, closeSurface y closeTabs comparten la regla; cerrar terminales de fondo
+conserva el foco. Ese historial es efímero y no forma parte de SessionSnapshot.
+Los cierres devuelven una promesa: la terminal activa revalida el repositorio de
+su cwd observado y espera consultas pendientes sin bloquear la navegación.
+Los resolutores y consultas son efímeros; revalidar foco y contexto tras la espera.
+
 React consume los puertos de src/core/ports; las llamadas nativas pertenecen a sus
 adaptadores Tauri. Los adaptadores mock permiten desarrollar y probar la interfaz
 sin repositorios reales. Mantener ese contrato compartido, sin accesos directos

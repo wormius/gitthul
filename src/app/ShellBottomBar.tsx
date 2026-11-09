@@ -167,7 +167,7 @@ export function ShellBottomBar() {
         key: 'close',
         label: t('tabs.menu.close'),
         onSelect: () => {
-          closeTab(tab.id);
+          void closeTab(tab.id);
         },
       },
       {
@@ -175,7 +175,7 @@ export function ShellBottomBar() {
         label: t('tabs.menu.closeOthers'),
         disabled: tabs.length < 2,
         onSelect: () => {
-          closeTabs(
+          void closeTabs(
             new Set(tabs.filter((candidate) => candidate.id !== tab.id).map(({ id }) => id)),
           );
         },
@@ -185,7 +185,7 @@ export function ShellBottomBar() {
         label: t('tabs.menu.closeRight'),
         disabled: index === tabs.length - 1,
         onSelect: () => {
-          closeTabs(new Set(tabs.slice(index + 1).map(({ id }) => id)));
+          void closeTabs(new Set(tabs.slice(index + 1).map(({ id }) => id)));
         },
       },
     ];
@@ -222,7 +222,7 @@ export function ShellBottomBar() {
           key: `close-space-${space.id}`,
           label: t('tabs.menu.closeSpace', { space: space.name }),
           onSelect: () => {
-            closeTabs(tabIdsToCloseForSpace(tabs, library.spaces, space.id));
+            void closeTabs(tabIdsToCloseForSpace(tabs, library.spaces, space.id));
           },
         })),
       );
@@ -321,7 +321,9 @@ export function ShellBottomBar() {
         tabs={descriptors}
         activeId={activeId}
         onActivate={activateTab}
-        onClose={closeTab}
+        onClose={(id) => {
+          void closeTab(id);
+        }}
         onReorder={moveTab}
       />
       {aliasRepo && (

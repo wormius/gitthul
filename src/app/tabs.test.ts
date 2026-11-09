@@ -198,3 +198,91 @@ describe('cerrar, reordenar y recorrer', () => {
     expect(state.activeId).toBeNull();
   });
 });
+
+describe('foco al cerrar una Terminal', () => {
+  const notes: WorkingSurface = {
+    ...kernel,
+    repoId: 'notes',
+    repoName: 'notes',
+    repoPath: '/src/notes',
+  };
+
+  const threeRepositories = () => {
+    let state = openWorking(HOME, 'w1', gitthul);
+    state = openWorking(state, 'w2', kernel);
+    return openWorking(state, 'w3', notes);
+  };
+
+  it.each([
+    closeTab,
+    closeSurface,
+    (state: TabsState, id: string) => closeTabs(state, new Set([id])),
+  ])(
+    'vuelve al repo de la terminal abierta desde la pestaña central por cualquier cierre',
+    (close) => {
+      let state = activateTab(threeRepositories(), 'w2');
+      state = openTerminalFrom(state, 'terminal', 'w2');
+      state = moveTab(state, 'w2', 0);
+      state = moveTab(state, 'terminal', 1);
+
+      expect(close(state, 'terminal').activeId).toBe('w2');
+    },
+  );
+
+  it('prioriza el repo observado tras cambiar de carpeta sobre el repo de origen', () => {
+    let state = activateTab(threeRepositories(), 'w2');
+    state = openTerminalFrom(state, 'terminal', 'w2');
+    state = updateContext(state, 'terminal', { repository: gitthul, cwd: gitthul.repoPath });
+
+    expect(closeTab(state, 'terminal').activeId).toBe('w1');
+  });
+
+  it.each([null, { ...notes, repoId: 'unopened' }])(
+    'sin pestaña del repo observado vuelve al último repo enfocado, incluso tras reordenar',
+    (repository) => {
+      let state = activateTab(threeRepositories(), 'w2');
+      state = openTerminalFrom(state, 'terminal', 'w2');
+      state = activateTab(state, 'w1');
+      state = goToRepositories(state);
+      state = activateTab(state, 'terminal');
+      state = moveTab(state, 'w1', 0);
+      state = updateContext(state, 'terminal', { repository, cwd: '/tmp' });
+
+      expect(closeTab(state, 'terminal').activeId).toBe('w1');
+    },
+  );
+
+  it('recuerda también el foco obtenido al recorrer las pestañas con teclado', () => {
+    let state = activateTab(threeRepositories(), 'w1');
+    state = stepActive(state, 1);
+    state = openSurface(state, 'terminal', { kind: 'terminal', cwd: '/tmp' });
+
+    expect(closeTab(state, 'terminal').activeId).toBe('w2');
+  });
+
+  it('descarta repos cerrados y conserva el anterior del historial en cierres por lote', () => {
+    let state = activateTab(threeRepositories(), 'w1');
+    state = activateTab(state, 'w2');
+    state = openTerminalFrom(state, 'terminal', 'w2');
+    const closed = closeTabs(state, new Set(['terminal', 'w2']));
+
+    expect(closed.activeId).toBe('w1');
+    expect(closed.repositoryFocusHistory).toEqual(['w1', 'w3']);
+  });
+
+  it('cerrar una terminal en segundo plano conserva el foco y su historial', () => {
+    let state = openTerminalFrom(threeRepositories(), 'terminal', 'w2');
+    state = activateTab(state, 'w1');
+    const closed = closeTab(state, 'terminal');
+
+    expect(closed.activeId).toBe('w1');
+    expect(closed.repositoryFocusHistory).toEqual(state.repositoryFocusHistory);
+  });
+
+  it('sin repos abiertos vuelve a Repositorios aunque queden otras terminales', () => {
+    let state = openSurface(HOME, 'first', { kind: 'terminal', cwd: '/tmp' });
+    state = openSurface(state, 'second', { kind: 'terminal', cwd: '/tmp' });
+
+    expect(closeTab(state, 'second').activeId).toBeNull();
+  });
+});

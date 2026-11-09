@@ -53,9 +53,15 @@ interface SplitPaneProps {
 const KEYBOARD_STEP = 0.02;
 
 function clamp(value: number, low: number, high: number): number {
-  if (low > high) return (low + high) / 2;
+  // Si no caben ambos mínimos, repartir el espacio en esa misma proporción.
+  // Promediar los límites puede dar un valor fuera de [0, 1] y ocultar un panel.
+  if (low > high) return low / (low + 1 - high);
 
   return Math.min(Math.max(value, low), high);
+}
+
+function usableRatio(value: number, fallback: number): number {
+  return Number.isFinite(value) && value > 0 && value < 1 ? value : fallback;
 }
 
 /**
@@ -90,21 +96,24 @@ export function SplitPane({
 }: SplitPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // Sin `storageId` el mismo gancho sirve de estado a secas: no escribe nada.
-  const [uncontrolledRatio, setUncontrolledRatio] = usePersistentSize(storageId, defaultRatio);
+  const fallbackRatio = usableRatio(defaultRatio, 0.5);
+  const [uncontrolledRatio, setUncontrolledRatio] = usePersistentSize(storageId, fallbackRatio);
   const [dragging, setDragging] = useState(false);
 
-  const ratio = controlledRatio ?? uncontrolledRatio;
+  // El ancho cero se controla con `collapsed`, nunca con un reparto inválido
+  // restaurado desde ajustes o recibido de un layout controlado.
+  const ratio = usableRatio(controlledRatio ?? uncontrolledRatio, fallbackRatio);
 
   const applyRatio = useCallback(
     (compute: (current: number) => number) => {
       const next =
         controlledRatio === undefined
-          ? setUncontrolledRatio((current) => compute(current))
-          : compute(controlledRatio);
+          ? setUncontrolledRatio((current) => compute(usableRatio(current, fallbackRatio)))
+          : compute(ratio);
 
       onRatioChange?.(next);
     },
-    [controlledRatio, onRatioChange, setUncontrolledRatio],
+    [controlledRatio, fallbackRatio, onRatioChange, ratio, setUncontrolledRatio],
   );
 
   const horizontal = orientation === 'horizontal';

@@ -86,7 +86,7 @@ export function useShellGestureDefinitions(): readonly GestureDefinition[] {
         disabled: !current || current.surface.kind === 'working',
         hiddenInSearch: !current || current.surface.kind === 'working',
         run: () => {
-          if (current) store.closeSurface(current.id);
+          if (current) void store.closeSurface(current.id);
         },
       },
       {
@@ -97,7 +97,7 @@ export function useShellGestureDefinitions(): readonly GestureDefinition[] {
         allowWhileTyping: true,
         disabled: !current,
         run: () => {
-          if (current) store.closeTab(current.id);
+          if (current) void store.closeTab(current.id);
         },
       },
       {

@@ -18,6 +18,15 @@ const STROKE = {
   strokeLinejoin: 'round',
 } as const;
 
+/** La flecha apunta al lugar hacia el que se despliega o pliega el panel derecho. */
+export function DetailsToggleIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+      <path d={collapsed ? 'M10 3.5 5.5 8l4.5 4.5' : 'M6 3.5 10.5 8 6 12.5'} {...STROKE} />
+    </svg>
+  );
+}
+
 /** Deshacer: flecha que se curva hacia la izquierda. */
 export function UndoIcon({ className }: IconProps) {
   return (
