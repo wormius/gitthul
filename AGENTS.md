@@ -71,6 +71,10 @@ adaptadores Tauri. Los adaptadores mock permiten desarrollar y probar la interfa
 sin repositorios reales. Mantener ese contrato compartido, sin accesos directos
 al sistema desde las vistas ni permisos globales del WebView para suplirlo.
 
+Las lecturas IPC de repositorio e identidad ejecutan su descubrimiento, E/S y
+procesos Git en spawn_blocking, sin retener el despacho de comandos síncronos.
+Conservar sus resultados y errores tipados al ajustar la planificación.
+
 El adaptador Git nativo implementa GitPort completo sin recibir ni extender un
 mock: una operación omitida debe fallar al compilar. El simulador se carga solo
 en las pruebas o en el modo explícito de desarrollo `npm run dev:mock`; nunca
@@ -399,6 +403,9 @@ portable-pty con PSEUDOCONSOLE_INHERIT_CURSOR; en la aplicación responde xterm.
 Los logs conservan errores útiles y redactan secretos antes de persistir o notificar;
 no registrar contenido libre de archivos, credenciales, mensajes de commit, PTY o
 portapapeles. Un fallo del logger no cambia el resultado de una operación Git.
+Serializar cada entrada JSONL redactada en memoria y escribirla completa bajo el
+mismo bloqueo, conservando rotación, permisos y errores de escritura; no enviar
+cada fragmento del serializador directamente al archivo.
 El formato 3 conserva diagnóstico estructurado, causas, etapa, argumentos protegidos,
 exitCode/signal o ioKind/osCode y correlación frontend/nativa. Mantener los códigos
 de error y cancelación existentes al añadir evidencia; los sondeos negativos esperados

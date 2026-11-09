@@ -166,9 +166,17 @@ fn append_unlocked(path: &std::path::Path, entry: &LogEntry) -> Result<(), Strin
     let mut file = options
         .open(path)
         .map_err(|error| format!("no se pudo abrir el registro: {error}"))?;
-    serde_json::to_writer(&mut file, &entry)
+    write_record(&mut file, &entry)
+}
+
+fn write_record(writer: &mut impl Write, entry: &LogEntry) -> Result<(), String> {
+    // Serialize in memory so the JSON formatter does not turn every token into
+    // a separate filesystem write. The lock still covers the whole JSONL record.
+    let mut record = serde_json::to_vec(entry)
         .map_err(|error| format!("no se pudo serializar el registro: {error}"))?;
-    file.write_all(b"\n")
+    record.push(b'\n');
+    writer
+        .write_all(&record)
         .map_err(|error| format!("no se pudo escribir el registro: {error}"))
 }
 
@@ -424,6 +432,108 @@ pub fn log_open_directory(app: AppHandle) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Default)]
+    struct CountingWriter {
+        writes: usize,
+        bytes: Vec<u8>,
+    }
+
+    impl Write for CountingWriter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.writes += 1;
+            self.bytes.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn sample_entry() -> LogEntry {
+        LogEntry {
+            id: 1,
+            at: 2,
+            level: "debug".into(),
+            scope: "git.read".into(),
+            message: "Completado: leer referencias — diagnóstico".into(),
+            detail: Some("primera línea\nsegunda línea".into()),
+            schema_version: Some(3),
+            session_id: Some("fixture-session".into()),
+            app_version: Some("1.2.2".into()),
+            platform: Some("windows x86_64".into()),
+            git_version: Some("git version fixture".into()),
+            origin: Some("frontend".into()),
+            debug_enabled: Some(true),
+            context: Some(serde_json::json!({
+                "method": "readRefs", "operationId": "fixture:1", "phase": "success",
+                "durationMs": 1234,
+                "requestData": {"repository": "fixture"},
+                "resultData": {"branchesCount": 30, "tagsCount": 20}
+            })),
+        }
+    }
+
+    #[test]
+    fn buffering_preserves_exact_jsonl_bytes_and_reduces_writer_calls() {
+        let entry = sanitized(sample_entry());
+        let mut direct = CountingWriter::default();
+        serde_json::to_writer(&mut direct, &entry).unwrap();
+        direct.write_all(b"\n").unwrap();
+        let mut buffered = CountingWriter::default();
+        write_record(&mut buffered, &entry).unwrap();
+
+        assert_eq!(buffered.bytes, direct.bytes);
+        assert_eq!(buffered.writes, 1);
+        assert!(direct.writes > buffered.writes);
+        eprintln!(
+            "JSONL fixture: {} writer calls before, {} after; {} bytes unchanged",
+            direct.writes,
+            buffered.writes,
+            buffered.bytes.len()
+        );
+    }
+
+    #[test]
+    fn buffered_disk_append_preserves_rotation_and_exact_sanitized_record() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(FILE_NAME);
+        let older = vec![b'x'; MAX_FILE_BYTES as usize];
+        fs::write(&path, &older).unwrap();
+        let mut entry = sample_entry();
+        entry.detail = Some("https://user:private-secret@example.invalid/repo".into());
+        append_at(&path, &entry).unwrap();
+
+        let mut expected = serde_json::to_vec(&sanitized(entry)).unwrap();
+        expected.push(b'\n');
+        let actual = fs::read(&path).unwrap();
+        assert_eq!(actual, expected);
+        assert!(!String::from_utf8(actual)
+            .unwrap()
+            .contains("private-secret"));
+        assert_eq!(
+            fs::read(directory.path().join(ROTATED_FILE_NAME)).unwrap(),
+            older
+        );
+    }
+
+    #[test]
+    fn buffered_record_reports_write_failures() {
+        struct BrokenWriter;
+        impl Write for BrokenWriter {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("fixture disk failure"))
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let error = write_record(&mut BrokenWriter, &sample_entry()).unwrap_err();
+        assert!(error.contains("no se pudo escribir el registro"));
+        assert!(error.contains("fixture disk failure"));
+    }
 
     #[test]
     fn export_source_includes_all_retained_entries_and_sorts_both_files() {

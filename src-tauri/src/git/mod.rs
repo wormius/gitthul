@@ -221,7 +221,16 @@ fn set_identity(
 }
 
 #[tauri::command]
-pub fn git_read_identity(id: String) -> Result<Option<GitIdentity>, GitCommandError> {
+pub async fn git_read_identity(id: String) -> Result<Option<GitIdentity>, GitCommandError> {
+    tauri::async_runtime::spawn_blocking(move || read_identity_sync(id))
+        .await
+        .map_err(|error| {
+            GitCommandError::internal("La tarea de identidad se interrumpió")
+                .with_diagnostic(diagnostics::Diagnostic::task("identity.task", &error))
+        })?
+}
+
+fn read_identity_sync(id: String) -> Result<Option<GitIdentity>, GitCommandError> {
     let repository = existing_repository(&id)?;
     let read = |key: &str| -> Result<Option<String>, GitCommandError> {
         let args = ["config", "--get", key];
@@ -428,7 +437,16 @@ pub fn git_list_repositories(app: AppHandle) -> Result<Vec<RepoSummary>, GitComm
 }
 
 #[tauri::command]
-pub fn git_read_repository(id: String) -> Result<Repository, GitCommandError> {
+pub async fn git_read_repository(id: String) -> Result<Repository, GitCommandError> {
+    tauri::async_runtime::spawn_blocking(move || read_repository_sync(id))
+        .await
+        .map_err(|error| {
+            GitCommandError::internal("La tarea de lectura del repositorio se interrumpió")
+                .with_diagnostic(diagnostics::Diagnostic::task("repository.task", &error))
+        })?
+}
+
+fn read_repository_sync(id: String) -> Result<Repository, GitCommandError> {
     let path = std::path::Path::new(&id);
     if !path.exists() {
         return Err(GitCommandError::new(
@@ -3958,7 +3976,52 @@ mod repository_read_tests {
 
     use tempfile::TempDir;
 
-    use super::git_read_repository;
+    fn git_read_repository(id: String) -> Result<super::Repository, super::GitCommandError> {
+        tauri::async_runtime::block_on(super::git_read_repository(id))
+    }
+
+    #[test]
+    fn identity_ipc_reads_local_values_and_preserves_missing_repository_errors() {
+        let temporary = TempDir::new().unwrap();
+        let repository = temporary.path().join("real");
+        fs::create_dir(&repository).unwrap();
+        let git = |args: &[&str]| {
+            let output = Command::new("git")
+                .args(args)
+                .current_dir(&repository)
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .env(
+                    "GIT_CONFIG_GLOBAL",
+                    temporary.path().join("no-global-config"),
+                )
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+        };
+        git(&["init", "--quiet", "--initial-branch=main"]);
+        git(&["config", "user.name", "Fixture Name"]);
+        git(&["config", "user.email", "fixture@example.invalid"]);
+        let id = repository.to_string_lossy().into_owned();
+        let identity = tauri::async_runtime::block_on(super::git_read_identity(id.clone()))
+            .unwrap()
+            .unwrap();
+        assert_eq!(identity.name, "Fixture Name");
+        assert_eq!(identity.email, "fixture@example.invalid");
+
+        git(&["config", "user.name", ""]);
+        assert!(tauri::async_runtime::block_on(super::git_read_identity(id))
+            .unwrap()
+            .is_none());
+        let error = tauri::async_runtime::block_on(super::git_read_identity(
+            temporary
+                .path()
+                .join("missing")
+                .to_string_lossy()
+                .into_owned(),
+        ))
+        .unwrap_err();
+        assert_eq!(error.code, "repo.notFound");
+    }
 
     #[test]
     fn lee_identidad_real_y_distingue_ausencia_de_carpeta_no_git() {

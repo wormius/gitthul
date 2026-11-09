@@ -55,14 +55,14 @@ interface RepoStats {
 /**
  * Las seis consultas de las estadísticas, en paralelo salvo una.
  *
- * **El recorrido se acota y eso es parte del contrato.** Los commits del periodo
- * llegan con `since` y con tope, así que un repositorio de cien mil commits
- * cuesta lo mismo que uno de trescientos; la cifra absoluta sale del `total` de
- * una página de uno sin acotar, que git sabe contar sin traer nada.
+ * Los commits devueltos del periodo se acotan con `since` y un tope. Esto limita
+ * la respuesta, no todo el trabajo del backend: las lecturas sin búsqueda
+ * recorren y ordenan el grafo alcanzable antes de aplicar `skip` y `limit`.
+ * La cifra absoluta sale del `total` de una página de uno sin acotar.
  *
  * La única secuencial es la del commit más antiguo, que se pide **por su
- * posición** en cuanto se sabe cuántos hay. Recorrer la historia entera para
- * leer una fecha sería exactamente lo que la ventana evita.
+ * posición** en cuanto se sabe cuántos hay. Solo se devuelve ese commit, aunque
+ * el lector actual vuelve a recorrer el grafo para resolver la página.
  */
 async function readStats(git: GitPort, id: RepoId, query: GitQuery): Promise<RepoStats> {
   const at = Date.now();
