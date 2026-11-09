@@ -435,7 +435,15 @@ pub fn read_cancellable(
     }
     // An empty historical diff means the path did not change in that commit.
     // Only a path absent from the index can be untracked in a live comparison.
-    let outside_index = is_worktree_source(&resolved)
+    // An existing raw entry already identifies the file, except when a live
+    // range reports a deletion that an untracked worktree file may recreate.
+    let needs_index_lookup = entry.is_none()
+        || (matches!(resolved, ResolvedSource::WorkingRange { .. })
+            && entry
+                .as_ref()
+                .is_some_and(|entry| entry.change == ChangeType::Deleted));
+    let outside_index = needs_index_lookup
+        && is_worktree_source(&resolved)
         && fs::symlink_metadata(repository.join(&request.path)).is_ok()
         && git_output_cancellable(
             repository,
@@ -2077,10 +2085,17 @@ mod tests {
         );
         let diff = read(path, request("restored.txt", source.clone())).unwrap();
         assert_eq!(diff.change, ChangeType::Unmodified);
-        let DiffContent::Text { hunks, .. } = diff.content else {
+        assert_eq!(diff.precondition.before, diff.precondition.after);
+        let DiffContent::Text {
+            hunks,
+            supports_partial,
+            ..
+        } = diff.content
+        else {
             panic!("expected text")
         };
         assert!(hunks.is_empty());
+        assert!(!supports_partial);
         fs::write(path.join("restored.txt"), "new\nline\n").unwrap();
         let files = read_files_cancellable(path, &source, &AtomicBool::new(false)).unwrap();
         assert_eq!(files.len(), 1);
@@ -2088,13 +2103,65 @@ mod tests {
         assert_eq!((files[0].insertions, files[0].deletions), (2, 1));
         let diff = read(path, request("restored.txt", source)).unwrap();
         assert_eq!(diff.change, ChangeType::Modified);
-        let DiffContent::Text { hunks, .. } = diff.content else {
+        assert!(diff.precondition.before.is_some());
+        assert!(diff.precondition.after.is_some());
+        assert_ne!(diff.precondition.before, diff.precondition.after);
+        let DiffContent::Text {
+            hunks,
+            supports_partial,
+            ..
+        } = diff.content
+        else {
             panic!("expected text")
         };
+        assert!(!supports_partial);
         assert!(hunks
             .iter()
             .flat_map(|hunk| &hunk.lines)
             .any(|line| line.kind == DiffLineKind::Added && line.text == "new"));
+    }
+
+    #[test]
+    fn tracked_modified_worktree_diffs_keep_identity_and_partial_patch() {
+        let temporary = repository();
+        let path = temporary.path();
+        fs::write(path.join("tracked.txt"), "before\n").unwrap();
+        let base = commit_all(path, "base");
+        let before = git_text(path, &["rev-parse", "HEAD:tracked.txt"]);
+        fs::write(path.join("tracked.txt"), "after\n").unwrap();
+        let after = git_text(
+            path,
+            &["hash-object", "--path=tracked.txt", "--", "tracked.txt"],
+        );
+
+        for source in [
+            DiffSource::Worktree,
+            DiffSource::WorkingRange { from: base },
+        ] {
+            let diff = read(path, request("tracked.txt", source)).unwrap();
+            assert_eq!(diff.change, ChangeType::Modified);
+            assert!(diff.previous_path.is_none());
+            assert_eq!(diff.precondition.before.as_ref().unwrap().oid, before);
+            assert_eq!(diff.precondition.after.as_ref().unwrap().oid, after);
+            let DiffContent::Text {
+                hunks,
+                supports_partial,
+                ..
+            } = diff.content
+            else {
+                panic!("expected text")
+            };
+            assert!(supports_partial);
+            assert_eq!(hunks.len(), 1);
+            assert!(hunks[0]
+                .lines
+                .iter()
+                .any(|line| line.kind == DiffLineKind::Removed && line.text == "before"));
+            assert!(hunks[0]
+                .lines
+                .iter()
+                .any(|line| line.kind == DiffLineKind::Added && line.text == "after"));
+        }
     }
 
     #[cfg(unix)]
@@ -2458,9 +2525,15 @@ mod tests {
         assert_eq!(diff.change, ChangeType::Untracked);
         assert!(diff.precondition.before.is_none());
         assert!(diff.precondition.after.is_some());
-        let DiffContent::Text { hunks, .. } = diff.content else {
+        let DiffContent::Text {
+            hunks,
+            supports_partial,
+            ..
+        } = diff.content
+        else {
             panic!("se esperaba texto");
         };
+        assert!(supports_partial);
         assert_eq!(hunks[0].old_lines, 0);
         assert_eq!(hunks[0].new_lines, 2);
     }

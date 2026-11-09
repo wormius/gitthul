@@ -5,6 +5,18 @@ Cmd+Shift+T en macOS. Utiliza el contexto activo o la carpeta seleccionada. Los
 comandos se ejecutan en un shell real y pueden modificar los archivos y el estado
 Git de esa carpeta.
 
+Al cerrar la pestaña de terminal, GitThul vuelve a la pestaña abierta del
+repositorio del último directorio observado de su panel activo, aunque hayas
+reordenado las pestañas. Si ese repositorio no tiene pestaña o el directorio está
+fuera de un repositorio, vuelve al último repositorio que enfocaste en esta sesión.
+Si ya no queda ninguno, muestra **Repositorios**. Cerrar una terminal que está
+en segundo plano conserva la pestaña activa.
+
+Antes de cerrar, GitThul comprueba el repositorio de ese directorio. Si hay una
+lectura pendiente, espera su resultado mientras puedes seguir usando la aplicación.
+Actualmente, los cambios de carpeta del shell se observan automáticamente en Linux.
+En Windows y macOS se utiliza el directorio conocido al abrir o activar el panel.
+
 Durante el inicio aparece **Preparando la terminal…** con una barra de progreso.
 En repositorios grandes, la preparación puede tardar mientras se guarda el punto
 de recuperación. Puedes seguir usando la aplicación o cerrar la pestaña para

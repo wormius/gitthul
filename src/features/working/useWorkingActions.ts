@@ -804,7 +804,7 @@ export function useWorkingActions(options: WorkingActionsOptions): WorkingAction
           const removedTabs = shell().tabs.filter(
             (tab) => tab.surface.kind === 'working' && tab.surface.repoPath === worktree.path,
           );
-          shell().closeTabs(new Set(removedTabs.map((tab) => tab.id)));
+          await shell().closeTabs(new Set(removedTabs.map((tab) => tab.id)));
           shell().setStatus({
             tone: 'success',
             key: 'working.status.worktreeRemoved',

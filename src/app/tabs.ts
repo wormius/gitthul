@@ -52,9 +52,11 @@ export interface TabsState {
   tabs: readonly Tab[];
   /** `null` es el hogar Repositorios, que no ocupa una pestaña. */
   activeId: string | null;
+  /** Repositorios enfocados en esta sesión, del más reciente al más antiguo. */
+  repositoryFocusHistory: readonly string[];
 }
 
-export const HOME: TabsState = { tabs: [], activeId: null };
+export const HOME: TabsState = { tabs: [], activeId: null, repositoryFocusHistory: [] };
 
 export function isHome(state: TabsState): boolean {
   return state.activeId === null;
@@ -90,7 +92,17 @@ function contextFor(surface: TabSurface, inherited?: TabContext): TabContext {
 }
 
 export function activateTab(state: TabsState, id: string): TabsState {
-  return findTab(state, id) ? { ...state, activeId: id } : state;
+  const tab = findTab(state, id);
+  if (!tab) return state;
+
+  return {
+    ...state,
+    activeId: id,
+    repositoryFocusHistory:
+      tab.surface.kind === 'working'
+        ? [id, ...state.repositoryFocusHistory.filter((candidate) => candidate !== id)]
+        : state.repositoryFocusHistory,
+  };
 }
 
 export function goToRepositories(state: TabsState): TabsState {
@@ -112,15 +124,16 @@ export function openWorking(state: TabsState, newId: string, surface: WorkingSur
     );
   }
 
-  return {
-    tabs: [...state.tabs, { id: newId, surface, context: contextFor(surface) }],
-    activeId: newId,
-  };
+  return activateTab(
+    { ...state, tabs: [...state.tabs, { id: newId, surface, context: contextFor(surface) }] },
+    newId,
+  );
 }
 
 /** Abre una superficie sin contexto previo. */
 export function openSurface(state: TabsState, newId: string, surface: TerminalSurface): TabsState {
   return {
+    ...state,
     tabs: [...state.tabs, { id: newId, surface, context: contextFor(surface) }],
     activeId: newId,
   };
@@ -134,6 +147,7 @@ export function openTerminalFrom(state: TabsState, newId: string, sourceId: stri
   const surface: TerminalSurface = { kind: 'terminal', cwd: source.context.cwd ?? '' };
 
   return {
+    ...state,
     tabs: [
       ...state.tabs,
       {
@@ -209,23 +223,58 @@ function neighbourId(tabs: readonly Tab[], closedIndex: number): string | null {
   return tabs[closedIndex]?.id ?? tabs[closedIndex - 1]?.id ?? null;
 }
 
+/** El cierre de Terminal vuelve al repo observado o al último repo enfocado. */
+function terminalReturnId(state: TabsState, terminal: Tab): string | null {
+  const repoId = terminal.context.repository?.repoId;
+  const matching = repoId ? repositoryTab(state, repoId) : undefined;
+  if (matching) return matching.id;
+
+  // Las sesiones anteriores no guardan historial de foco. Tras restaurarlas,
+  // usar el orden conocido hasta que el usuario vuelva a enfocar un repo.
+  return (
+    state.repositoryFocusHistory.find((id) => findTab(state, id)?.surface.kind === 'working') ??
+    [...state.tabs].reverse().find((tab) => tab.surface.kind === 'working')?.id ??
+    null
+  );
+}
+
+function afterClose(state: TabsState, tabs: readonly Tab[], nextId: string | null): TabsState {
+  const next = {
+    ...state,
+    tabs,
+    activeId: nextId,
+    repositoryFocusHistory: state.repositoryFocusHistory.filter((id) =>
+      tabs.some((tab) => tab.id === id),
+    ),
+  };
+  return nextId === null ? next : activateTab(next, nextId);
+}
+
 export function closeTab(state: TabsState, id: string): TabsState {
   const index = state.tabs.findIndex((tab) => tab.id === id);
   if (index === -1) return state;
 
   const tabs = state.tabs.filter((tab) => tab.id !== id);
+  const closed = state.tabs[index]!;
+  const remaining = { ...state, tabs };
 
-  return {
+  return afterClose(
+    state,
     tabs,
-    activeId: state.activeId === id ? neighbourId(tabs, index) : state.activeId,
-  };
+    state.activeId !== id
+      ? state.activeId
+      : closed.surface.kind === 'terminal'
+        ? terminalReturnId(remaining, closed)
+        : neighbourId(tabs, index),
+  );
 }
 
 /**
- * Cierra un conjunto como una sola operación y conserva una vecina estable.
+ * Cierra un conjunto como una sola operación y conserva un destino estable.
  *
  * La vecina se calcula respecto de la posición original de la pestaña activa:
  * primero la que queda a su derecha y, si no existe, la última de la izquierda.
+ * Una Terminal activa vuelve al repo observado o al historial de foco.
  */
 export function closeTabs(state: TabsState, ids: ReadonlySet<string>): TabsState {
   if (ids.size === 0) return state;
@@ -236,12 +285,18 @@ export function closeTabs(state: TabsState, ids: ReadonlySet<string>): TabsState
   const activeIndex = state.tabs.findIndex((tab) => tab.id === state.activeId);
   const tabs = state.tabs.filter((tab) => !ids.has(tab.id));
 
-  if (state.activeId === null || !ids.has(state.activeId)) return { ...state, tabs };
+  if (state.activeId === null || !ids.has(state.activeId))
+    return afterClose(state, tabs, state.activeId);
+
+  const closed = state.tabs[activeIndex];
+  if (closed?.surface.kind === 'terminal') {
+    return afterClose(state, tabs, terminalReturnId({ ...state, tabs }, closed));
+  }
 
   const right = state.tabs.slice(activeIndex + 1).find((tab) => !ids.has(tab.id));
   const left = [...state.tabs.slice(0, activeIndex)].reverse().find((tab) => !ids.has(tab.id));
 
-  return { tabs, activeId: right?.id ?? left?.id ?? null };
+  return afterClose(state, tabs, right?.id ?? left?.id ?? null);
 }
 
 /**
@@ -315,5 +370,6 @@ export function stepActive(state: TabsState, step: 1 | -1): TabsState {
   const from = ring.indexOf(state.activeId);
   if (from === -1) return state;
 
-  return { ...state, activeId: ring[(from + step + ring.length) % ring.length] ?? null };
+  const nextId = ring[(from + step + ring.length) % ring.length] ?? null;
+  return nextId === null ? goToRepositories(state) : activateTab(state, nextId);
 }

@@ -7,6 +7,7 @@ import { createMockGitPort } from '@core/adapters/mock/mockGitPort';
 import { createMockLibraryPort } from '@core/adapters/mock/mockLibraryPort';
 import { selectPorts } from '@core/adapters/selectPorts';
 import { normalizeSession } from '@core/domain/session';
+import type { GitPort } from '@core/ports/GitPort';
 import { ThemeProvider } from '@design/ThemeProvider';
 import type { ThemeSettings } from '@design/theme';
 import { useWorkingStore } from '@features/working/workingStore';
@@ -582,6 +583,54 @@ describe('pestañas', () => {
     expect(
       await screen.findByRole('region', { name: 'Referencias de gitthul' }),
     ).toBeInTheDocument();
+  });
+
+  it('cerrar desde la barra espera el repo del panel activo y enfoca su pestaña', async () => {
+    const user = userEvent.setup();
+    const repositories = await Promise.all([
+      ports.git.readRepository('gitthul'),
+      ports.git.readRepository('bitacora'),
+      ports.git.readRepository('gitthul-worktree'),
+    ]);
+    const tabIds: string[] = [];
+    for (const repository of repositories) {
+      useShellStore.getState().openWorking({
+        repoId: repository.id,
+        repoName: repository.name,
+        repoPath: repository.path,
+        branch: repository.head,
+      });
+      tabIds.push(useShellStore.getState().activeId!);
+    }
+    useShellStore.getState().openTerminalFrom(tabIds[0]!);
+    const terminalId = useShellStore.getState().activeId!;
+    const cwd = `${repositories[1].path}/src`;
+    useShellStore.getState().updateTerminalLayout(terminalId, {
+      root: { kind: 'pane', id: 'pane-1', title: null, cwd },
+      activePaneId: 'pane-1',
+    });
+    let resolve!: (value: (typeof repositories)[number]) => void;
+    const pending = new Promise<(typeof repositories)[number]>((done) => {
+      resolve = done;
+    });
+    const readRepository = vi.fn<GitPort['readRepository']>((id, query) =>
+      id === cwd ? pending : ports.git.readRepository(id, query),
+    );
+    renderShell('es-MX', undefined, { ...ports, git: { ...ports.git, readRepository } });
+    const strip = screen.getByRole('list', { name: 'Pestañas abiertas' });
+
+    await user.click(
+      within(strip).getAllByRole('button', { name: 'Cerrar la pestaña gitthul' }).at(-1)!,
+    );
+
+    expect(readRepository).toHaveBeenCalledWith(cwd);
+    expect(useShellStore.getState().activeId).toBe(terminalId);
+    await act(async () => {
+      resolve(repositories[1]);
+      await pending;
+    });
+    await waitFor(() => expect(useShellStore.getState().activeId).toBe(tabIds[1]));
+    expect(useShellStore.getState().tabs.some((tab) => tab.id === terminalId)).toBe(false);
   });
 
   // Sin historia debajo no hay nada a lo que volver, así que se va la pestaña entera.

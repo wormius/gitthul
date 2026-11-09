@@ -112,6 +112,37 @@
   min-height: 0;
 }
 
+.detailsPane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background-color: var(--surface-panel);
+}
+
+.detailsControl {
+  display: flex;
+  justify-content: flex-start;
+  padding: var(--space-1);
+}
+
+/* Coincide con el espacio reservado antes de la papelera en StagingPanel.
+   El botón conserva su DOM y queda fuera del contenido inert al escribir. */
+.detailsControlInline {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: var(--space-2);
+  inset-inline-start: var(--space-3);
+  padding: 0;
+}
+
+.detailsContent {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
 /* El vacío se centra; la lista de archivos ocupa el panel entero. */
 .centered {
   align-items: center;

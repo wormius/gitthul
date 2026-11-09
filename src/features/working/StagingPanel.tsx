@@ -36,6 +36,8 @@ interface StagingPanelProps {
   headSha: Sha;
   menuContext: MenuBuildContext;
   actions: WorkingActions;
+  /** Reserva el lugar del control de panel, que vive fuera del contenido inert. */
+  withPanelControl?: boolean;
 }
 
 const NOTHING: ReadonlySet<string> = new Set();
@@ -59,6 +61,7 @@ export function StagingPanel({
   headSha,
   menuContext,
   actions,
+  withPanelControl = false,
 }: StagingPanelProps) {
   const { t } = useI18n();
   const gestures = useGestures();
@@ -252,23 +255,26 @@ export function StagingPanel({
         matches={matches}
         focusRequest={filterFocus}
         actions={
-          <IconButton
-            aria-label={t('working.staging.discardAll')}
-            disabled={tracking.length + stagedFiles.length === 0 || !discardPrecondition}
-            icon={
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor">
-                <path d="M2 4h12M6 4V2h4v2M4 4l1 10h6l1-10M7 6v6M9 6v6" />
-              </svg>
-            }
-            onClick={() => {
-              if (discardPrecondition)
-                useWorkingStore.getState().openDialog({
-                  kind: 'discardAll',
-                  count: new Set([...tracking, ...stagedFiles].map((file) => file.path)).size,
-                  precondition: discardPrecondition,
-                });
-            }}
-          />
+          <>
+            {withPanelControl && <span className={styles.panelControlSlot} aria-hidden="true" />}
+            <IconButton
+              aria-label={t('working.staging.discardAll')}
+              disabled={tracking.length + stagedFiles.length === 0 || !discardPrecondition}
+              icon={
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor">
+                  <path d="M2 4h12M6 4V2h4v2M4 4l1 10h6l1-10M7 6v6M9 6v6" />
+                </svg>
+              }
+              onClick={() => {
+                if (discardPrecondition)
+                  useWorkingStore.getState().openDialog({
+                    kind: 'discardAll',
+                    count: new Set([...tracking, ...stagedFiles].map((file) => file.path)).size,
+                    precondition: discardPrecondition,
+                  });
+              }}
+            />
+          </>
         }
       />
 

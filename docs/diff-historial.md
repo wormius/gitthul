@@ -1,5 +1,16 @@
 # Diff e historial de un archivo
 
+## Ajustar los paneles
+
+Arrastra los separadores para cambiar el tamaño de los paneles sin cerrar el
+diff ni cambiar la selección. También puedes enfocar un separador con Tab y
+ajustarlo con las flechas.
+
+El botón de flecha de la cabecera del panel derecho pliega el panel de detalles.
+Al plegarlo queda una tira con la flecha **Desplegar el panel de detalles** para
+recuperarlo. El doble clic o Enter sobre su separador también alternan el plegado.
+El panel conserva su contenido y recupera el reparto anterior al desplegarlo.
+
 ## Copiar texto y SHA
 
 En los diffs de commits, WIP y stashes, selecciona texto y abre el menú contextual

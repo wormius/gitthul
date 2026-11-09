@@ -104,6 +104,57 @@ describe('SplitPane', () => {
     expect(separator).toHaveAttribute('aria-valuenow', '20');
   });
 
+  it.each([
+    ['horizontal', 440, 280, 'ArrowRight', '61'],
+    ['vertical', 80, 640, 'ArrowDown', '11'],
+  ] as const)(
+    'comprime los mínimos proporcionalmente sin ocultar paneles (%s)',
+    (orientation, minFirst, minSecond, increase, expected) => {
+      renderSplit({ orientation, minFirst, minSecond });
+      const separator = divider();
+      const container = separator.parentElement!;
+      Object.defineProperty(
+        container,
+        orientation === 'horizontal' ? 'clientWidth' : 'clientHeight',
+        {
+          value: 106,
+        },
+      );
+      Object.defineProperty(
+        separator,
+        orientation === 'horizontal' ? 'offsetWidth' : 'offsetHeight',
+        {
+          value: 6,
+        },
+      );
+      vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
+        left: 0,
+        top: 0,
+        width: 106,
+        height: 106,
+      } as DOMRect);
+      Object.assign(separator, {
+        setPointerCapture: vi.fn(),
+        hasPointerCapture: () => true,
+        releasePointerCapture: vi.fn(),
+      });
+
+      fireEvent.keyDown(separator, { key: 'End' });
+      expect(separator).toHaveAttribute('aria-valuenow', expected);
+      fireEvent.keyDown(separator, { key: increase });
+      expect(separator).toHaveAttribute('aria-valuenow', expected);
+      fireEvent.keyDown(separator, { key: 'Home' });
+      expect(separator).toHaveAttribute('aria-valuenow', expected);
+
+      for (const type of ['pointerdown', 'pointermove', 'pointerup']) {
+        const event = new Event(type, { bubbles: true });
+        Object.assign(event, { button: 0, pointerId: 1, clientX: 1000, clientY: 1000 });
+        fireEvent(separator, event);
+      }
+      expect(separator).toHaveAttribute('aria-valuenow', expected);
+    },
+  );
+
   it('pliega y despliega con doble clic y con Enter: el divisor se alcanza sin ratón', () => {
     const onCollapsedChange = vi.fn();
 
@@ -226,6 +277,39 @@ describe('SplitPane', () => {
     fireEvent.keyDown(divider(), { key: 'ArrowLeft' });
 
     expect(store.read('prueba.ramas')).toBeCloseTo(0.68);
+  });
+
+  it.each([-1, 0, 1, 2, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'recupera un reparto guardado inválido (%s) y continúa desde el valor visible',
+    (storedRatio) => {
+      const store = mapStore([['prueba.ramas', storedRatio]]);
+      render(
+        <PaneStorageContext value={store}>
+          <SplitPane
+            label="Ancho del panel de ramas"
+            storageId="prueba.ramas"
+            defaultRatio={0.72}
+            first={<p>Ramas</p>}
+            second={<p>Commits</p>}
+          />
+        </PaneStorageContext>,
+      );
+
+      expect(divider()).toHaveAttribute('aria-valuenow', '72');
+      expect(divider().previousElementSibling).toHaveStyle({ flexBasis: '72%' });
+      fireEvent.keyDown(divider(), { key: 'ArrowLeft' });
+      expect(divider()).toHaveAttribute('aria-valuenow', '70');
+      expect(store.read('prueba.ramas')).toBeCloseTo(0.7);
+    },
+  );
+
+  it('recupera un reparto controlado inválido antes de ajustar con teclado', () => {
+    const onRatioChange = vi.fn();
+    renderSplit({ ratio: 1, defaultRatio: 0.72, onRatioChange });
+
+    expect(divider()).toHaveAttribute('aria-valuenow', '72');
+    fireEvent.keyDown(divider(), { key: 'ArrowLeft' });
+    expect(onRatioChange).toHaveBeenLastCalledWith(0.7);
   });
 
   /*

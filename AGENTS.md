@@ -52,10 +52,31 @@ src-tauri/src contiene Git, PTY, autenticación, persistencia, watchers y sistem
 src-tauri/capabilities contiene permisos; src-tauri/icons, activos de empaquetado.
 src/assets/brand/logo.svg es el maestro del logotipo utilizado por la aplicación.
 
+En GitWorking, los separadores y el control de plegado de detalles no cierran el
+diff ni cambian la selección. El panel de detalles plegado conserva una tira con su
+botón de despliegue y mantiene montado su contenido oculto para conservar
+borradores y filtros. SplitPane recupera ratios inválidos con su reparto inicial;
+cuando no caben ambos mínimos, distribuye el espacio en proporción a ellos.
+En Seguimiento y Stage, el botón de plegado se alinea antes de la papelera y el
+filtro. StagingPanel reserva su espacio; WorkingView conserva el botón fuera del
+contenido inert y mantiene su nodo al plegar para conservar el foco del teclado.
+
+Cerrar una terminal activa prioriza la pestaña del repositorio de su panel
+activo; sin coincidencia usa el historial de foco de repositorios de la sesión.
+closeTab, closeSurface y closeTabs comparten la regla; cerrar terminales de fondo
+conserva el foco. Ese historial es efímero y no forma parte de SessionSnapshot.
+Los cierres devuelven una promesa: la terminal activa revalida el repositorio de
+su cwd observado y espera consultas pendientes sin bloquear la navegación.
+Los resolutores y consultas son efímeros; revalidar foco y contexto tras la espera.
+
 React consume los puertos de src/core/ports; las llamadas nativas pertenecen a sus
 adaptadores Tauri. Los adaptadores mock permiten desarrollar y probar la interfaz
 sin repositorios reales. Mantener ese contrato compartido, sin accesos directos
 al sistema desde las vistas ni permisos globales del WebView para suplirlo.
+
+Las lecturas IPC de repositorio e identidad ejecutan su descubrimiento, E/S y
+procesos Git en spawn_blocking, sin retener el despacho de comandos síncronos.
+Conservar sus resultados y errores tipados al ajustar la planificación.
 
 El adaptador Git nativo implementa GitPort completo sin recibir ni extender un
 mock: una operación omitida debe fallar al compilar. El simulador se carga solo
@@ -385,6 +406,9 @@ portable-pty con PSEUDOCONSOLE_INHERIT_CURSOR; en la aplicación responde xterm.
 Los logs conservan errores útiles y redactan secretos antes de persistir o notificar;
 no registrar contenido libre de archivos, credenciales, mensajes de commit, PTY o
 portapapeles. Un fallo del logger no cambia el resultado de una operación Git.
+Serializar cada entrada JSONL redactada en memoria y escribirla completa bajo el
+mismo bloqueo, conservando rotación, permisos y errores de escritura; no enviar
+cada fragmento del serializador directamente al archivo.
 El formato 3 conserva diagnóstico estructurado, causas, etapa, argumentos protegidos,
 exitCode/signal o ioKind/osCode y correlación frontend/nativa. Mantener los códigos
 de error y cancelación existentes al añadir evidencia; los sondeos negativos esperados
