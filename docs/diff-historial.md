@@ -6,7 +6,7 @@ Arrastra los separadores para cambiar el tamaño de los paneles sin cerrar el
 diff ni cambiar la selección. También puedes enfocar un separador con Tab y
 ajustarlo con las flechas.
 
-El botón de flecha de la esquina superior derecha pliega el panel de detalles.
+El botón de flecha de la cabecera del panel derecho pliega el panel de detalles.
 Al plegarlo queda una tira con la flecha **Desplegar el panel de detalles** para
 recuperarlo. El doble clic o Enter sobre su separador también alternan el plegado.
 El panel conserva su contenido y recupera el reparto anterior al desplegarlo.
