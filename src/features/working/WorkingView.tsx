@@ -1222,7 +1222,21 @@ export function WorkingView({ base }: WorkingViewProps) {
    * WIP y los guardados no son SHA, pero sí montan `StagingPanel`, que tiene que
    * ocupar el panel completo igual que `CommitDetails`.
    */
-  const centered = fileHistory === null && compare === null && selectedCommits.size > 1;
+  const centered =
+    !resolving &&
+    fileHistory === null &&
+    !(editingAmend && status && refs) &&
+    compare === null &&
+    selectedCommits.size > 1;
+
+  const inlineDetailsControl =
+    !detailsCollapsed &&
+    !resolving &&
+    fileHistory === null &&
+    status !== null &&
+    !status.clean &&
+    refs !== null &&
+    (editingAmend || (compare === null && onlySelected === 'wip'));
 
   /*
    * Las dos ramas de la operación a medias. `bisect` y `none` no tienen dos que
@@ -1305,6 +1319,7 @@ export function WorkingView({ base }: WorkingViewProps) {
         />
       ) : editingAmend && status && refs ? (
         <StagingPanel
+          withPanelControl
           repoId={base.repoId}
           status={status}
           head={headBranch}
@@ -1349,6 +1364,7 @@ export function WorkingView({ base }: WorkingViewProps) {
         />
       ) : onlySelected === 'wip' && status && refs && !status.clean ? (
         <StagingPanel
+          withPanelControl
           repoId={base.repoId}
           status={status}
           head={headBranch}
@@ -1456,7 +1472,15 @@ export function WorkingView({ base }: WorkingViewProps) {
             }
             second={
               <div className={styles.detailsPane}>
-                <div className={styles.detailsControl} data-pane-control="">
+                <div
+                  className={[
+                    styles.detailsControl,
+                    inlineDetailsControl ? styles.detailsControlInline : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  data-pane-control=""
+                >
                   <IconButton
                     icon={<DetailsToggleIcon collapsed={detailsCollapsed} />}
                     aria-label={t(

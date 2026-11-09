@@ -57,6 +57,9 @@ diff ni cambian la selección. El panel de detalles plegado conserva una tira co
 botón de despliegue y mantiene montado su contenido oculto para conservar
 borradores y filtros. SplitPane recupera ratios inválidos con su reparto inicial;
 cuando no caben ambos mínimos, distribuye el espacio en proporción a ellos.
+En Seguimiento y Stage, el botón de plegado se alinea antes de la papelera y el
+filtro. StagingPanel reserva su espacio; WorkingView conserva el botón fuera del
+contenido inert y mantiene su nodo al plegar para conservar el foco del teclado.
 
 Cerrar una terminal activa prioriza la pestaña del repositorio de su panel
 activo; sin coincidencia usa el historial de foco de repositorios de la sesión.

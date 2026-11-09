@@ -5,6 +5,12 @@
   min-height: 0;
 }
 
+.panelControlSlot {
+  flex: none;
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+}
+
 /*
  * La caja del `SplitPane` de las dos listas tiene que ser flex.
  *
