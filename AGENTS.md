@@ -52,6 +52,11 @@ src-tauri/src contiene Git, PTY, autenticación, persistencia, watchers y sistem
 src-tauri/capabilities contiene permisos; src-tauri/icons, activos de empaquetado.
 src/assets/brand/logo.svg es el maestro del logotipo utilizado por la aplicación.
 
+Los arrastres internos usan los eventos HTML5 del frontend. Mantener
+app.windows[].dragDropEnabled=false en la configuración Tauri: su manejador
+nativo sustituye al de WebView2 y bloquea esos gestos en Windows. La aplicación
+no consume eventos nativos DragDropEvent de Tauri.
+
 En GitWorking, los separadores y el control de plegado de detalles no cierran el
 diff ni cambian la selección. El panel de detalles plegado conserva una tira con su
 botón de despliegue y mantiene montado su contenido oculto para conservar
@@ -569,7 +574,7 @@ Explicar el problema, el comportamiento resultante, la validación y los límite
 reales. Actualizar contratos y documentación de comportamiento junto al código.
 No registrar bitácoras personales, secretos o artefactos generados en el producto.
 Conservar una historia comprensible y commits acordes al alcance solicitado.
-Las ramas de agentes usan codex/ salvo indicación humana distinta. Mantener la
+Las ramas de agentes usan feature/ salvo indicación humana distinta. Mantener la
 documentación de uso junto al comportamiento; los registros de ejecución y criterios
 detallados de investigación quedan fuera del producto.
 

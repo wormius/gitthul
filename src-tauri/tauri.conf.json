@@ -20,6 +20,7 @@
         "minHeight": 600,
         "center": true,
         "resizable": true,
+        "dragDropEnabled": false,
         "decorations": true
       }
     ],
