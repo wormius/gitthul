@@ -95,6 +95,7 @@ export type GitErrorParams = {
   /** El transporte actual solo puede devolver rutas que sean texto UTF-8 exacto. */
   'text.encodingUnsupported': { encoding: string };
   'resolve.unrepresentable': { path: string; encoding: string };
+  'resolve.unsupportedFileType': { path: string; kind: string; count: number };
   'path.encodingUnsupported': { repo: string };
   /** La ruta pedida no existe en el árbol o revisión seleccionados. */
   'path.notFound': { path: string };
@@ -284,6 +285,7 @@ export const GIT_ERRORS: { [C in GitErrorCode]: GitErrorEntry<C> } = {
   'clone.destinationNotEmpty': { params: ['path'], fixes: ['chooseAnotherFolder'] },
   'text.encodingUnsupported': { params: ['encoding'], fixes: ['retry'] },
   'resolve.unrepresentable': { params: ['path', 'encoding'], fixes: ['retry'] },
+  'resolve.unsupportedFileType': { params: ['path', 'kind', 'count'], fixes: ['openResolve'] },
   'path.encodingUnsupported': { params: ['repo'], fixes: ['retry'] },
   'path.notFound': { params: ['path'], fixes: ['retry'] },
   'ref.encodingUnsupported': { params: ['repo'], fixes: ['retry'] },

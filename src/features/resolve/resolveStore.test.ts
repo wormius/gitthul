@@ -99,3 +99,81 @@ it('reinicia la resolución con otra codificación y conserva los borradores de 
   expect(state.blockIds).toEqual([]);
   expect(state.blockIndex).toBe(0);
 });
+
+it('cancelar y alternar archivos conserva decisiones y texto por bloque de cada ruta', () => {
+  const store = useResolveStore.getState();
+  store.setConflictRevision('src/app.ts', 'base:ours:theirs');
+  store.setBlockIds(['c1', 'c2']);
+  store.setBlockSide('ours', 'c1', true);
+  store.setBlockText('c2', 'mi solución');
+  store.setBlockIndex(1);
+  store.closeFile();
+  store.openFile('other.ts');
+  store.setBlockIds(['c1']);
+  store.setBlockSide('theirs', 'c1', true);
+  store.openFile('src/app.ts');
+  store.setConflictRevision('src/app.ts', 'base:ours:theirs');
+  expect(useResolveStore.getState().choices.get('c1')).toEqual(['ours']);
+  expect(useResolveStore.getState().blockText.get('c2')?.text).toBe('mi solución');
+  expect(useResolveStore.getState().blockIndex).toBe(1);
+  store.openFile('other.ts');
+  expect(useResolveStore.getState().choices.get('c1')).toEqual(['theirs']);
+  expect(useResolveStore.getState().blockText.size).toBe(0);
+});
+
+it('un conflicto distinto invalida elecciones y ambas formas de edición manual solo en esa ruta', () => {
+  const store = useResolveStore.getState();
+  store.setConflictRevision('src/app.ts', 'original');
+  store.take('ours');
+  store.setBlockText('c1', 'texto de antes');
+  store.setManual('src/app.ts', 'archivo manual de antes');
+  store.setManual('other.ts', 'otro borrador');
+  store.closeFile();
+  store.openFile('src/app.ts');
+  store.setConflictRevision('src/app.ts', 'cambió');
+  const state = useResolveStore.getState();
+  expect(state.choices.size).toBe(0);
+  expect(state.blockText.size).toBe(0);
+  expect(state.manual.has('src/app.ts')).toBe(false);
+  expect(state.manual.get('other.ts')).toBe('otro borrador');
+  store.closeFile();
+  store.openFile('src/app.ts');
+  expect(useResolveStore.getState().choices.size).toBe(0);
+  expect(useResolveStore.getState().blockText.size).toBe(0);
+});
+
+it('la misma revisión conserva también la edición manual global al cancelar', () => {
+  const store = useResolveStore.getState();
+  store.setConflictRevision('src/app.ts', 'original');
+  store.setManual('src/app.ts', 'archivo manual');
+  store.closeFile();
+  store.openFile('src/app.ts');
+  store.setConflictRevision('src/app.ts', 'original');
+  expect(useResolveStore.getState().manual.get('src/app.ts')).toBe('archivo manual');
+});
+
+it('cambiar codificación elimina también la instantánea de decisiones cerradas', () => {
+  const store = useResolveStore.getState();
+  store.setConflictRevision('src/app.ts', 'original');
+  store.take('ours');
+  store.setBlockText('c1', 'texto de antes');
+  store.closeFile();
+  store.openFile('src/app.ts');
+  store.restartWithEncoding('src/app.ts', 'windows-1252');
+  store.closeFile();
+  store.openFile('src/app.ts');
+  expect(useResolveStore.getState().choices.size).toBe(0);
+  expect(useResolveStore.getState().blockText.size).toBe(0);
+});
+
+it('inspeccionar un resultado no reasigna decisiones del último archivo editado', () => {
+  const store = useResolveStore.getState();
+  store.take('ours');
+  store.closeFile();
+  store.openResolved('other.ts');
+  store.closeFile();
+  store.openFile('other.ts');
+  expect(useResolveStore.getState().choices.size).toBe(0);
+  store.openFile('src/app.ts');
+  expect(useResolveStore.getState().choices.get('c1')).toEqual(['ours']);
+});

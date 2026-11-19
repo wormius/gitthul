@@ -1533,9 +1533,7 @@ export function WorkingView({ base }: WorkingViewProps) {
             await writeResolution(openConflict, text, revision, encoding);
             if (encoding) useResolveStore.getState().setEncoding(openConflict, encoding);
           }}
-          onKeepSide={(side) => {
-            void keepSideOfOpenFile(openConflict, side);
-          }}
+          onKeepSide={(side) => keepSideOfOpenFile(openConflict, side)}
           onCancel={closeConflictFile}
         />
       )}
