@@ -21,6 +21,9 @@ use super::{
     text_changes::{self, TextChanges},
 };
 
+#[path = "diff_alignment.rs"]
+mod alignment;
+
 const DEFAULT_CONTEXT: u32 = 3;
 const MAX_CONTEXT: u32 = 1_000;
 const MAX_TEXT_BYTES: u64 = 5 * 1024 * 1024;
@@ -171,7 +174,7 @@ pub(super) enum DiffContent {
     },
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub(super) struct LineEndingChange {
     before: TextLineEndings,
     after: TextLineEndings,
@@ -206,6 +209,8 @@ pub(super) struct DiffLine {
     pub(super) text: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     words: Vec<WordSpan>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) line_ending_change: Option<LineEndingChange>,
     #[serde(skip)]
     pub(super) no_newline: bool,
     #[serde(skip)]
@@ -1506,6 +1511,7 @@ fn parse_hunks(patch: &str) -> Result<Vec<Hunk>, ReadDiffError> {
                 new_line: new_number,
                 text: text.to_owned(),
                 words: Vec::new(),
+                line_ending_change: None,
                 no_newline: false,
                 ending,
             });
@@ -1520,6 +1526,7 @@ fn parse_hunks(patch: &str) -> Result<Vec<Hunk>, ReadDiffError> {
                 index += 1;
             }
         }
+        let mut body = alignment::refine(body);
         annotate_words(&mut body);
         let number = result.len();
         result.push(Hunk {
@@ -1567,25 +1574,52 @@ fn parse_u64(bytes: &[u8]) -> Result<u64, ReadDiffError> {
         .ok_or(ReadDiffError::MalformedOutput)
 }
 
+/// Boundaries shared by presentation annotations and partial Git writes.
+/// An ending-only pair is a complete edit even when a deletion precedes it or
+/// an insertion follows it; positional pairing must not absorb that neighbor.
+pub(super) fn change_group_ranges(
+    lines: &[DiffLine],
+    start: usize,
+) -> (std::ops::Range<usize>, std::ops::Range<usize>) {
+    if lines
+        .get(start)
+        .is_some_and(|line| line.kind == DiffLineKind::Removed && line.line_ending_change.is_some())
+        && lines.get(start + 1).is_some_and(|line| {
+            line.kind == DiffLineKind::Added
+                && line.line_ending_change == lines[start].line_ending_change
+                && line.text == lines[start].text
+        })
+    {
+        return (start..start + 1, start + 1..start + 2);
+    }
+    let mut middle = start;
+    while lines.get(middle).is_some_and(|line| {
+        line.kind == DiffLineKind::Removed && (middle == start || line.line_ending_change.is_none())
+    }) {
+        middle += 1;
+    }
+    let mut end = middle;
+    while lines.get(end).is_some_and(|line| {
+        line.kind == DiffLineKind::Added && (end == start || line.line_ending_change.is_none())
+    }) {
+        end += 1;
+    }
+    (start..middle, middle..end)
+}
+
 fn annotate_words(lines: &mut [DiffLine]) {
     let mut index = 0;
     while index < lines.len() {
-        if !matches!(lines[index].kind, DiffLineKind::Removed) {
+        if matches!(lines[index].kind, DiffLineKind::Context) {
             index += 1;
             continue;
         }
-        let removed_start = index;
-        while index < lines.len() && matches!(lines[index].kind, DiffLineKind::Removed) {
-            index += 1;
-        }
-        let added_start = index;
-        while index < lines.len() && matches!(lines[index].kind, DiffLineKind::Added) {
-            index += 1;
-        }
-        let pairs = (added_start - removed_start).min(index - added_start);
+        let (removed, added) = change_group_ranges(lines, index);
+        index = added.end;
+        let pairs = removed.len().min(added.len());
         for offset in 0..pairs {
-            let old_index = removed_start + offset;
-            let new_index = added_start + offset;
+            let old_index = removed.start + offset;
+            let new_index = added.start + offset;
             let (left, right) = lines.split_at_mut(new_index);
             if let Some((old_span, new_span)) = changed_spans(&left[old_index].text, &right[0].text)
             {

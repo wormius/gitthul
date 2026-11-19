@@ -973,6 +973,8 @@ export const de: Messages = {
   'working.diff.mode.changed': 'Dateityp geändert: {before} → {after}.',
   'working.diff.lineEndings.changed': 'Die Zeilenenden wurden geändert ({before} → {after}).',
   'working.diff.lineEndings.mixed': 'Gemischt',
+  'working.diff.lineEndings.aligned':
+    'Mit LF/CRLF markierte Zeilen ändern nur das Zeilenende. Beim Hinzufügen zur Staging-Area bleiben die ausgewählten Zeilenenden erhalten.',
   'working.diff.rename.identical': 'Datei umbenannt: {before} → {after}.',
   'working.diff.rename.changed':
     'Datei umbenannt: {before} → {after}. Auch der Inhalt wurde geändert.',
@@ -1898,6 +1900,10 @@ export const de: Messages = {
   'error.history.mainlineInvalid.title': 'Eltern-Commit {parent} existiert in Commit {sha} nicht',
   'error.history.mainlineInvalid.cause':
     'Der Commit hat {count} Eltern-Commits. GitThul hat nichts geändert; wähle die Hauptlinie erneut.',
+  'error.write.partialLineBoundary.title':
+    'Diese Auswahl muss den letzten Zeilenumbruch einschließen',
+  'error.write.partialLineBoundary.cause':
+    'Die Auswahl würde eine Zeile ohne Zeilenumbruch vor eine weitere Zeile setzen. Wähle beide Seiten der Änderung oder den gesamten Hunk, um die Dateibytes zu erhalten.',
   'error.write.stale.title': '{path} wurde während der Anzeige geändert',
   'error.write.stale.cause':
     'GitThul hat die Auswahl nicht auf eine andere Version angewendet. Lade den Diff neu und wähle erneut aus.',

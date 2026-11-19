@@ -154,6 +154,129 @@ describe('las dos columnas', () => {
   });
 });
 
+describe('cambios de terminador alineados', () => {
+  const endings = { before: 'crlf', after: 'lf' } as const;
+  const pair = (text: string, before: number, after: number): DiffLine[] => [
+    { ...line('removed', text, before, null), lineEndingChange: endings },
+    { ...line('added', text, null, after), lineEndingChange: endings },
+  ];
+  const hunk = (lines: readonly DiffLine[], oldLines: number, newLines: number): Hunk => ({
+    id: 'original-hunk',
+    oldStart: 1,
+    oldLines,
+    newStart: 1,
+    newLines,
+    header: '',
+    lines,
+  });
+
+  it('conserva números, texto y referencias cuando una inserción desplaza las parejas', () => {
+    const original = hunk(
+      [
+        ...pair('cabecera', 1, 1),
+        line('added', 'insertada', null, 2),
+        ...pair('uno', 2, 3),
+        line('removed', 'dos', 3, null),
+        line('added', 'DOS', null, 4),
+        ...pair('fin', 4, 5),
+      ],
+      4,
+      5,
+    );
+    const block = hunkBlocks([original])[0]!;
+    const { left, right } = splitRows(block.rows);
+    expect(block.hunk).toBe(original);
+    expect(left.map((row) => row.text)).toEqual(['cabecera', '', 'uno', 'dos', 'fin']);
+    expect(right.map((row) => row.text)).toEqual(['cabecera', 'insertada', 'uno', 'DOS', 'fin']);
+    expect(stageableLines(right, 4, 4, left)).toEqual([
+      { side: 'old', line: 3 },
+      { side: 'new', line: 4 },
+    ]);
+    expect(stageableLines(right, 2, 2, left)).toEqual([{ side: 'new', line: 2 }]);
+    expect(oldColumn(left).labels).toEqual(['1 CRLF', '', '2 CRLF', '3', '4 CRLF']);
+    expect(newColumn(right).labels).toEqual(['1 LF', '2', '3 LF', '4', '5 LF']);
+    expect(oldColumn(left).marks).toEqual([
+      { line: 1, tone: 'lineEnding' },
+      { line: 3, tone: 'lineEnding' },
+      { line: 4, tone: 'removed' },
+      { line: 5, tone: 'lineEnding' },
+    ]);
+    const unified = unifiedColumn(block.rows);
+    expect(unified.text).toBe(
+      '-cabecera\n+cabecera\n+insertada\n-uno\n+uno\n-dos\n+DOS\n-fin\n+fin',
+    );
+    expect(unified.labels).toEqual([
+      '1 CRLF',
+      '1 LF',
+      '2',
+      '2 CRLF',
+      '3 LF',
+      '3',
+      '4',
+      '4 CRLF',
+      '5 LF',
+    ]);
+    expect(stageableLines(block.rows, 4, 5)).toEqual([
+      { side: 'old', line: 2 },
+      { side: 'new', line: 3 },
+    ]);
+  });
+
+  it('deja un borrado frente a un hueco antes de una pareja EOL explícita', () => {
+    const original = hunk(
+      [
+        ...pair('cabecera', 1, 1),
+        line('removed', 'uno', 2, null),
+        ...pair('uno', 3, 2),
+        line('removed', 'dos', 4, null),
+        line('added', 'DOS', null, 3),
+        ...pair('fin', 5, 4),
+      ],
+      5,
+      4,
+    );
+    const { left, right } = splitRows(hunkBlocks([original])[0]!.rows);
+    expect(left.map((row) => row.text)).toEqual(['cabecera', 'uno', 'uno', 'dos', 'fin']);
+    expect(right.map((row) => row.text)).toEqual(['cabecera', '', 'uno', 'DOS', 'fin']);
+    expect(stageableLines(left, 2, 2, right)).toEqual([{ side: 'old', line: 2 }]);
+    expect(stageableLines(right, 3, 3, left)).toEqual([
+      { side: 'old', line: 3 },
+      { side: 'new', line: 2 },
+    ]);
+  });
+
+  it('distingue las conversiones de terminador de los cambios de texto en la barra', () => {
+    const original = hunk(
+      [...pair('uno', 1, 1), line('removed', 'dos', 2, null), line('added', 'DOS', null, 2)],
+      2,
+      2,
+    );
+    expect(hunkMarkers(hunkBlocks([original]), 'changed', () => 'Bloque').markers).toEqual([
+      { id: 'original-hunk-change-1', from: 2, to: 4, tone: 'neutral', label: 'Bloque' },
+      { id: 'original-hunk-change-2', from: 4, to: 6, tone: 'changed', label: 'Bloque' },
+    ]);
+  });
+
+  it('excluye de Stage la fila de salto final sin ocultar la conversión EOL vecina', () => {
+    const original = hunk(
+      [...pair('uno', 1, 1), line('removed', 'fin', 2, null), line('added', 'fin', null, 2)],
+      2,
+      2,
+    );
+    const rows = hunkBlocks([original], { before: false, after: true })[0]!.rows;
+    const { left, right } = splitRows(rows);
+    expect(oldColumn(left).labels).toEqual(['1 CRLF', '2', '']);
+    expect(newColumn(right).labels).toEqual(['1 LF', '2', '3']);
+    expect(stageableLines(right, 1, right.length, left)).toEqual([
+      { side: 'old', line: 1 },
+      { side: 'new', line: 1 },
+      { side: 'old', line: 2 },
+      { side: 'new', line: 2 },
+    ]);
+    expect(stageableLines(right, right.length, right.length, left)).toEqual([]);
+  });
+});
+
 /** Un archivo de catorce líneas con el hunk de arriba en su sitio. */
 const fileLines = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n'];
 

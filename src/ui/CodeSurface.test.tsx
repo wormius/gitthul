@@ -337,6 +337,20 @@ describe('CodeSurface', () => {
     expect(() => renderSurface({ marks: [{ line: 900, tone: 'added' }] })).not.toThrow();
   });
 
+  it('marca un terminador sin teñirlo como contenido añadido ni cambiar el documento', () => {
+    const { container } = renderSurface({
+      value: 'uno\ndos',
+      showLineNumbers: true,
+      lineNumberLabels: ['1 CRLF', '2'],
+      marks: [{ line: 1, tone: 'lineEnding' }],
+    });
+    const first = container.querySelector('.cm-line');
+    expect(first?.className).toMatch(/lineEnding/);
+    expect(first?.className).not.toMatch(/added|removed/);
+    expect(lineNumbersOf(container)).toEqual(['1 CRLF', '2']);
+    expect(EditorView.findFromDOM(editor())!.state.doc.toString()).toBe('uno\ndos');
+  });
+
   it('el resaltado por palabra tiñe solo el tramo, no la línea entera', () => {
     const { container } = renderSurface({
       words: [{ line: 2, start: 8, end: 12, tone: 'added' }],

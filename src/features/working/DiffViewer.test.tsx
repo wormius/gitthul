@@ -7,7 +7,7 @@ import { PortsContext } from '@app/PortsContext';
 import { createMockGitPort } from '@core/adapters/mock/mockGitPort';
 import { NO_LATENCY } from '@core/adapters/mock/latency';
 import { selectPorts } from '@core/adapters/selectPorts';
-import type { DiffSource, FileDiff, GitFileMode, TextChanges } from '@core/domain/diff';
+import type { DiffLine, DiffSource, FileDiff, GitFileMode, TextChanges } from '@core/domain/diff';
 import { I18nProvider } from '@i18n/I18nProvider';
 
 import { DiffViewer } from './DiffViewer';
@@ -40,7 +40,7 @@ describe('cambios sin diferencias de texto', () => {
     };
   }
 
-  function show(file: FileDiff) {
+  function show(file: FileDiff, actions: Partial<WorkingActions> = {}) {
     const git = createMockGitPort({ latency: NO_LATENCY });
     vi.spyOn(git, 'readDiff').mockResolvedValue(file);
     vi.spyOn(git, 'readFile').mockResolvedValue({
@@ -57,7 +57,7 @@ describe('cambios sin diferencias de texto', () => {
           <DiffViewer
             repoId="gitthul"
             diff={{ path: file.path, source: file.source, returnTo: null }}
-            actions={{} as WorkingActions}
+            actions={actions as WorkingActions}
             status={null}
             onClose={() => {}}
           />
@@ -83,6 +83,123 @@ describe('cambios sin diferencias de texto', () => {
       expect(
         await screen.findByText('Permiso de ejecución eliminado: 100755 → 100644.'),
       ).toHaveAttribute('role', 'status');
+    },
+  );
+
+  it.each([
+    { columns: 'split', source: 'worktree' },
+    { columns: 'unified', source: 'worktree' },
+    { columns: 'split', source: 'index' },
+    { columns: 'unified', source: 'index' },
+  ] as const)(
+    'muestra EOL discretos y conserva las acciones de líneas y hunks ($columns/$source)',
+    async ({ columns, source }) => {
+      useWorkingStore.getState().setDiffOptions({ columns, scope: 'hunks', content: 'diff' });
+      const stageLines = vi.fn();
+      const stageHunk = vi.fn();
+      const endings = { before: 'crlf', after: 'lf' } as const;
+      const pair = (text: string, oldLine: number, newLine: number): DiffLine[] => [
+        { kind: 'removed', oldLine, newLine: null, text, lineEndingChange: endings },
+        { kind: 'added', oldLine: null, newLine, text, lineEndingChange: endings },
+      ];
+      const file: FileDiff = {
+        ...modeDiff({ kind: source }, '100644', '100644'),
+        content: {
+          kind: 'text',
+          truncated: false,
+          encoding: 'utf-8',
+          hunks: [
+            {
+              id: 'raw-hunk-id',
+              oldStart: 1,
+              oldLines: 4,
+              newStart: 1,
+              newLines: 5,
+              header: '',
+              lines: [
+                ...pair('cabecera', 1, 1),
+                { kind: 'added', oldLine: null, newLine: 2, text: 'insertada' },
+                ...pair('uno', 2, 3),
+                { kind: 'removed', oldLine: 3, newLine: null, text: 'dos' },
+                { kind: 'added', oldLine: null, newLine: 4, text: 'DOS' },
+                ...pair('fin', 4, 5),
+              ],
+            },
+          ],
+        },
+      };
+      const { container } = show(file, { stageLines, stageHunk });
+      expect(
+        await screen.findByText(
+          'Las filas marcadas LF/CRLF solo cambian el final de línea. Al agregarlas al staging se conservan los terminadores elegidos.',
+        ),
+      ).toHaveAttribute('role', 'status');
+      const labels = [...container.querySelectorAll('.cm-lineNumbers .cm-gutterElement')].map(
+        (element) => element.textContent,
+      );
+      expect(labels).toContain('1 CRLF');
+      expect(labels).toContain('1 LF');
+      const endingRow = [...container.querySelectorAll('.cm-line')].find(
+        (element) => element.textContent === (columns === 'split' ? 'cabecera' : '+cabecera'),
+      );
+      expect(endingRow?.className).toMatch(/lineEnding/);
+      expect(endingRow?.className).not.toMatch(/added|removed/);
+      const views = screen
+        .getAllByRole('textbox')
+        .map((element) => EditorView.findFromDOM(element)!)
+        .filter(Boolean);
+      expect(views.every((view) => !view.state.doc.toString().includes('CRLF'))).toBe(true);
+      const buttonForLine = (text: string) => {
+        for (const view of views) {
+          const button = [
+            ...view.dom.querySelectorAll<HTMLButtonElement>('[data-choice-line]'),
+          ].find(
+            (element) => view.state.doc.line(Number(element.dataset.choiceLine)).text === text,
+          );
+          if (button) return button;
+        }
+        throw new Error(`Falta la acción de la línea ${text}`);
+      };
+      const direction = source === 'worktree' ? 'stage' : 'unstage';
+      fireEvent.click(buttonForLine(columns === 'split' ? 'DOS' : '+DOS'));
+      expect(stageLines).toHaveBeenLastCalledWith(
+        file.path,
+        columns === 'split'
+          ? [
+              { side: 'old', line: 3 },
+              { side: 'new', line: 4 },
+            ]
+          : [{ side: 'new', line: 4 }],
+        direction,
+        file.precondition,
+        false,
+      );
+      fireEvent.click(buttonForLine(columns === 'split' ? 'cabecera' : '+cabecera'));
+      expect(stageLines).toHaveBeenLastCalledWith(
+        file.path,
+        columns === 'split'
+          ? [
+              { side: 'new', line: 1 },
+              { side: 'old', line: 1 },
+            ]
+          : [{ side: 'new', line: 1 }],
+        direction,
+        file.precondition,
+        false,
+      );
+      fireEvent.click(
+        screen.getAllByRole('button', {
+          name:
+            source === 'worktree' ? 'Agregar el hunk 1 al staging' : 'Quitar el hunk 1 del staging',
+        })[0]!,
+      );
+      expect(stageHunk).toHaveBeenLastCalledWith(
+        file.path,
+        'raw-hunk-id',
+        direction,
+        file.precondition,
+        false,
+      );
     },
   );
 

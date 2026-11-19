@@ -973,6 +973,8 @@ export const fr: Messages = {
   'working.diff.mode.changed': 'Type de fichier modifié : {before} → {after}.',
   'working.diff.lineEndings.changed': 'Les fins de ligne ont changé ({before} → {after}).',
   'working.diff.lineEndings.mixed': 'Mixtes',
+  'working.diff.lineEndings.aligned':
+    'Les lignes marquées LF/CRLF ne changent que la fin de ligne. Leur ajout à l’index conserve les fins de ligne choisies.',
   'working.diff.rename.identical': 'Fichier renommé : {before} → {after}.',
   'working.diff.rename.changed':
     'Fichier renommé : {before} → {after}. Le contenu a également changé.',
@@ -1893,6 +1895,9 @@ export const fr: Messages = {
   'error.history.mainlineInvalid.title': 'Le parent {parent} n’existe pas dans le commit {sha}',
   'error.history.mainlineInvalid.cause':
     'Le commit possède {count} parents. GitThul n’a rien modifié ; choisissez à nouveau la ligne principale.',
+  'error.write.partialLineBoundary.title': 'Cette sélection doit inclure le saut de ligne final',
+  'error.write.partialLineBoundary.cause':
+    'La sélection placerait une ligne sans terminateur avant une autre ligne. Sélectionnez les deux côtés du changement ou le hunk entier pour conserver les octets du fichier.',
   'error.write.stale.title': '{path} a changé pendant son affichage',
   'error.write.stale.cause':
     'GitThul n’a pas appliqué la sélection à une autre version. Rechargez le diff et sélectionnez-la à nouveau.',

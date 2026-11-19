@@ -964,6 +964,8 @@ export const en: Messages = {
   'working.diff.mode.changed': 'File type changed: {before} → {after}.',
   'working.diff.lineEndings.changed': 'Line endings changed ({before} → {after}).',
   'working.diff.lineEndings.mixed': 'Mixed',
+  'working.diff.lineEndings.aligned':
+    'Rows labeled LF/CRLF only change line endings. Staging preserves the selected endings.',
   'working.diff.rename.identical': 'File renamed: {before} → {after}.',
   'working.diff.rename.changed': 'File renamed: {before} → {after}. The content also changed.',
   'working.diff.copy.identical': 'File copied: {before} → {after}.',
@@ -1861,6 +1863,9 @@ export const en: Messages = {
   'error.history.mainlineInvalid.title': 'Parent {parent} does not exist in commit {sha}',
   'error.history.mainlineInvalid.cause':
     'The commit has {count} parents. GitThul changed nothing; choose the mainline again.',
+  'error.write.partialLineBoundary.title': 'This selection needs to include the final newline',
+  'error.write.partialLineBoundary.cause':
+    'The selection would place an unterminated line before another line. Select both sides of the change or the whole hunk to preserve the file bytes.',
   'error.write.stale.title': '{path} changed while you were viewing it',
   'error.write.stale.cause':
     'GitThul did not apply the selection to a different version. Reload the diff and select it again.',

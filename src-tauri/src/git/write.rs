@@ -27,6 +27,7 @@ pub enum WriteError {
     MalformedDiff,
     Stale(String),
     UnsupportedSelection,
+    PartialLineBoundary,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Hash)]
@@ -440,51 +441,59 @@ fn selected_patch(
         let mut new_count = 0_u64;
         let mut delta = 0_i64;
         let mut index = 0;
+        let mut output_unterminated = false;
         while index < hunk.lines.len() {
             if hunk.lines[index].kind == DiffLineKind::Context {
-                push_patch_line(&mut body, ' ', &hunk.lines[index]);
+                push_patch_line(&mut body, ' ', &hunk.lines[index], &mut output_unterminated)?;
                 new_count += 1;
                 index += 1;
                 continue;
             }
 
-            let removed_start = index;
-            while hunk
-                .lines
-                .get(index)
-                .is_some_and(|line| line.kind == DiffLineKind::Removed)
-            {
-                index += 1;
-            }
-            let added_start = index;
-            while hunk
-                .lines
-                .get(index)
-                .is_some_and(|line| line.kind == DiffLineKind::Added)
-            {
-                index += 1;
-            }
-            let removed = &hunk.lines[removed_start..added_start];
-            let added = &hunk.lines[added_start..index];
+            // EOL matches are exact line pairs even next to a deletion or an
+            // insertion. Reuse the reader's boundaries rather than pairing a
+            // whole replacement run again by ordinal position.
+            let (removed, added) = diff::change_group_ranges(&hunk.lines, index);
+            index = added.end;
+            let removed = &hunk.lines[removed];
+            let added = &hunk.lines[added];
             let (removed, added) = if reverse {
                 (added, removed)
             } else {
                 (removed, added)
             };
             for offset in 0..removed.len().max(added.len()) {
+                if reverse
+                    && !whole
+                    && removed
+                        .get(offset)
+                        .is_some_and(|line| !line_is_selected(line, &wanted_lines))
+                    && added
+                        .get(offset)
+                        .is_some_and(|line| line_is_selected(line, &wanted_lines))
+                {
+                    // Restore the old member before its retained new member,
+                    // matching the order produced by staging only that addition.
+                    push_patch_line(&mut body, '+', &added[offset], &mut output_unterminated)?;
+                    push_patch_line(&mut body, ' ', &removed[offset], &mut output_unterminated)?;
+                    selected = true;
+                    new_count += 2;
+                    delta += 1;
+                    continue;
+                }
                 if let Some(line) = removed.get(offset) {
                     if whole || line_is_selected(line, &wanted_lines) {
-                        push_patch_line(&mut body, '-', line);
+                        push_patch_line(&mut body, '-', line, &mut output_unterminated)?;
                         selected = true;
                         delta -= 1;
                     } else {
-                        push_patch_line(&mut body, ' ', line);
+                        push_patch_line(&mut body, ' ', line, &mut output_unterminated)?;
                         new_count += 1;
                     }
                 }
                 if let Some(line) = added.get(offset) {
                     if whole || line_is_selected(line, &wanted_lines) {
-                        push_patch_line(&mut body, '+', line);
+                        push_patch_line(&mut body, '+', line, &mut output_unterminated)?;
                         selected = true;
                         new_count += 1;
                         delta += 1;
@@ -563,7 +572,20 @@ fn line_reference(line: &DiffLine) -> Option<LineRef> {
     }
 }
 
-fn push_patch_line(output: &mut Vec<String>, prefix: char, line: &DiffLine) {
+fn push_patch_line(
+    output: &mut Vec<String>,
+    prefix: char,
+    line: &DiffLine,
+    output_unterminated: &mut bool,
+) -> Result<(), WriteError> {
+    if prefix != '-' {
+        // A non-final unterminated output line cannot be represented without
+        // inventing a separator. Git may otherwise add one while applying it.
+        if *output_unterminated {
+            return Err(WriteError::PartialLineBoundary);
+        }
+        *output_unterminated = line.no_newline;
+    }
     output.push(format!(
         "{prefix}{}{}",
         line.text,
@@ -575,6 +597,7 @@ fn push_patch_line(output: &mut Vec<String>, prefix: char, line: &DiffLine) {
     if line.no_newline {
         output.push("\\ No newline at end of file\n".to_owned());
     }
+    Ok(())
 }
 
 fn apply_patch(
@@ -886,6 +909,19 @@ mod tests {
             precondition: current.precondition,
             ignore_whitespace: false,
         }
+    }
+
+    fn selected_pair(old: u64, new: u64) -> Vec<LineRef> {
+        vec![
+            LineRef {
+                side: LineSide::Old,
+                line: old,
+            },
+            LineRef {
+                side: LineSide::New,
+                line: new,
+            },
+        ]
     }
 
     #[test]
@@ -1499,6 +1535,554 @@ mod tests {
         let unstaged = output(root, &["diff", "--", "gradlew.bat"]);
         assert!(staged.contains("-@echo off\r\n+@echo off\n"));
         assert!(unstaged.contains("-call java\r\n+call java\n"));
+    }
+
+    #[test]
+    fn partial_eol_alignment_keeps_a_leading_insertion_out_of_the_selected_pair() {
+        for (old_ending, new_ending) in [("\r\n", "\n"), ("\n", "\r\n")] {
+            let temporary = repository();
+            let root = temporary.path();
+            commit_file(root, ".gitattributes", "*.txt -text\n");
+            let base = format!("a{old_ending}b{old_ending}c{old_ending}");
+            let working = format!("nuevo{new_ending}a{new_ending}b{new_ending}c{new_ending}");
+            commit_file(root, "shift.txt", &base);
+            fs::write(root.join("shift.txt"), &working).unwrap();
+
+            let mut request = partial(root, "shift.txt", DiffSource::Worktree);
+            request.lines = selected_pair(1, 2);
+            stage_partial(root, request).unwrap();
+            assert_eq!(
+                output(root, &["show", ":shift.txt"]),
+                format!("a{new_ending}b{old_ending}c{old_ending}")
+            );
+            assert_eq!(
+                fs::read(root.join("shift.txt")).unwrap(),
+                working.as_bytes()
+            );
+
+            let mut request = partial(root, "shift.txt", DiffSource::Index);
+            request.lines = selected_pair(1, 1);
+            unstage_partial(root, request).unwrap();
+            assert_eq!(output(root, &["show", ":shift.txt"]), base);
+            assert!(output(root, &["diff", "--cached"]).is_empty());
+            assert_eq!(
+                fs::read(root.join("shift.txt")).unwrap(),
+                working.as_bytes()
+            );
+
+            let mut request = partial(root, "shift.txt", DiffSource::Worktree);
+            request.lines = selected_pair(1, 2);
+            discard_partial(root, request).unwrap();
+            assert_eq!(
+                fs::read(root.join("shift.txt")).unwrap(),
+                format!("nuevo{new_ending}a{old_ending}b{new_ending}c{new_ending}").as_bytes()
+            );
+            assert_eq!(output(root, &["show", ":shift.txt"]), base);
+        }
+    }
+
+    #[test]
+    fn partial_eol_alignment_stages_the_selected_windows_line_and_insertion_independently() {
+        let temporary = repository();
+        let root = temporary.path();
+        commit_file(root, ".gitattributes", "*.txt -text\n");
+        let base = "cabecera\nuno\ndos\ntres\ncuatro\ncinco\nfin\n";
+        let working = "cabecera\r\nUNO\r\nnueva\r\ndos\r\ntres\r\ncuatro\r\ncinco\r\nfin\r\n";
+        commit_file(root, "windows.txt", base);
+        fs::write(root.join("windows.txt"), working).unwrap();
+
+        let mut request = partial(root, "windows.txt", DiffSource::Worktree);
+        request.lines = selected_pair(6, 7);
+        stage_partial(root, request).unwrap();
+        let staged = base.replace("cinco\n", "cinco\r\n");
+        assert_eq!(output(root, &["show", ":windows.txt"]), staged);
+
+        let mut request = partial(root, "windows.txt", DiffSource::Worktree);
+        request.lines = selected_pair(2, 2);
+        stage_partial(root, request).unwrap();
+        let staged = staged.replace("uno\n", "UNO\r\n");
+        assert_eq!(output(root, &["show", ":windows.txt"]), staged);
+
+        let mut request = partial(root, "windows.txt", DiffSource::Worktree);
+        request.lines = vec![LineRef {
+            side: LineSide::New,
+            line: 3,
+        }];
+        stage_partial(root, request).unwrap();
+        assert_eq!(
+            output(root, &["show", ":windows.txt"]),
+            staged.replace("UNO\r\n", "UNO\r\nnueva\r\n")
+        );
+        assert_eq!(
+            fs::read(root.join("windows.txt")).unwrap(),
+            working.as_bytes()
+        );
+    }
+
+    #[test]
+    fn partial_eol_alignment_keeps_deletions_independent_in_both_directions() {
+        for action in ["stage", "unstage", "discard"] {
+            let temporary = repository();
+            let root = temporary.path();
+            commit_file(root, ".gitattributes", "*.txt -text\n");
+            let base = "inicio\r\nuno\r\ndos\r\ntres\r\nfin\r\n";
+            let working = "inicio\nUNO\ntres\nfin\n";
+            commit_file(root, "deleted.txt", base);
+            fs::write(root.join("deleted.txt"), working).unwrap();
+            let source = if action == "unstage" {
+                stage(root, &["deleted.txt".into()]).unwrap();
+                DiffSource::Index
+            } else {
+                DiffSource::Worktree
+            };
+            let mut request = partial(root, "deleted.txt", source);
+            request.lines = vec![LineRef {
+                side: LineSide::Old,
+                line: 3,
+            }];
+            match action {
+                "stage" => {
+                    stage_partial(root, request).unwrap();
+                    assert_eq!(
+                        output(root, &["show", ":deleted.txt"]),
+                        base.replace("dos\r\n", "")
+                    );
+                    assert_eq!(
+                        fs::read(root.join("deleted.txt")).unwrap(),
+                        working.as_bytes()
+                    );
+                }
+                "unstage" => {
+                    unstage_partial(root, request).unwrap();
+                    assert_eq!(
+                        output(root, &["show", ":deleted.txt"]),
+                        "inicio\nUNO\ndos\r\ntres\nfin\n"
+                    );
+                    assert_eq!(
+                        fs::read(root.join("deleted.txt")).unwrap(),
+                        working.as_bytes()
+                    );
+                }
+                "discard" => {
+                    discard_partial(root, request).unwrap();
+                    assert_eq!(output(root, &["show", ":deleted.txt"]), base);
+                    assert_eq!(
+                        fs::read(root.join("deleted.txt")).unwrap(),
+                        b"inicio\nUNO\ndos\r\ntres\nfin\n"
+                    );
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn partial_eol_alignment_preserves_repeated_lines_and_a_missing_final_newline() {
+        let temporary = repository();
+        let root = temporary.path();
+        commit_file(root, ".gitattributes", "*.txt -text\n");
+        let base = "a\r\na\r\nc\r\n";
+        let working = "a\nc\nc";
+        commit_file(root, "repeat.txt", base);
+        fs::write(root.join("repeat.txt"), working).unwrap();
+
+        let mut request = partial(root, "repeat.txt", DiffSource::Worktree);
+        request.lines = vec![LineRef {
+            side: LineSide::New,
+            line: 3,
+        }];
+        stage_partial(root, request).unwrap();
+        assert_eq!(output(root, &["show", ":repeat.txt"]), "a\r\na\r\nc\r\nc");
+        assert_eq!(
+            fs::read(root.join("repeat.txt")).unwrap(),
+            working.as_bytes()
+        );
+
+        let mut request = partial(root, "repeat.txt", DiffSource::Index);
+        request.lines = vec![LineRef {
+            side: LineSide::New,
+            line: 4,
+        }];
+        unstage_partial(root, request).unwrap();
+        assert_eq!(output(root, &["show", ":repeat.txt"]), base);
+        assert_eq!(
+            fs::read(root.join("repeat.txt")).unwrap(),
+            working.as_bytes()
+        );
+    }
+
+    #[test]
+    fn partial_eol_alignment_keeps_an_anchor_between_deletion_and_insertion() {
+        let temporary = repository();
+        let root = temporary.path();
+        commit_file(root, ".gitattributes", "*.txt -text\n");
+        let base = "primero\r\nancla\r\nrepetido\r\nrepetido\r\nfin\r\n";
+        let working = "ancla\nnuevo\nrepetido\nrepetido\nfin\n";
+        commit_file(root, "anchor.txt", base);
+        fs::write(root.join("anchor.txt"), working).unwrap();
+
+        let mut request = partial(root, "anchor.txt", DiffSource::Worktree);
+        request.lines = selected_pair(2, 1);
+        stage_partial(root, request).unwrap();
+        assert_eq!(
+            output(root, &["show", ":anchor.txt"]),
+            base.replacen("ancla\r\n", "ancla\n", 1)
+        );
+        assert_eq!(
+            fs::read(root.join("anchor.txt")).unwrap(),
+            working.as_bytes()
+        );
+
+        let mut request = partial(root, "anchor.txt", DiffSource::Index);
+        request.lines = selected_pair(2, 2);
+        unstage_partial(root, request).unwrap();
+        assert_eq!(output(root, &["show", ":anchor.txt"]), base);
+
+        let mut request = partial(root, "anchor.txt", DiffSource::Worktree);
+        request.lines = selected_pair(2, 1);
+        discard_partial(root, request).unwrap();
+        assert_eq!(
+            fs::read(root.join("anchor.txt")).unwrap(),
+            b"ancla\r\nnuevo\nrepetido\nrepetido\nfin\n"
+        );
+        assert_eq!(output(root, &["show", ":anchor.txt"]), base);
+
+        fs::write(root.join("anchor.txt"), working).unwrap();
+        let mut request = partial(root, "anchor.txt", DiffSource::Worktree);
+        request.lines = vec![LineRef {
+            side: LineSide::New,
+            line: 2,
+        }];
+        stage_partial(root, request).unwrap();
+        assert_eq!(
+            output(root, &["show", ":anchor.txt"]),
+            base.replace("ancla\r\n", "ancla\r\nnuevo\n")
+        );
+        assert_eq!(
+            fs::read(root.join("anchor.txt")).unwrap(),
+            working.as_bytes()
+        );
+
+        let mut request = partial(root, "anchor.txt", DiffSource::Index);
+        request.lines = vec![LineRef {
+            side: LineSide::New,
+            line: 3,
+        }];
+        unstage_partial(root, request).unwrap();
+        assert_eq!(output(root, &["show", ":anchor.txt"]), base);
+        assert_eq!(
+            fs::read(root.join("anchor.txt")).unwrap(),
+            working.as_bytes()
+        );
+    }
+
+    #[test]
+    fn partial_eol_alignment_keeps_whole_hunk_operations_exact() {
+        let temporary = repository();
+        let root = temporary.path();
+        commit_file(root, ".gitattributes", "*.txt -text\n");
+        let base = "a\r\nb\r\nc\r\n";
+        let working = "nuevo\na\nB\nc";
+        commit_file(root, "hunk.txt", base);
+        fs::write(root.join("hunk.txt"), working).unwrap();
+
+        for action in ["stage", "unstage", "discard"] {
+            let source = if action == "unstage" {
+                DiffSource::Index
+            } else {
+                DiffSource::Worktree
+            };
+            let file = diff::current(root, "hunk.txt".into(), source, false).unwrap();
+            let DiffContent::Text { hunks, .. } = file.content else {
+                panic!("fixture must produce text hunks")
+            };
+            assert_eq!(hunks.len(), 1);
+            let request = PartialRequest {
+                path: "hunk.txt".into(),
+                precondition: file.precondition,
+                hunk_ids: vec![hunks[0].id.clone()],
+                lines: vec![],
+                ignore_whitespace: false,
+            };
+            match action {
+                "stage" => stage_partial(root, request).unwrap(),
+                "unstage" => unstage_partial(root, request).unwrap(),
+                "discard" => discard_partial(root, request).unwrap(),
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                output(root, &["show", ":hunk.txt"]),
+                if action == "stage" { working } else { base }
+            );
+            assert_eq!(
+                fs::read(root.join("hunk.txt")).unwrap(),
+                if action == "discard" { base } else { working }.as_bytes()
+            );
+        }
+    }
+
+    #[test]
+    fn partial_eol_alignment_does_not_stage_a_distant_mixed_ending_hunk() {
+        let temporary = repository();
+        let root = temporary.path();
+        commit_file(root, ".gitattributes", "*.txt -text\n");
+        let base = (1..=24)
+            .map(|n| format!("line {n}\r\n"))
+            .collect::<String>();
+        let first = base.replace("line 2\r\n", "FIRST\n");
+        let working = first.replace("line 22\r\n", "LAST\n");
+        commit_file(root, "hunks.txt", &base);
+        fs::write(root.join("hunks.txt"), &working).unwrap();
+        let file = diff::current(root, "hunks.txt".into(), DiffSource::Worktree, false).unwrap();
+        let DiffContent::Text { hunks, .. } = file.content else {
+            panic!("fixture must produce text hunks")
+        };
+        assert_eq!(hunks.len(), 2);
+        stage_partial(
+            root,
+            PartialRequest {
+                path: "hunks.txt".into(),
+                precondition: file.precondition,
+                hunk_ids: vec![hunks[0].id.clone()],
+                lines: vec![],
+                ignore_whitespace: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(output(root, &["show", ":hunks.txt"]), first);
+        assert_eq!(
+            fs::read(root.join("hunks.txt")).unwrap(),
+            working.as_bytes()
+        );
+    }
+
+    #[test]
+    fn partial_eol_alignment_respects_ignored_whitespace_and_context_bytes() {
+        let temporary = repository();
+        let root = temporary.path();
+        commit_file(root, ".gitattributes", "*.txt -text\n");
+        let base = "a  b\r\nc\r\nd\r\ne\r\n";
+        let working = "nuevo\na b\nC\nd\nE\n";
+        commit_file(root, "ignored.txt", base);
+        fs::write(root.join("ignored.txt"), working).unwrap();
+        let file = diff::current(root, "ignored.txt".into(), DiffSource::Worktree, true).unwrap();
+        stage_partial(
+            root,
+            PartialRequest {
+                path: "ignored.txt".into(),
+                precondition: file.precondition,
+                hunk_ids: vec![],
+                lines: selected_pair(2, 3),
+                ignore_whitespace: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            output(root, &["show", ":ignored.txt"]),
+            "a  b\r\nC\nd\r\ne\r\n"
+        );
+        assert_eq!(
+            fs::read(root.join("ignored.txt")).unwrap(),
+            working.as_bytes()
+        );
+    }
+
+    #[test]
+    fn partial_eol_alignment_rejects_a_stale_ending_before_writing() {
+        let temporary = repository();
+        let root = temporary.path();
+        commit_file(root, ".gitattributes", "*.txt -text\n");
+        let base = "a\r\nb\r\nc\r\n";
+        commit_file(root, "stale-eol.txt", base);
+        fs::write(root.join("stale-eol.txt"), "nuevo\na\nb\nc\n").unwrap();
+        let mut request = partial(root, "stale-eol.txt", DiffSource::Worktree);
+        request.lines = selected_pair(1, 2);
+        let newer = b"nuevo\na\nb\r\nc\n";
+        fs::write(root.join("stale-eol.txt"), newer).unwrap();
+        assert_eq!(
+            stage_partial(root, request),
+            Err(WriteError::Stale("stale-eol.txt".into()))
+        );
+        assert_eq!(output(root, &["show", ":stale-eol.txt"]), base);
+        assert_eq!(fs::read(root.join("stale-eol.txt")).unwrap(), newer);
+        assert!(output(root, &["diff", "--cached"]).is_empty());
+    }
+
+    #[test]
+    fn unilateral_partial_choices_preserve_old_before_new_in_both_directions() {
+        for (label, old, new, tail) in [
+            ("content LF", "antes\n", "despues\n", "fin\n"),
+            ("content CRLF", "antes\r\n", "despues\r\n", "fin\r\n"),
+            ("LF to CRLF", "igual\n", "igual\r\n", "fin\n"),
+            ("CRLF to LF", "igual\r\n", "igual\n", "fin\r\n"),
+            ("new EOF LF", "antes\n", "despues", ""),
+            ("new EOF CRLF", "antes\r\n", "despues", ""),
+        ] {
+            for action in ["stage", "unstage", "discard"] {
+                for side in [LineSide::Old, LineSide::New] {
+                    let temporary = repository();
+                    let root = temporary.path();
+                    commit_file(root, ".gitattributes", "*.txt -text\n");
+                    let base = format!("{old}{tail}");
+                    let working = format!("{new}{tail}");
+                    let both = format!("{old}{new}{tail}");
+                    commit_file(root, "unilateral.txt", &base);
+                    fs::write(root.join("unilateral.txt"), &working).unwrap();
+                    let source = if action == "unstage" {
+                        stage(root, &["unilateral.txt".into()]).unwrap();
+                        DiffSource::Index
+                    } else {
+                        DiffSource::Worktree
+                    };
+                    let mut request = partial(root, "unilateral.txt", source);
+                    request.lines = vec![LineRef { side, line: 1 }];
+                    match action {
+                        "stage" => stage_partial(root, request).unwrap(),
+                        "unstage" => unstage_partial(root, request).unwrap(),
+                        "discard" => discard_partial(root, request).unwrap(),
+                        _ => unreachable!(),
+                    }
+                    // Keeping only the new addition and restoring only the old
+                    // deletion must converge to the same old-then-new order.
+                    let selected = if (action == "stage") == (side == LineSide::New) {
+                        both.as_str()
+                    } else {
+                        tail
+                    };
+                    assert_eq!(
+                        output(root, &["show", ":unilateral.txt"]),
+                        if action == "discard" { &base } else { selected },
+                        "{label}, {action}, {side:?}"
+                    );
+                    assert_eq!(
+                        fs::read(root.join("unilateral.txt")).unwrap(),
+                        if action == "discard" {
+                            selected
+                        } else {
+                            &working
+                        }
+                        .as_bytes(),
+                        "{label}, {action}, {side:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn unilateral_partial_stage_and_unstage_are_component_round_trips() {
+        for (old, new) in [("a\n", "A\n"), ("a\r\n", "a\n"), ("a\n", "A")] {
+            let temporary = repository();
+            let root = temporary.path();
+            commit_file(root, ".gitattributes", "*.txt -text\n");
+            commit_file(root, "roundtrip.txt", old);
+            fs::write(root.join("roundtrip.txt"), new).unwrap();
+            let both = format!("{old}{new}");
+
+            let mut request = partial(root, "roundtrip.txt", DiffSource::Worktree);
+            request.lines = vec![LineRef {
+                side: LineSide::New,
+                line: 1,
+            }];
+            stage_partial(root, request).unwrap();
+            assert_eq!(output(root, &["show", ":roundtrip.txt"]), both);
+
+            let mut request = partial(root, "roundtrip.txt", DiffSource::Worktree);
+            request.lines = vec![LineRef {
+                side: LineSide::Old,
+                line: 1,
+            }];
+            stage_partial(root, request).unwrap();
+            assert_eq!(output(root, &["show", ":roundtrip.txt"]), new);
+
+            let mut request = partial(root, "roundtrip.txt", DiffSource::Index);
+            request.lines = vec![LineRef {
+                side: LineSide::Old,
+                line: 1,
+            }];
+            unstage_partial(root, request).unwrap();
+            assert_eq!(output(root, &["show", ":roundtrip.txt"]), both);
+
+            let mut request = partial(root, "roundtrip.txt", DiffSource::Index);
+            request.lines = vec![LineRef {
+                side: LineSide::New,
+                line: 2,
+            }];
+            unstage_partial(root, request).unwrap();
+            assert_eq!(output(root, &["show", ":roundtrip.txt"]), old);
+            assert_eq!(
+                fs::read(root.join("roundtrip.txt")).unwrap(),
+                new.as_bytes()
+            );
+            assert!(output(root, &["diff", "--cached"]).is_empty());
+        }
+    }
+
+    #[test]
+    fn unilateral_partial_choices_reject_a_nonfinal_unterminated_line_without_writing() {
+        for (base, working) in [
+            ("antes", "despues\n"),
+            ("antes", "despues"),
+            ("antes\r", "despues\r\n"),
+            ("igual", "igual\n"),
+        ] {
+            for action in ["stage", "unstage", "discard"] {
+                let temporary = repository();
+                let root = temporary.path();
+                commit_file(root, ".gitattributes", "*.txt -text\n");
+                commit_file(root, "boundary.txt", base);
+                fs::write(root.join("boundary.txt"), working).unwrap();
+                let source = if action == "unstage" {
+                    stage(root, &["boundary.txt".into()]).unwrap();
+                    DiffSource::Index
+                } else {
+                    DiffSource::Worktree
+                };
+                let mut request = partial(root, "boundary.txt", source.clone());
+                request.lines = vec![LineRef {
+                    side: if action == "stage" {
+                        LineSide::New
+                    } else {
+                        LineSide::Old
+                    },
+                    line: 1,
+                }];
+                let result = match action {
+                    "stage" => stage_partial(root, request),
+                    "unstage" => unstage_partial(root, request),
+                    "discard" => discard_partial(root, request),
+                    _ => unreachable!(),
+                };
+                assert_eq!(result, Err(WriteError::PartialLineBoundary));
+                assert_eq!(
+                    output(root, &["show", ":boundary.txt"]),
+                    if action == "unstage" { working } else { base }
+                );
+                assert_eq!(
+                    fs::read(root.join("boundary.txt")).unwrap(),
+                    working.as_bytes()
+                );
+
+                // Taking the full replacement is representable and remains
+                // available after rejecting the unsafe unilateral selection.
+                let mut request = partial(root, "boundary.txt", source);
+                request.lines = selected_pair(1, 1);
+                match action {
+                    "stage" => stage_partial(root, request).unwrap(),
+                    "unstage" => unstage_partial(root, request).unwrap(),
+                    "discard" => discard_partial(root, request).unwrap(),
+                    _ => unreachable!(),
+                }
+                assert_eq!(
+                    output(root, &["show", ":boundary.txt"]),
+                    if action == "stage" { working } else { base }
+                );
+                assert_eq!(
+                    fs::read(root.join("boundary.txt")).unwrap(),
+                    if action == "discard" { base } else { working }.as_bytes()
+                );
+            }
+        }
     }
 
     #[test]

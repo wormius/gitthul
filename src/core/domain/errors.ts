@@ -113,6 +113,8 @@ export type GitErrorParams = {
   'history.mainlineInvalid': { sha: string; parent: number; count: number };
   /** El archivo dejó de ser el mismo que mostraba el diff usado para seleccionar. */
   'write.stale': { path: string };
+  /** La selección colocaría una línea sin terminador antes de otra línea. */
+  'write.partialLineBoundary': Record<string, never>;
   /** La operación que se iba a deshacer ya no es la punta actual. */
   'undo.stale': Record<string, never>;
   'undo.snapshotUnavailable': Record<string, never>;
@@ -298,6 +300,7 @@ export const GIT_ERRORS: { [C in GitErrorCode]: GitErrorEntry<C> } = {
     fixes: ['chooseMainline'],
   },
   'write.stale': { params: ['path'], fixes: ['retry'] },
+  'write.partialLineBoundary': { params: [], fixes: ['retry'] },
   'undo.stale': { params: [], fixes: ['retry'] },
   'undo.snapshotUnavailable': { params: [], fixes: ['retry'] },
   /*

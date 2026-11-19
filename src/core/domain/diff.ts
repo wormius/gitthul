@@ -20,6 +20,8 @@ export interface DiffLine {
   text: string;
   /** Resaltado por palabra. Vacío cuando la línea cambió entera. */
   words?: readonly WordSpan[];
+  /** El texto coincide con su pareja; cambian únicamente sus terminadores. */
+  lineEndingChange?: { before: 'lf' | 'crlf'; after: 'lf' | 'crlf' };
 }
 
 export interface Hunk {
