@@ -1697,6 +1697,14 @@ export const de: Messages = {
   'resolve.resolved.close': 'Ergebnis schließen',
   'resolve.resolved.navigation': 'Ergebnisblöcke',
   'resolve.resolved.sourceBlock': 'Block {number} · {source}',
+  'resolve.card.symbolicLink':
+    'Dieser Konflikt enthält einen symbolischen Link. Übernimm eine vollständige Version, damit der Dateityp erhalten bleibt.',
+  'resolve.card.submodule':
+    'Löse diesen Submodulkonflikt im Terminal und markiere ihn anschließend als gelöst.',
+  'error.resolve.unsupportedFileType.title':
+    'Beim Auflösen von {path} muss der Dateityp erhalten bleiben',
+  'error.resolve.unsupportedFileType.cause':
+    'Übernimm bei symbolischen Links eine vollständige Version. Löse Submodulkonflikte im Terminal und markiere sie anschließend als gelöst.',
   'resolve.card.binary': 'Eine Binärdatei: es gibt keine Zeilen zum Vergleichen.',
   'resolve.card.tooLarge':
     'Die Datei hat {lines} Zeilen und überschreitet die Grenze von {limit}. Wähle zum Auflösen eine der beiden vollständigen Versionen.',

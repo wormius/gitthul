@@ -13,6 +13,8 @@ Estas guías explican cómo utilizar GitThul y qué efectos tienen sus acciones.
   abrirlos u olvidarlos desde las listas o los espacios.
 - [Diff e historial de un archivo](diff-historial.md): revisar una comparación
   y consultar otras versiones desde el mismo visor.
+- [Resolver conflictos](resolver-conflictos.md): comparar ambas versiones,
+  combinar líneas y guardar el resultado.
 - [Aplicar archivos de un stash](stashes.md): recuperar una selección conservando
   el stash y el contenido del Stage.
 - [Modificar el último commit](amend.md): cambiar su mensaje, incorporar staging

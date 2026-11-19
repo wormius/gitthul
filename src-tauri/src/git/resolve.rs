@@ -56,6 +56,7 @@ pub struct Resolution {
 pub enum ResolveError {
     UnsupportedEncoding(String),
     Unrepresentable { path: String, encoding: String },
+    UnsupportedFileType { path: String, kind: &'static str },
     GitFailed,
     Diagnostic(Diagnostic),
     WithDiagnostic(Box<ResolveError>, Diagnostic),
@@ -143,6 +144,12 @@ fn content_encoded(
     snapshots: &ResolutionSnapshots,
 ) -> Result<(), ResolveError> {
     let stages = conflicted_entries(repository, path)?;
+    if let Some(kind) = whole_file_only(&stages) {
+        return Err(ResolveError::UnsupportedFileType {
+            path: path.to_owned(),
+            kind,
+        });
+    }
     let preferred = oid_at(&stages, 2)
         .or_else(|| oid_at(&stages, 3))
         .or_else(|| oid_at(&stages, 1));
@@ -244,16 +251,17 @@ pub fn keep_side(
     snapshots: &ResolutionSnapshots,
 ) -> Result<(), ResolveError> {
     let stages = conflicted_entries(repository, path)?;
+    if whole_file_only(&stages) == Some("submodule") {
+        return Err(ResolveError::UnsupportedFileType {
+            path: path.to_owned(),
+            kind: "submodule",
+        });
+    }
     let wanted_stage = match side {
         ConflictSide::Ours => 2,
         ConflictSide::Theirs => 3,
     };
-    if stages.iter().any(|entry| entry.stage == wanted_stage) {
-        checkout_stage(repository, path, wanted_stage)?;
-    } else {
-        remove_worktree_path(repository, path)?;
-    }
-    stage(repository, path)?;
+    take_stage(repository, path, &stages, wanted_stage)?;
     remember(repository, repository_id, path, stages, snapshots)
 }
 
@@ -265,9 +273,12 @@ pub fn auto(
     let conflicts = all_conflicted_entries(repository)?;
     let mut resolved = Vec::new();
     for (path, stages) in conflicts {
-        let base = oid_at(&stages, 1);
-        let ours = oid_at(&stages, 2);
-        let theirs = oid_at(&stages, 3);
+        if whole_file_only(&stages) == Some("submodule") {
+            continue;
+        }
+        let base = identity_at(&stages, 1);
+        let ours = identity_at(&stages, 2);
+        let theirs = identity_at(&stages, 3);
         let side = if ours == theirs {
             Some(ConflictSide::Ours)
         } else if ours == base {
@@ -282,12 +293,7 @@ pub fn auto(
             ConflictSide::Ours => 2,
             ConflictSide::Theirs => 3,
         };
-        if stages.iter().any(|entry| entry.stage == wanted_stage) {
-            checkout_stage(repository, &path, wanted_stage)?;
-        } else {
-            remove_worktree_path(repository, &path)?;
-        }
-        stage(repository, &path)?;
+        take_stage(repository, &path, &stages, wanted_stage)?;
         remember(repository, repository_id, &path, stages, snapshots)?;
         resolved.push(Resolution {
             path,
@@ -427,6 +433,23 @@ fn oid_at(entries: &[IndexEntry], stage: u8) -> Option<&str> {
         .map(|entry| entry.oid.as_str())
 }
 
+fn identity_at(entries: &[IndexEntry], stage: u8) -> Option<(&str, &str)> {
+    entries
+        .iter()
+        .find(|entry| entry.stage == stage)
+        .map(|entry| (entry.mode.as_str(), entry.oid.as_str()))
+}
+
+fn whole_file_only(entries: &[IndexEntry]) -> Option<&'static str> {
+    if entries.iter().any(|entry| entry.mode == "160000") {
+        Some("submodule")
+    } else if entries.iter().any(|entry| entry.mode == "120000") {
+        Some("symbolicLink")
+    } else {
+        None
+    }
+}
+
 fn preferred_mode(entries: &[IndexEntry]) -> Option<&str> {
     entries
         .iter()
@@ -502,6 +525,37 @@ fn checkout_stage(repository: &Path, path: &str, stage: u8) -> Result<(), Resolv
         None,
     )
     .map_err(|error| error.write_failure(path))
+}
+
+fn take_stage(
+    repository: &Path,
+    path: &str,
+    stages: &[IndexEntry],
+    wanted_stage: u8,
+) -> Result<(), ResolveError> {
+    if let Some(entry) = stages.iter().find(|entry| entry.stage == wanted_stage) {
+        checkout_stage(repository, path, wanted_stage)?;
+        // With core.symlinks=false, Git materializes a symlink as a regular
+        // file. A subsequent `git add` infers its type from stage 2, which
+        // can disagree with the selected stage in a file/type conflict.
+        // Publish the selected object and mode directly instead.
+        run_git(
+            repository,
+            &[
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                &entry.mode,
+                &entry.oid,
+                path,
+            ],
+            None,
+        )
+        .map_err(|error| error.write_failure(path))
+    } else {
+        remove_worktree_path(repository, path)?;
+        stage(repository, path)
+    }
 }
 
 fn remove_worktree_path(repository: &Path, path: &str) -> Result<(), ResolveError> {
@@ -832,6 +886,266 @@ mod tests {
             ),
             Err(ResolveError::Stale("file.txt".to_owned()))
         );
+    }
+
+    #[test]
+    fn rejects_a_mode_only_stage_change_before_writing_the_resolution() {
+        let temporary = repository_with_conflict(false);
+        let repository = temporary.path();
+        let snapshots = ResolutionSnapshots::default();
+        let id = repository.to_string_lossy();
+        let revision = crate::git::conflict::revision(repository, "file.txt").unwrap();
+        let ours = super::conflicted_entries(repository, "file.txt")
+            .unwrap()
+            .into_iter()
+            .find(|entry| entry.stage == 2)
+            .unwrap();
+        let mut child = Command::new("git")
+            .args(["update-index", "--index-info"])
+            .current_dir(repository)
+            .stdin(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(format!("100755 {} 2\tfile.txt\n", ours.oid).as_bytes())
+            .unwrap();
+        assert!(child.wait().unwrap().success());
+        assert_ne!(
+            crate::git::conflict::revision(repository, "file.txt").unwrap(),
+            revision
+        );
+        let before = fs::read(repository.join("file.txt")).unwrap();
+        let index_before = output(repository, &["ls-files", "--stage", "-z"]);
+
+        assert_eq!(
+            super::content_checked(
+                repository,
+                &id,
+                "file.txt",
+                "obsolete resolution\n",
+                Some(&revision),
+                &snapshots,
+            ),
+            Err(ResolveError::Stale("file.txt".to_owned()))
+        );
+        assert_eq!(fs::read(repository.join("file.txt")).unwrap(), before);
+        assert_eq!(
+            output(repository, &["ls-files", "--stage", "-z"]),
+            index_before
+        );
+    }
+
+    #[test]
+    fn whole_file_types_reject_text_resolution_without_mutating_disk_or_index() {
+        for (mode, kind) in [("120000", "symbolicLink"), ("160000", "submodule")] {
+            let temporary = repository_with_conflict(false);
+            let repository = temporary.path();
+            let snapshots = ResolutionSnapshots::default();
+            let mut stages = super::conflicted_entries(repository, "file.txt").unwrap();
+            let commit = String::from_utf8(output(repository, &["rev-parse", "HEAD"]))
+                .unwrap()
+                .trim()
+                .to_owned();
+            for stage in &mut stages {
+                stage.mode = mode.to_owned();
+                if mode == "160000" {
+                    stage.oid = commit.clone();
+                }
+            }
+            super::restore_stages(repository, "file.txt", &stages).unwrap();
+            let before = fs::read(repository.join("file.txt")).unwrap();
+            let index_before = output(repository, &["ls-files", "--stage", "-z"]);
+            let expected = ResolveError::UnsupportedFileType {
+                path: "file.txt".to_owned(),
+                kind,
+            };
+
+            assert_eq!(
+                content(repository, "repo", "file.txt", "replacement", &snapshots),
+                Err(ResolveError::UnsupportedFileType {
+                    path: "file.txt".to_owned(),
+                    kind,
+                })
+            );
+            if mode == "160000" {
+                assert_eq!(
+                    keep_side(
+                        repository,
+                        "repo",
+                        "file.txt",
+                        ConflictSide::Ours,
+                        &snapshots,
+                    ),
+                    Err(expected)
+                );
+                assert!(auto(repository, "repo", &snapshots).unwrap().is_empty());
+            }
+            assert_eq!(fs::read(repository.join("file.txt")).unwrap(), before);
+            assert_eq!(
+                output(repository, &["ls-files", "--stage", "-z"]),
+                index_before
+            );
+        }
+    }
+
+    #[test]
+    fn equal_blobs_with_conflicting_modes_are_not_automatically_resolved() {
+        let temporary = repository_with_conflict(false);
+        let repository = temporary.path();
+        let snapshots = ResolutionSnapshots::default();
+        let mut stages = super::conflicted_entries(repository, "file.txt").unwrap();
+        let oid = stages[0].oid.clone();
+        for (stage, mode) in stages.iter_mut().zip(["100644", "100755", "120000"]) {
+            stage.mode = mode.to_owned();
+            stage.oid = oid.clone();
+        }
+        super::restore_stages(repository, "file.txt", &stages).unwrap();
+        let before = fs::read(repository.join("file.txt")).unwrap();
+        let index_before = output(repository, &["ls-files", "--stage", "-z"]);
+
+        assert!(auto(repository, "repo", &snapshots).unwrap().is_empty());
+        assert_eq!(fs::read(repository.join("file.txt")).unwrap(), before);
+        assert_eq!(
+            output(repository, &["ls-files", "--stage", "-z"]),
+            index_before
+        );
+    }
+
+    #[test]
+    fn keeping_a_symbolic_link_side_preserves_its_index_type() {
+        let temporary = repository_with_conflict(false);
+        let repository = temporary.path();
+        #[cfg(unix)]
+        assert!(git(repository, &["config", "core.symlinks", "true"]));
+        // Git for Windows can represent symlinks as plain worktree files
+        // without requiring the permission to create native symbolic links.
+        #[cfg(not(unix))]
+        assert!(git(repository, &["config", "core.symlinks", "false"]));
+        let snapshots = ResolutionSnapshots::default();
+        let mut stages = super::conflicted_entries(repository, "file.txt").unwrap();
+        let ours = stages
+            .iter()
+            .find(|stage| stage.stage == 2)
+            .unwrap()
+            .oid
+            .clone();
+        for stage in &mut stages {
+            stage.mode = "120000".to_owned();
+        }
+        super::restore_stages(repository, "file.txt", &stages).unwrap();
+
+        keep_side(
+            repository,
+            "repo",
+            "file.txt",
+            ConflictSide::Ours,
+            &snapshots,
+        )
+        .unwrap();
+
+        let resolved = super::index_entries(repository, "file.txt", false).unwrap();
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].mode, "120000");
+        assert_eq!(resolved[0].oid, ours);
+        #[cfg(unix)]
+        assert!(fs::symlink_metadata(repository.join("file.txt"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[test]
+    fn keeping_mixed_file_types_preserves_the_selected_mode_without_native_symlinks() {
+        for (ours_mode, theirs_mode) in [("100644", "120000"), ("120000", "100644")] {
+            let temporary = repository_with_conflict(false);
+            let repository = temporary.path();
+            assert!(git(repository, &["config", "core.symlinks", "false"]));
+            let snapshots = ResolutionSnapshots::default();
+            let mut stages = super::conflicted_entries(repository, "file.txt").unwrap();
+            stages[1].mode = ours_mode.to_owned();
+            stages[2].mode = theirs_mode.to_owned();
+            let wanted_oid = stages[2].oid.clone();
+            super::restore_stages(repository, "file.txt", &stages).unwrap();
+
+            keep_side(
+                repository,
+                "repo",
+                "file.txt",
+                ConflictSide::Theirs,
+                &snapshots,
+            )
+            .unwrap();
+
+            let resolved = super::index_entries(repository, "file.txt", false).unwrap();
+            assert_eq!(resolved.len(), 1);
+            assert_eq!(resolved[0].mode, theirs_mode);
+            assert_eq!(resolved[0].oid, wanted_oid);
+            assert_eq!(fs::read(repository.join("file.txt")).unwrap(), b"theirs\n");
+            unresolve(repository, "repo", "file.txt", &snapshots).unwrap();
+            assert_eq!(
+                super::conflicted_entries(repository, "file.txt").unwrap(),
+                stages
+            );
+        }
+    }
+
+    #[test]
+    fn automatic_type_changes_preserve_the_selected_mode_without_native_symlinks() {
+        for (base_mode, theirs_mode) in [("100644", "120000"), ("120000", "100644")] {
+            let temporary = repository_with_conflict(false);
+            let repository = temporary.path();
+            assert!(git(repository, &["config", "core.symlinks", "false"]));
+            let snapshots = ResolutionSnapshots::default();
+            let mut stages = super::conflicted_entries(repository, "file.txt").unwrap();
+            stages[0].mode = base_mode.to_owned();
+            stages[1].mode = base_mode.to_owned();
+            stages[1].oid = stages[0].oid.clone();
+            stages[2].mode = theirs_mode.to_owned();
+            let wanted_oid = stages[2].oid.clone();
+            super::restore_stages(repository, "file.txt", &stages).unwrap();
+
+            let resolved = auto(repository, "repo", &snapshots).unwrap();
+
+            assert_eq!(resolved.len(), 1);
+            assert_eq!(resolved[0].path, "file.txt");
+            let entries = super::index_entries(repository, "file.txt", false).unwrap();
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].mode, theirs_mode);
+            assert_eq!(entries[0].oid, wanted_oid);
+            assert_eq!(fs::read(repository.join("file.txt")).unwrap(), b"theirs\n");
+        }
+    }
+
+    #[test]
+    fn keeping_a_regular_side_preserves_its_executable_mode_when_filemode_is_disabled() {
+        for (ours_mode, theirs_mode) in [("100644", "100755"), ("100755", "100644")] {
+            let temporary = repository_with_conflict(false);
+            let repository = temporary.path();
+            assert!(git(repository, &["config", "core.filemode", "false"]));
+            let snapshots = ResolutionSnapshots::default();
+            let mut stages = super::conflicted_entries(repository, "file.txt").unwrap();
+            stages[1].mode = ours_mode.to_owned();
+            stages[2].mode = theirs_mode.to_owned();
+            let wanted_oid = stages[2].oid.clone();
+            super::restore_stages(repository, "file.txt", &stages).unwrap();
+
+            keep_side(
+                repository,
+                "repo",
+                "file.txt",
+                ConflictSide::Theirs,
+                &snapshots,
+            )
+            .unwrap();
+
+            let resolved = super::index_entries(repository, "file.txt", false).unwrap();
+            assert_eq!(resolved.len(), 1);
+            assert_eq!(resolved[0].mode, theirs_mode);
+            assert_eq!(resolved[0].oid, wanted_oid);
+        }
     }
 
     #[test]

@@ -59,17 +59,9 @@ export interface Assembled {
   blockStarts: ReadonlyMap<string, number>;
 }
 
-/**
- * Cuántas veces puede fallar el alineado antes de rendirse.
- *
- * El algoritmo de abajo es proporcional a lo que las dos versiones difieren, no
- * a lo que miden: dos archivos casi iguales se alinean en un suspiro por largos
- * que sean. Cuando difieren en más de esto —un archivo reescrito entero— deja
- * de tener sentido buscar el alineado más fino: el bloque sale entero como un
- * solo conflicto, que es exactamente lo que la persona va a decidir de todas
- * formas.
- */
+/** Myers conserva un límite de distancia y de trabajo para no bloquear la vista. */
 const MAX_DIFFERENCE = 2000;
+const MAX_DIFF_WORK = 4_000_000;
 
 export type EditKind = 'same' | 'added' | 'removed';
 
@@ -114,9 +106,9 @@ export function diffLines(before: readonly string[], after: readonly string[]): 
  * El núcleo de Myers sobre el tramo que de verdad difiere.
  *
  * Recorre las diagonales guardando, por cada distancia, hasta dónde llegó; al
- * encontrar el final reconstruye el camino hacia atrás. Si la distancia pasa de
- * `MAX_DIFFERENCE` se rinde y devuelve «todo fuera, todo dentro», que es la
- * respuesta correcta cuando dos versiones no se parecen en nada.
+ * encontrar el final reconstruye el camino hacia atrás. Si se agota el presupuesto,
+ * un alineado por anclas conserva las coincidencias interiores: una distancia
+ * grande no significa que el archivo entero haya cambiado.
  */
 function myers(before: readonly string[], after: readonly string[]): Edit[] {
   const n = before.length;
@@ -124,21 +116,25 @@ function myers(before: readonly string[], after: readonly string[]): Edit[] {
 
   if (n === 0) return after.map((line) => ({ kind: 'added', line }));
   if (m === 0) return before.map((line) => ({ kind: 'removed', line }));
+  if (Math.abs(n - m) > MAX_DIFFERENCE) return anchoredDiff(before, after);
 
   const max = Math.min(n + m, MAX_DIFFERENCE);
   const offset = max;
   const v = new Int32Array(2 * max + 1);
   const trace: Int32Array[] = [];
+  let work = 0;
 
   for (let d = 0; d <= max; d += 1) {
     trace.push(v.slice());
 
     for (let k = -d; k <= d; k += 2) {
+      if (++work > MAX_DIFF_WORK) return anchoredDiff(before, after);
       const down = k === -d || (k !== d && (v[offset + k - 1] ?? 0) < (v[offset + k + 1] ?? 0));
       let x = down ? (v[offset + k + 1] ?? 0) : (v[offset + k - 1] ?? 0) + 1;
       let y = x - k;
 
       while (x < n && y < m && before[x] === after[y]) {
+        if (++work > MAX_DIFF_WORK) return anchoredDiff(before, after);
         x += 1;
         y += 1;
       }
@@ -149,11 +145,102 @@ function myers(before: readonly string[], after: readonly string[]): Edit[] {
     }
   }
 
-  // Demasiada diferencia: el tramo entero es un solo cambio.
-  return [
-    ...before.map((line): Edit => ({ kind: 'removed', line })),
-    ...after.map((line): Edit => ({ kind: 'added', line })),
-  ];
+  return anchoredDiff(before, after);
+}
+
+interface LineAnchor {
+  before: number;
+  after: number;
+}
+
+/** Subsecuencia creciente de posiciones: las anclas nunca cruzan ni duplican texto. */
+function orderedAnchors(candidates: readonly LineAnchor[]): LineAnchor[] {
+  const tails: number[] = [];
+  const previous = new Int32Array(candidates.length).fill(-1);
+  for (let index = 0; index < candidates.length; index++) {
+    const candidate = candidates[index]!;
+    let low = 0;
+    let high = tails.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (candidates[tails[middle]!]!.after < candidate.after) low = middle + 1;
+      else high = middle;
+    }
+    if (low > 0) previous[index] = tails[low - 1]!;
+    tails[low] = index;
+  }
+  const anchors: LineAnchor[] = [];
+  for (let index = tails.at(-1) ?? -1; index >= 0; index = previous[index]!) {
+    anchors.push(candidates[index]!);
+  }
+  return anchors.reverse();
+}
+
+/**
+ * Fallback sin búsqueda cuadrática. Primero fija líneas únicas compartidas y
+ * después empareja las ocurrencias repetidas dentro de cada intervalo. Priorizar
+ * las únicas evita alinear funciones distintas solo por sus llaves o blancos.
+ * El resultado siempre reconstruye ambos lados exactamente; en reescrituras
+ * grandes no se promete el número mínimo de ediciones entre líneas repetidas.
+ */
+function anchoredDiff(before: readonly string[], after: readonly string[]): Edit[] {
+  const positions = new Map<string, number[]>();
+  for (let index = 0; index < after.length; index++) {
+    const line = after[index]!;
+    const occurrences = positions.get(line);
+    if (occurrences) occurrences.push(index);
+    else positions.set(line, [index]);
+  }
+  const counts = new Map<string, number>();
+  for (const line of before) counts.set(line, (counts.get(line) ?? 0) + 1);
+  const unique: LineAnchor[] = [];
+  for (let index = 0; index < before.length; index++) {
+    const line = before[index]!;
+    const occurrences = positions.get(line);
+    if (counts.get(line) === 1 && occurrences?.length === 1) {
+      unique.push({ before: index, after: occurrences[0]! });
+    }
+  }
+
+  const edits: Edit[] = [];
+  let beforeAt = 0;
+  let afterAt = 0;
+  const appendGap = (beforeEnd: number, afterEnd: number) => {
+    const localPositions = new Map<string, number[]>();
+    for (let index = afterAt; index < afterEnd; index++) {
+      const line = after[index]!;
+      const occurrences = localPositions.get(line);
+      if (occurrences) occurrences.push(index);
+      else localPositions.set(line, [index]);
+    }
+    const used = new Map<string, number>();
+    const candidates: LineAnchor[] = [];
+    for (let index = beforeAt; index < beforeEnd; index++) {
+      const line = before[index]!;
+      const occurrence = used.get(line) ?? 0;
+      used.set(line, occurrence + 1);
+      const matched = localPositions.get(line)?.[occurrence];
+      if (matched !== undefined) candidates.push({ before: index, after: matched });
+    }
+    const appendChanges = (nextBefore: number, nextAfter: number) => {
+      while (beforeAt < nextBefore) edits.push({ kind: 'removed', line: before[beforeAt++]! });
+      while (afterAt < nextAfter) edits.push({ kind: 'added', line: after[afterAt++]! });
+    };
+    for (const anchor of orderedAnchors(candidates)) {
+      appendChanges(anchor.before, anchor.after);
+      edits.push({ kind: 'same', line: before[beforeAt++]! });
+      afterAt++;
+    }
+    appendChanges(beforeEnd, afterEnd);
+  };
+
+  for (const anchor of orderedAnchors(unique)) {
+    appendGap(anchor.before, anchor.after);
+    edits.push({ kind: 'same', line: before[beforeAt++]! });
+    afterAt++;
+  }
+  appendGap(before.length, after.length);
+  return edits;
 }
 
 function walkBack(
@@ -229,24 +316,47 @@ interface Change {
   to: number;
   lines: string[];
   side: ResolutionSide;
+  /** El contenido coincide: solo cambia el terminador de una línea. */
+  eolOnly: boolean;
+}
+
+function lineKey(line: string): string {
+  // Conservar la presencia del salto final distingue una última línea sin
+  // terminador de sus repeticiones completas dentro del archivo.
+  return line.endsWith('\r\n') ? `${line.slice(0, -2)}\n` : line;
 }
 
 /** Cada edición ocupa un intervalo en la base; una inserción tiene longitud cero. */
 function changes(base: string[], side: string[], name: ResolutionSide): Change[] {
   const result: Change[] = [];
   let at = 0;
+  let sideAt = 0;
   let current: Change | undefined;
-  for (const edit of diffLines(base, side)) {
+  // La clave alinea el contenido; los cambios siempre conservan la línea raw.
+  // Una conversión CRLF/LF no debe unir todo el archivo en un solo reemplazo.
+  for (const edit of diffLines(base.map(lineKey), side.map(lineKey))) {
     if (edit.kind === 'same') {
       current = undefined;
+      if (base[at] !== side[sideAt]) {
+        result.push({
+          from: at,
+          to: at + 1,
+          lines: [side[sideAt]!],
+          side: name,
+          // La clave conserva el salto final: estas coincidencias solo pueden
+          // variar entre LF y CRLF, sin competir con una inserción contigua.
+          eolOnly: true,
+        });
+      }
       at++;
+      sideAt++;
     } else {
       if (!current) {
-        current = { from: at, to: at, lines: [], side: name };
+        current = { from: at, to: at, lines: [], side: name, eolOnly: false };
         result.push(current);
       }
       if (edit.kind === 'removed') current.to = ++at;
-      else current.lines.push(edit.line);
+      else current.lines.push(side[sideAt++]!);
     }
   }
   // Cuando hay líneas repetidas, desplazar la edición hacia el final del
@@ -254,6 +364,7 @@ function changes(base: string[], side: string[], name: ResolutionSide): Change[]
   // cambiaría artificialmente qué inserción del otro lado se solapa con él.
   for (let index = result.length - 1; index >= 0; index--) {
     const change = result[index]!;
+    if (change.eolOnly) continue;
     const limit = result[index + 1]?.from ?? base.length;
     let rotation = 0;
     while (change.to < limit && base[change.from] === (change.lines[rotation] ?? base[change.to])) {
@@ -285,31 +396,81 @@ export function buildBlocks(
   const original = rawLines(base);
   const a = rawLines(ours);
   const b = rawLines(theirs);
-  const blocks: ConflictBlock[] = [];
+  const blocks: (Omit<ConflictBlock, 'ours' | 'theirs'> & { ours: string[]; theirs: string[] })[] =
+    [];
   let oursAt = 1;
   let theirsAt = 1;
-  const push = (o: string[], t: string[], ancestor: string[]) => {
+  const push = (
+    o: string[],
+    t: string[],
+    ancestor: string[],
+    forceConflict = false,
+    coalesce = false,
+  ) => {
     const oursText = o.join('');
     const theirsText = t.join('');
     const baseText = ancestor.join('');
     const equal = oursText === theirsText;
-    const origin: LineOrigin | undefined = equal
-      ? 'context'
-      : oursText === baseText
-        ? 'theirs'
-        : theirsText === baseText
-          ? 'ours'
-          : undefined;
+    const origin: LineOrigin | undefined = forceConflict
+      ? undefined
+      : equal
+        ? 'context'
+        : oursText === baseText
+          ? 'theirs'
+          : theirsText === baseText
+            ? 'ours'
+            : undefined;
+    if (origin === undefined && !forceConflict) {
+      // Un grupo solapado puede contener islas que A y B resolvieron igual,
+      // aunque esas líneas no existieran en la base. Se incorporan una vez;
+      // cada diferencia sigue pidiendo una decisión explícita.
+      let common: string[] = [];
+      let removed: string[] = [];
+      let added: string[] = [];
+      const flushCommon = () => {
+        push(common, common, []);
+        common = [];
+      };
+      const flushConflict = () => {
+        push(removed, added, [], true);
+        removed = [];
+        added = [];
+      };
+      for (const edit of diffLines(o, t)) {
+        if (edit.kind === 'same') {
+          flushConflict();
+          common.push(edit.line);
+        } else {
+          flushCommon();
+          (edit.kind === 'removed' ? removed : added).push(edit.line);
+        }
+      }
+      flushCommon();
+      flushConflict();
+      return;
+    }
     const kind: BlockKind =
       origin === undefined ? 'conflict' : equal && oursText === baseText ? 'context' : 'automatic';
     // Incluso un borrado compartido necesita conservar su posición en la base,
     // pero no produce filas en ninguno de los tres paneles.
     if (!o.length && !t.length) return;
+    const previous = blocks.at(-1);
+    if (coalesce && previous?.kind === kind && previous.origin === origin && kind !== 'conflict') {
+      // Acumular el run sin copiar todas sus líneas en cada terminador.
+      previous.ours.push(...toLines(oursText));
+      previous.theirs.push(...toLines(theirsText));
+      previous.oursText += oursText;
+      previous.theirsText += theirsText;
+      previous.mergedText += origin === 'theirs' ? theirsText : oursText;
+      oursAt += o.length;
+      theirsAt += t.length;
+      return;
+    }
     blocks.push({
       id: `${kind === 'conflict' ? 'c' : 'x'}${blocks.length}`,
       kind,
-      ours: toLines(oursText),
-      theirs: toLines(theirsText),
+      ours: [...toLines(oursText)],
+      theirs: [...toLines(theirsText)],
       oursText,
       theirsText,
       oursLine: oursAt,
@@ -325,17 +486,37 @@ export function buildBlocks(
     theirsAt += t.length;
   };
 
-  // Sin ancestro, dos creaciones distintas sí compiten aunque una esté vacía.
+  // Sin ancestro se puede alinear lo idéntico, pero ninguna diferencia es
+  // automática: incluso una inserción frente a un lado vacío pide decisión.
   if (base === null) {
-    push(a, b, []);
-    if (ours !== theirs && blocks[0]) {
-      blocks[0] = { ...blocks[0], kind: 'conflict', mergedText: undefined, origin: undefined };
+    let common: string[] = [];
+    let removed: string[] = [];
+    let added: string[] = [];
+    const flushCommon = () => {
+      push(common, common, common);
+      common = [];
+    };
+    const flushConflict = () => {
+      push(removed, added, [], true);
+      removed = [];
+      added = [];
+    };
+    for (const edit of diffLines(a, b)) {
+      if (edit.kind === 'same') {
+        flushConflict();
+        common.push(edit.line);
+      } else {
+        flushCommon();
+        (edit.kind === 'removed' ? removed : added).push(edit.line);
+      }
     }
+    flushCommon();
+    flushConflict();
     return blocks;
   }
 
   const edits = [...changes(original, a, 'ours'), ...changes(original, b, 'theirs')].sort(
-    (x, y) => x.from - y.from || x.to - y.to,
+    (x, y) => x.from - y.from || Number(x.eolOnly) - Number(y.eolOnly) || x.to - y.to,
   );
   let at = 0;
   for (let index = 0; index < edits.length;) {
@@ -346,9 +527,15 @@ export function buildBlocks(
     }
     let end = first.to;
     const group: Change[] = [];
+    let eolOnly = true;
     while (index < edits.length && edits[index]!.from <= end) {
-      const edit = edits[index++]!;
+      const edit = edits[index]!;
+      // El mero contacto con un cambio de terminador no hace incompatibles
+      // dos ediciones. Los solapamientos reales siguen pidiendo decisión.
+      if (group.length && edit.from === end && (edit.eolOnly || eolOnly)) break;
+      index++;
       group.push(edit);
+      eolOnly &&= edit.eolOnly;
       end = Math.max(end, edit.to);
     }
     const apply = (side: ResolutionSide) => {
@@ -362,7 +549,7 @@ export function buildBlocks(
       for (const line of original.slice(cursor, end)) lines.push(line);
       return lines;
     };
-    push(apply('ours'), apply('theirs'), original.slice(first.from, end));
+    push(apply('ours'), apply('theirs'), original.slice(first.from, end), false, eolOnly);
     at = end;
   }
   if (at < original.length) {

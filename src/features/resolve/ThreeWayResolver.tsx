@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useGestures } from '@app/GestureContext';
 import { GitErrorPanel } from '@app/GitErrorPanel';
@@ -51,7 +51,7 @@ interface ThreeWayResolverProps {
     encoding?: string,
   ) => void | Promise<void>;
   /** Se queda con un lado entero: binarios y lo que pasa del tope. */
-  onKeepSide: (side: 'ours' | 'theirs') => void;
+  onKeepSide: (side: 'ours' | 'theirs') => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -81,6 +81,7 @@ export function ThreeWayResolver({
 
   const encoding = useResolveStore((state) => state.encodings.get(path) ?? 'auto');
   const restartWithEncoding = useResolveStore((state) => state.restartWithEncoding);
+  const setConflictRevision = useResolveStore((state) => state.setConflictRevision);
   const [requestedEncoding, setRequestedEncoding] = useState<string>();
   const choices = useResolveStore((state) => state.choices);
   const blockIndex = useResolveStore((state) => state.blockIndex);
@@ -109,7 +110,7 @@ export function ThreeWayResolver({
 
   const blocks = useMemo(
     () =>
-      conflict === null || conflict.tooLarge
+      conflict === null || conflict.tooLarge || conflict.wholeFileOnly
         ? []
         : buildBlocks(conflict.base, conflict.ours, conflict.theirs),
     [conflict],
@@ -117,9 +118,13 @@ export function ThreeWayResolver({
 
   const conflicts = useMemo(() => conflictBlocks(blocks), [blocks]);
 
+  useLayoutEffect(() => {
+    if (conflict !== null) setConflictRevision(path, conflict.revision);
+  }, [conflict, path, setConflictRevision]);
+
   useEffect(() => {
-    setBlockIds(conflicts.map((block) => block.id));
-  }, [conflicts, setBlockIds]);
+    if (conflict !== null) setBlockIds(conflicts.map((block) => block.id));
+  }, [conflict, conflicts, setBlockIds]);
 
   const result = useMemo(() => assemble(blocks, choices, blockText), [blocks, choices, blockText]);
   /*
@@ -300,7 +305,12 @@ export function ThreeWayResolver({
    * borrado contra modificado o un archivo por encima del tope se resuelven
    * quedándose con un lado entero, y no pasan por la comprobación.
    */
-  if (conflict.tooLarge || conflict.ours === null || conflict.theirs === null) {
+  if (
+    conflict.wholeFileOnly ||
+    conflict.tooLarge ||
+    conflict.ours === null ||
+    conflict.theirs === null
+  ) {
     return (
       <div
         className={styles.overlay}

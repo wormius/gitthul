@@ -3773,6 +3773,10 @@ fn map_resolve_error(error: resolve::ResolveError) -> GitCommandError {
         resolve::ResolveError::UnsupportedEncoding(encoding) => {
             GitCommandError::new("text.encodingUnsupported", json!({ "encoding": encoding }))
         }
+        resolve::ResolveError::UnsupportedFileType { path, kind } => GitCommandError::new(
+            "resolve.unsupportedFileType",
+            json!({ "path": path, "kind": kind, "count": 1 }),
+        ),
         resolve::ResolveError::Unrepresentable { path, encoding } => GitCommandError::new(
             "resolve.unrepresentable",
             json!({ "path": path, "encoding": encoding }),

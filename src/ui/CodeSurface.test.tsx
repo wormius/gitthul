@@ -81,6 +81,39 @@ describe('CodeSurface', () => {
     expect(lines[8]).toBe('}');
   });
 
+  it('navega hacia un bloque fuera del DOM y no repite la navegación al cambiar sus controles', () => {
+    const scrollIntoView = vi.spyOn(EditorView, 'scrollIntoView');
+    const value = Array.from({ length: 3000 }, (_, index) => `line ${index + 1}`).join('\n');
+    const controls = [{ id: 'distant', line: 2500, label: 'Bloque lejano', anchorOnly: true }];
+    const { container, rerender } = renderSurface({ value, blockControls: controls });
+    expect(container.querySelector('[data-block-id="distant"]')).toBeNull();
+    const view = EditorView.findFromDOM(editor())!;
+
+    rerender(
+      <CodeSurface
+        value={value}
+        label="src/design/theme.ts"
+        blockControls={controls}
+        scrollToBlock="distant"
+      />,
+    );
+    expect(scrollIntoView).toHaveBeenCalledWith(view.state.doc.line(2500).from, {
+      y: 'start',
+      yMargin: 28,
+    });
+    const requests = scrollIntoView.mock.calls.length;
+    rerender(
+      <CodeSurface
+        value={value}
+        label="src/design/theme.ts"
+        blockControls={[{ ...controls[0]!, pressed: true }]}
+        scrollToBlock="distant"
+      />,
+    );
+    expect(scrollIntoView).toHaveBeenCalledTimes(requests);
+    scrollIntoView.mockRestore();
+  });
+
   it('numera las líneas desde uno', () => {
     const { container } = renderSurface();
 

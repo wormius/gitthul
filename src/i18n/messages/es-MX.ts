@@ -1727,6 +1727,14 @@ export const esMX = {
   'resolve.resolved.close': 'Cerrar resultado',
   'resolve.resolved.navigation': 'Bloques del resultado',
   'resolve.resolved.sourceBlock': 'Bloque {number} · {source}',
+  'resolve.card.symbolicLink':
+    'El conflicto incluye un enlace simbólico. Conserva una versión completa para mantener su tipo.',
+  'resolve.card.submodule':
+    'Resuelve el conflicto del submódulo desde la terminal y después márcalo como resuelto.',
+  'error.resolve.unsupportedFileType.title':
+    'La resolución de {path} requiere conservar su tipo de archivo',
+  'error.resolve.unsupportedFileType.cause':
+    'Los enlaces simbólicos se resuelven eligiendo una versión completa. Resuelve los submódulos desde la terminal y después márcalos como resueltos.',
   'resolve.card.binary': 'Es un archivo binario: no hay líneas que comparar.',
   'resolve.card.tooLarge':
     'El archivo tiene {lines} líneas y el editor admite hasta {limit}. Elige una de las dos versiones completas para resolverlo.',

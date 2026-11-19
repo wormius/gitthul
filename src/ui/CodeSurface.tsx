@@ -1231,6 +1231,15 @@ export function CodeSurface({
 
     lastScrolledBlockRef.current = scrollRequest;
 
+    // Los bloques lejanos no tienen DOM hasta que CodeMirror materializa su
+    // ventana. Llevar primero su línea a la vista permite alinear después la
+    // cabecera virtual sin depender de que ya estuviese montada.
+    const control = blockControls?.find((candidate) => candidate.id === scrollToBlock);
+    if (control) {
+      const line = view.state.doc.line(Math.max(1, Math.min(control.line, view.state.doc.lines)));
+      view.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 28 }) });
+    }
+
     const align = () => {
       const block = [...view.scrollDOM.querySelectorAll<HTMLElement>('[data-block-id]')].find(
         (element) => element.dataset.blockId === scrollToBlock,
@@ -1248,7 +1257,7 @@ export function CodeSurface({
     const frame = requestAnimationFrame(align);
 
     return () => cancelAnimationFrame(frame);
-  }, [extensions, scrollToBlock, scrollToBlockRevision]);
+  }, [blockControls, extensions, scrollToBlock, scrollToBlockRevision]);
 
   useLayoutEffect(() => {
     const view = viewRef.current;

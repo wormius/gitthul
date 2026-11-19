@@ -36,6 +36,15 @@ pub struct ConflictContents {
     sizes: ConflictSizes,
     binary: bool,
     too_large: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    whole_file_only: Option<WholeFileOnly>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+enum WholeFileOnly {
+    SymbolicLink,
+    Submodule,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -48,6 +57,12 @@ enum ConflictKind {
     DeletedByThem,
     AddedByUs,
     AddedByThem,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct IndexStage {
+    mode: String,
+    oid: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -74,9 +89,24 @@ pub fn read_encoded(
 ) -> Result<ConflictContents, ReadConflictError> {
     let stages = read_stages(repository, path)?;
     let kind = conflict_kind(&stages)?;
-    let base = read_stage(repository, stages[1].as_deref())?;
-    let ours = read_stage(repository, stages[2].as_deref())?;
-    let theirs = read_stage(repository, stages[3].as_deref())?;
+    let whole_file_only = if stages.iter().flatten().any(|stage| stage.mode == "160000") {
+        Some(WholeFileOnly::Submodule)
+    } else if stages.iter().flatten().any(|stage| stage.mode == "120000") {
+        Some(WholeFileOnly::SymbolicLink)
+    } else {
+        None
+    };
+    // Gitlinks identify commits, not blobs. Their contents belong to the
+    // submodule repository and cannot be edited as a file in this worktree.
+    let (base, ours, theirs) = if whole_file_only == Some(WholeFileOnly::Submodule) {
+        (None, None, None)
+    } else {
+        (
+            read_stage(repository, stages[1].as_ref())?,
+            read_stage(repository, stages[2].as_ref())?,
+            read_stage(repository, stages[3].as_ref())?,
+        )
+    };
     let sizes = ConflictSizes {
         ours: size(ours.as_deref()),
         theirs: size(theirs.as_deref()),
@@ -91,8 +121,8 @@ pub fn read_encoded(
         .map(|contents| size(Some(contents)))
         .any(|size| size.bytes > MAX_BYTES || size.lines > MAX_LINES);
     let fallback = stages[3]
-        .as_deref()
-        .map(short_oid)
+        .as_ref()
+        .map(|stage| short_oid(&stage.oid))
         .unwrap_or_else(|| "HEAD".to_owned());
     let (ours_label, theirs_label) =
         repository::conflict_labels(repository).unwrap_or_else(|| ("HEAD".to_owned(), fallback));
@@ -143,13 +173,19 @@ pub fn read_encoded(
         sizes,
         binary,
         too_large,
+        whole_file_only,
     })
 }
 
-fn stage_revision(stages: &[Option<String>; 4]) -> String {
+fn stage_revision(stages: &[Option<IndexStage>; 4]) -> String {
     stages[1..]
         .iter()
-        .map(|stage| stage.as_deref().unwrap_or("-"))
+        .map(|stage| {
+            stage.as_ref().map_or_else(
+                || "-".to_owned(),
+                |stage| format!("{} {}", stage.mode, stage.oid),
+            )
+        })
         .collect::<Vec<_>>()
         .join(":")
 }
@@ -161,7 +197,7 @@ pub fn revision(repository: &Path, path: &str) -> Result<String, ReadConflictErr
 fn read_stages(
     repository: &Path,
     requested_path: &str,
-) -> Result<[Option<String>; 4], ReadConflictError> {
+) -> Result<[Option<IndexStage>; 4], ReadConflictError> {
     let output = git_output(
         repository,
         &["ls-files", "--unmerged", "-z", "--", requested_path],
@@ -178,8 +214,8 @@ fn read_stages(
 fn parse_stages(
     bytes: &[u8],
     requested_path: &str,
-) -> Result<[Option<String>; 4], ReadConflictError> {
-    let mut stages: [Option<String>; 4] = Default::default();
+) -> Result<[Option<IndexStage>; 4], ReadConflictError> {
+    let mut stages: [Option<IndexStage>; 4] = Default::default();
     for record in bytes.split(|byte| *byte == 0).filter(|row| !row.is_empty()) {
         let separator = record
             .iter()
@@ -192,7 +228,7 @@ fn parse_stages(
             return Err(ReadConflictError::MalformedOutput);
         }
         let mut fields = header.split(|byte| *byte == b' ');
-        let _mode = fields.next().ok_or(ReadConflictError::MalformedOutput)?;
+        let mode = fields.next().ok_or(ReadConflictError::MalformedOutput)?;
         let oid = fields.next().ok_or(ReadConflictError::MalformedOutput)?;
         let stage = fields
             .next()
@@ -203,11 +239,14 @@ fn parse_stages(
         if fields.next().is_some() || stages[stage].is_some() {
             return Err(ReadConflictError::MalformedOutput);
         }
-        stages[stage] = Some(
-            std::str::from_utf8(oid)
+        stages[stage] = Some(IndexStage {
+            mode: std::str::from_utf8(mode)
                 .map_err(|_| ReadConflictError::MalformedOutput)?
                 .to_owned(),
-        );
+            oid: std::str::from_utf8(oid)
+                .map_err(|_| ReadConflictError::MalformedOutput)?
+                .to_owned(),
+        });
     }
     if stages.iter().skip(1).all(Option::is_none) {
         Err(ReadConflictError::NotConflicted)
@@ -216,16 +255,19 @@ fn parse_stages(
     }
 }
 
-fn read_stage(repository: &Path, oid: Option<&str>) -> Result<Option<Vec<u8>>, ReadConflictError> {
-    let Some(oid) = oid else {
+fn read_stage(
+    repository: &Path,
+    stage: Option<&IndexStage>,
+) -> Result<Option<Vec<u8>>, ReadConflictError> {
+    let Some(stage) = stage else {
         return Ok(None);
     };
     Ok(Some(
-        git_output(repository, &["cat-file", "blob", oid])?.stdout,
+        git_output(repository, &["cat-file", "blob", &stage.oid])?.stdout,
     ))
 }
 
-fn conflict_kind(stages: &[Option<String>; 4]) -> Result<ConflictKind, ReadConflictError> {
+fn conflict_kind(stages: &[Option<IndexStage>; 4]) -> Result<ConflictKind, ReadConflictError> {
     match (
         stages[1].is_some(),
         stages[2].is_some(),
@@ -283,12 +325,15 @@ fn git_output(repository: &Path, args: &[&str]) -> Result<Output, ReadConflictEr
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::io::Write;
     use std::path::Path;
-    use std::process::Command;
+    use std::process::{Command, Stdio};
 
     use tempfile::TempDir;
 
-    use super::{conflict_kind, read, ConflictKind, ReadConflictError, MAX_BYTES};
+    use super::{
+        conflict_kind, read, ConflictKind, IndexStage, ReadConflictError, WholeFileOnly, MAX_BYTES,
+    };
 
     fn git(directory: &Path, args: &[&str]) -> bool {
         Command::new("git")
@@ -352,6 +397,55 @@ mod tests {
         assert_eq!(conflict.sizes.ours.bytes, 5);
         assert!(!conflict.binary);
         assert!(!conflict.too_large);
+        assert_eq!(conflict.whole_file_only, None);
+    }
+
+    #[test]
+    fn symbolic_links_are_whole_file_choices_and_gitlinks_are_not_read_as_blobs() {
+        let (repository, path) = conflicted((b"base\n", b"theirs\n", b"ours\n"));
+        let entries = super::read_stages(repository.path(), &path).unwrap();
+        let commit = Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(repository.path())
+            .output()
+            .unwrap();
+        assert!(commit.status.success());
+        let commit = String::from_utf8(commit.stdout).unwrap();
+        for (mode, reason) in [
+            ("120000", WholeFileOnly::SymbolicLink),
+            ("160000", WholeFileOnly::Submodule),
+        ] {
+            let mut child = Command::new("git")
+                .args(["update-index", "--index-info"])
+                .current_dir(repository.path())
+                .stdin(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut input = child.stdin.take().unwrap();
+            for (index, entry) in entries.iter().enumerate().skip(1) {
+                let oid = if mode == "160000" {
+                    commit.trim()
+                } else {
+                    &entry.as_ref().unwrap().oid
+                };
+                writeln!(input, "{mode} {oid} {index}\t{path}").unwrap();
+            }
+            drop(input);
+            assert!(child.wait().unwrap().success());
+            let conflict = read(repository.path(), &path).unwrap();
+            assert_eq!(conflict.whole_file_only, Some(reason));
+            assert!(!conflict.binary);
+            assert!(!conflict.too_large);
+            if mode == "120000" {
+                assert_eq!(conflict.ours.as_deref(), Some("ours\n"));
+                assert_eq!(conflict.sizes.ours.bytes, 5);
+            } else {
+                assert_eq!(conflict.base, None);
+                assert_eq!(conflict.ours, None);
+                assert_eq!(conflict.theirs, None);
+                assert_eq!(conflict.sizes.ours.bytes, 0);
+            }
+        }
     }
 
     #[test]
@@ -373,7 +467,12 @@ mod tests {
 
     #[test]
     fn reconoce_los_siete_mapas_de_etapas_y_una_ruta_que_ya_no_esta_en_conflicto() {
-        let oid = || Some("a".repeat(40));
+        let oid = || {
+            Some(IndexStage {
+                mode: "100644".to_owned(),
+                oid: "a".repeat(40),
+            })
+        };
         for (stages, expected) in [
             ([None, oid(), oid(), oid()], ConflictKind::BothModified),
             ([None, None, oid(), oid()], ConflictKind::BothAdded),

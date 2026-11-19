@@ -17,6 +17,13 @@ import type {
  */
 export type ResolveStep = 'lists' | 'resolver' | 'review' | 'resolved';
 
+interface FileDecisions {
+  choices: ReadonlyMap<string, readonly SideChoice[]>;
+  blockText: ReadonlyMap<string, BlockText>;
+  blockIds: readonly string[];
+  blockIndex: number;
+}
+
 export interface ResolveState {
   step: ResolveStep;
   encodings: ReadonlyMap<string, string>;
@@ -29,10 +36,15 @@ export interface ResolveState {
    *
    * Vive aquí y no en el componente porque los gestos tienen que alcanzarlo:
    * `Alt+1` y `Alt+2` toman un lado del bloque actual, y `run()` no lleva
-   * parámetros. Se vacía al abrir otro archivo — son de ese archivo.
+   * parámetros. Al alternar archivos se conserva una instantánea por ruta;
+   * solo vuelve a usarse si la revisión leída sigue siendo la misma.
    */
   choices: ReadonlyMap<string, readonly SideChoice[]>;
   blockText: ReadonlyMap<string, BlockText>;
+  /** Decisiones de sesión conservadas al cerrar o alternar archivos. */
+  fileDecisions: ReadonlyMap<string, FileDecisions>;
+  decisionPath: string | null;
+  conflictRevisions: ReadonlyMap<string, string | undefined>;
   /**
    * El texto escrito a mano, por ruta — CU-6.
    *
@@ -102,6 +114,8 @@ export interface ResolveState {
 }
 
 export interface ResolveActions {
+  /** Invalida decisiones anteriores cuando cambian los blobs del conflicto. */
+  setConflictRevision: (path: string, revision: string | undefined) => void;
   setEncoding: (path: string, encoding: string) => void;
   /** Relee los bytes desde cero después de confirmar el descarte de las decisiones. */
   restartWithEncoding: (path: string, encoding: string) => void;
@@ -167,6 +181,9 @@ function freshState(): ResolveState {
     selected: new Set(),
     choices: new Map(),
     blockText: new Map(),
+    fileDecisions: new Map(),
+    decisionPath: null,
+    conflictRevisions: new Map(),
     manual: new Map(),
     blockIds: [],
     blockIndex: 0,
@@ -186,6 +203,16 @@ function freshState(): ResolveState {
   };
 }
 
+function rememberDecisions(state: ResolveState): ReadonlyMap<string, FileDecisions> {
+  if (state.decisionPath === null) return state.fileDecisions;
+  return new Map(state.fileDecisions).set(state.decisionPath, {
+    choices: state.choices,
+    blockText: state.blockText,
+    blockIds: state.blockIds,
+    blockIndex: state.blockIndex,
+  });
+}
+
 /**
  * El estado de Resolver que no vive en ningún componente.
  *
@@ -197,6 +224,28 @@ function freshState(): ResolveState {
 export const useResolveStore = create<ResolveState & ResolveActions>((set) => ({
   ...freshState(),
 
+  setConflictRevision: (path, revision) => {
+    set((state) => {
+      const changed =
+        state.conflictRevisions.has(path) && state.conflictRevisions.get(path) !== revision;
+      const conflictRevisions = new Map(state.conflictRevisions).set(path, revision);
+      if (!changed) return { conflictRevisions };
+
+      const fileDecisions = new Map(state.fileDecisions);
+      const manual = new Map(state.manual);
+      fileDecisions.delete(path);
+      manual.delete(path);
+      return {
+        conflictRevisions,
+        fileDecisions,
+        manual,
+        ...(state.decisionPath === path
+          ? { choices: new Map(), blockText: new Map(), blockIds: [], blockIndex: 0 }
+          : {}),
+      };
+    });
+  },
+
   setEncoding: (path, encoding) => {
     set((state) => ({ encodings: new Map(state.encodings).set(path, encoding) }));
   },
@@ -204,12 +253,18 @@ export const useResolveStore = create<ResolveState & ResolveActions>((set) => ({
   restartWithEncoding: (path, encoding) => {
     set((state) => {
       const manual = new Map(state.manual);
+      const fileDecisions = new Map(state.fileDecisions);
+      const conflictRevisions = new Map(state.conflictRevisions);
       manual.delete(path);
+      fileDecisions.delete(path);
+      conflictRevisions.delete(path);
       return {
         encodings: new Map(state.encodings).set(path, encoding),
         choices: new Map(),
         blockText: new Map(),
         manual,
+        fileDecisions,
+        conflictRevisions,
         blockIds: [],
         blockIndex: 0,
       };
@@ -217,14 +272,19 @@ export const useResolveStore = create<ResolveState & ResolveActions>((set) => ({
   },
 
   openFile: (openPath) => {
-    // Las decisiones son del archivo que se abre, no de la sesión.
-    set({
-      openPath,
-      step: 'resolver',
-      choices: new Map(),
-      blockText: new Map(),
-      blockIds: [],
-      blockIndex: 0,
+    set((state) => {
+      const fileDecisions = rememberDecisions(state);
+      const saved = fileDecisions.get(openPath);
+      return {
+        openPath,
+        decisionPath: openPath,
+        step: 'resolver',
+        fileDecisions,
+        choices: saved?.choices ?? new Map(),
+        blockText: saved?.blockText ?? new Map(),
+        blockIds: saved?.blockIds ?? [],
+        blockIndex: saved?.blockIndex ?? 0,
+      };
     });
   },
 
@@ -233,7 +293,7 @@ export const useResolveStore = create<ResolveState & ResolveActions>((set) => ({
   },
 
   closeFile: () => {
-    set({ openPath: null, step: 'lists' });
+    set((state) => ({ openPath: null, step: 'lists', fileDecisions: rememberDecisions(state) }));
   },
 
   goToReview: () => {

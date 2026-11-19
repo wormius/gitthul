@@ -623,7 +623,12 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
         encoding: !query?.encoding || query.encoding === 'auto' ? 'utf-8' : query.encoding,
         detectedEncoding: 'utf-8',
         decodingErrors,
-        revision: JSON.stringify([conflict.base, conflict.ours, conflict.theirs]),
+        revision: JSON.stringify([
+          conflict.base,
+          conflict.ours,
+          conflict.theirs,
+          conflict.wholeFileOnly,
+        ]),
       };
     },
 
@@ -808,14 +813,22 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
     resolveConflict: async (id, path, content, query) => {
       await settle(query);
       failIfProgrammed('resolveConflict');
+      const current = find(id).conflicts.get(path);
       if (query?.expectedRevision !== undefined) {
-        const current = find(id).conflicts.get(path);
         if (
           !current ||
-          JSON.stringify([current.base, current.ours, current.theirs]) !== query.expectedRevision
+          JSON.stringify([current.base, current.ours, current.theirs, current.wholeFileOnly]) !==
+            query.expectedRevision
         ) {
           throw new GitOperationError('write.stale', { path });
         }
+      }
+      if (current?.wholeFileOnly) {
+        throw new GitOperationError('resolve.unsupportedFileType', {
+          path,
+          kind: current.wholeFileOnly,
+          count: 1,
+        });
       }
       return store(applyResolution(find(id), path, content)).status;
     },
@@ -849,6 +862,14 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
       const repo = find(id);
       const conflict = repo.conflicts.get(path);
 
+      if (conflict?.wholeFileOnly === 'submodule') {
+        throw new GitOperationError('resolve.unsupportedFileType', {
+          path,
+          kind: 'submodule',
+          count: 1,
+        });
+      }
+
       /*
        * Quedarse con un lado no carga el texto: es el camino de los binarios y
        * de lo que pasa del tope, y ahí el contenido no llega a pasar por la
@@ -866,6 +887,7 @@ export function createMockGitPort(options: MockGitPortOptions = {}): MockGitPort
       const resolved: Resolution[] = [];
 
       for (const [path, conflict] of repo.conflicts) {
+        if (conflict.wholeFileOnly) continue;
         const text = unambiguousResolution(conflict);
 
         if (text === null) continue;

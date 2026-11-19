@@ -102,6 +102,8 @@ export interface ConflictContents {
   decodingErrors?: boolean;
   /** Identidad de las etapas leídas; revalidada antes de escribir la resolución. */
   revision?: string;
+  /** Tipos Git que no admiten escritura desde el editor de texto. */
+  wholeFileOnly?: 'symbolicLink' | 'submodule';
   path: string;
   kind: ConflictKind;
   base: string | null;

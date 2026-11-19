@@ -1668,6 +1668,13 @@ export const en: Messages = {
   'resolve.resolved.close': 'Close result',
   'resolve.resolved.navigation': 'Result blocks',
   'resolve.resolved.sourceBlock': 'Block {number} · {source}',
+  'resolve.card.symbolicLink':
+    'This conflict includes a symbolic link. Keep a complete version to preserve its file type.',
+  'resolve.card.submodule':
+    'Resolve this submodule conflict in the terminal, then mark it as resolved.',
+  'error.resolve.unsupportedFileType.title': 'Resolving {path} requires preserving its file type',
+  'error.resolve.unsupportedFileType.cause':
+    'Resolve symbolic links by keeping a complete version. Resolve submodules in the terminal, then mark them as resolved.',
   'resolve.card.binary': 'This is a binary file: there are no lines to compare.',
   'resolve.card.tooLarge':
     'The file has {lines} lines, exceeding the limit of {limit}. Choose one of the two complete versions to resolve it.',

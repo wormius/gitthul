@@ -191,6 +191,34 @@ la fuente sin relleno de alineación; el resultado editable copia siempre el
 documento actual. Seleccionar, copiar o abrir el menú no modifica decisiones del
 conflicto ni activa los espacios de edición reservados al clic izquierdo.
 
+Resolver alinea las líneas por contenido y conserva sus terminadores originales.
+La clave equipara CRLF/LF y conserva la presencia del salto final para no alinear
+una última línea sin terminador con una repetición completa dentro del archivo.
+Los cambios CRLF/LF se comparan contra la base por separado: no unen por mera
+adyacencia todo el archivo en un conflicto. Un cambio de terminador solapado con
+otra edición sigue requiriendo decisión; añadir o quitar el salto final conserva
+las guardias de contacto. Los bloques incompatibles y las creaciones sin base
+se refinan por coincidencias exactas de A/B, incluidas una sola vez en el resultado.
+Al agotarse el presupuesto de Myers, el alineado por anclas conserva coincidencias
+interiores con memoria acotada, sin prometer el diff mínimo en grandes reescrituras.
+
+Resolver conserva en sesión elecciones, texto por bloque, posición y edición
+manual al cancelar o alternar archivos. Revalida la revisión al abrir y descarta
+esas decisiones si cambian las etapas o se confirma otra codificación. La revisión
+incluye modo y OID; la autoresolución también compara ambos. CodeSurface solicita
+la línea de un bloque a CodeMirror antes de alinear su cabecera, incluso fuera
+del viewport; elegir líneas o bloques no repite ese desplazamiento.
+
+ConflictContents.wholeFileOnly identifica symbolicLink y submodule. Los enlaces
+se resuelven tomando una versión completa para conservar su tipo; los submódulos
+se resuelven en la terminal y después se marcan como resueltos. No leer gitlinks
+con cat-file blob, autorresolverlos ni ofrecerles keepSide. El backend rechaza
+escritura textual de ambos tipos antes de modificar el archivo o el índice.
+Tomar un lado publica exactamente su modo y OID después de materializarlo;
+no inferir el tipo mediante git add, especialmente con core.symlinks=false o
+core.filemode=false. Las fichas de archivo completo esperan la escritura,
+evitan ejecuciones duplicadas y conservan el error para reintentar.
+
 Las pruebas de escritura usan repositorios descartables. No experimentar con
 reset, limpieza o recuperación destructiva sobre repositorios del usuario.
 
