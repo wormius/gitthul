@@ -358,7 +358,7 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
 
       {data.status === 'ready' && (
         <>
-          <DiffMetadata file={data.data.file} />
+          <DiffMetadata file={data.data.file} showAlignedRows={displayOptions.content === 'diff'} />
           <DiffBody
             data={data.data}
             options={displayOptions}
@@ -388,7 +388,7 @@ export function DiffViewer({ repoId, diff, actions, status, onClose }: DiffViewe
 }
 
 /** Explain changes whose bytes or mode differ while their visible text matches. */
-function DiffMetadata({ file }: { file: FileDiff }) {
+function DiffMetadata({ file, showAlignedRows }: { file: FileDiff; showAlignedRows: boolean }) {
   const { t } = useI18n();
   const { before, after } = file.precondition;
   const messages: string[] = [];
@@ -423,6 +423,12 @@ function DiffMetadata({ file }: { file: FileDiff }) {
         after: endingLabel(endings.after),
       }),
     );
+  if (
+    showAlignedRows &&
+    file.content.kind === 'text' &&
+    file.content.hunks.some((hunk) => hunk.lines.some((line) => line.lineEndingChange))
+  )
+    messages.push(t('working.diff.lineEndings.aligned'));
   const changes = file.content.kind === 'text' ? file.content.textChanges : undefined;
   if (changes?.encoding)
     messages.push(

@@ -14,7 +14,8 @@
  * pintar la línea. Quien traduzca «esta línea la escribió el otro lado» a
  * `theirs` es el componente de dominio que lo consuma.
  */
-export type CodeLineTone = 'added' | 'removed' | 'ours' | 'theirs' | 'both' | 'resolved';
+export type CodeLineTone =
+  'added' | 'removed' | 'lineEnding' | 'ours' | 'theirs' | 'both' | 'resolved';
 
 export interface CodeLineMark {
   /** Número de línea, contando desde 1 como los rótulos del margen. */

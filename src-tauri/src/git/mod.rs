@@ -3688,6 +3688,9 @@ fn map_local_write_error(error: write::WriteError, id: &str) -> GitCommandError 
         write::WriteError::Stale(path) => {
             GitCommandError::new("write.stale", json!({ "path": path }))
         }
+        write::WriteError::PartialLineBoundary => {
+            GitCommandError::new("write.partialLineBoundary", json!({}))
+        }
         write::WriteError::InvalidPathEncoding => {
             GitCommandError::new("path.encodingUnsupported", json!({ "repo": id }))
         }

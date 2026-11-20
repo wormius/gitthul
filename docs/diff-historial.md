@@ -55,10 +55,17 @@ se añadió o eliminó ese permiso y muestra los modos anterior y nuevo, por eje
 **Sin diferencias de texto** indica que no hay líneas distintas con las opciones
 actuales del visor; también puede ocurrir al ignorar espacios o en un renombrado.
 
-Si todas las líneas aparecen eliminadas y añadidas con el mismo texto, puede
-haber una conversión entre finales de línea `CRLF` y `LF`. Cuando el texto
-coincide al normalizarlos y Git registra contenido distinto, el visor explica
-esa diferencia. El parche conserva los bytes originales para Stage y Descartar.
+El visor alinea las partes comunes incluso cuando un cambio de contenido se
+mezcla con una conversión entre finales de línea `CRLF` y `LF`. Una inserción o
+eliminación no desplaza las parejas de las líneas siguientes en la vista dividida.
+Las líneas cuyo único cambio es su terminador se muestran con una marca discreta
+y los finales `LF` o `CRLF` junto a su número. Siguen siendo cambios reales:
+preparar esas líneas o su bloque también prepara sus terminadores.
+
+Cuando todo el texto coincide al normalizar sus finales y Git registra contenido
+distinto, el visor también explica la conversión en su aviso. Stage, retirar del
+Stage y Descartar conservan los bytes originales de las líneas seleccionadas y
+dejan intactas las modificaciones que no se seleccionaron.
 La conversión que Git ya normaliza mediante atributos o configuración no se
 presenta como un cambio pendiente de finales de línea.
 
@@ -84,8 +91,14 @@ se numera en el lado correspondiente: por ejemplo, `uno\ndos\ntres` termina en
 la línea 3 y `uno\ndos\ntres\n` en la 4. El hueco del otro lado no recibe un
 número ni una acción para preparar una línea inexistente de Git.
 
-Los avisos se conservan en Staging, commits, stashes, comparaciones y vista de
-archivo completo, incluso cuando «Ignorar cambios de espacios» oculta los hunks.
+Si una selección parcial dejaría una línea sin terminador antes de otra línea,
+el visor pide seleccionar ambos lados del cambio o el hunk completo. Así se
+conservan los bytes sin añadir un salto de línea que no seleccionaste.
+
+La explicación de las marcas LF/CRLF aparece mientras se muestra el diff.
+Los avisos sobre el archivo se conservan en Staging, commits, stashes,
+comparaciones y vista de archivo completo, incluso cuando «Ignorar cambios de
+espacios» oculta los hunks.
 Si hay varios avisos, su lista se desplaza para dejar espacio al editor. El visor
 no confunde texto con errores de decodificación con contenido equivalente.
 

@@ -63,6 +63,8 @@ export interface DiffRow {
   oldLine: number | null;
   newLine: number | null;
   words: readonly WordSpan[];
+  /** La pareja conserva el texto y cambia solo sus bytes LF/CRLF. */
+  lineEndingChange?: DiffLine['lineEndingChange'];
   /** La fila vacía del editor tras un salto final no es una línea de un parche Git. */
   displayOnly?: boolean;
 }
@@ -116,6 +118,7 @@ function rowOf(line: DiffLine): DiffRow {
     oldLine: line.oldLine,
     newLine: line.newLine,
     words: line.words ?? [],
+    ...(line.lineEndingChange ? { lineEndingChange: line.lineEndingChange } : {}),
   };
 }
 
@@ -341,6 +344,19 @@ export function splitRows(rows: readonly DiffRow[]): {
   const left: DiffRow[] = [];
   const right: DiffRow[] = [];
   const blank: DiffRow = { kind: 'padding', text: '', oldLine: null, newLine: null, words: [] };
+  const isLineEndingPair = (at: number) => {
+    const before = rows[at];
+    const after = rows[at + 1];
+    return (
+      before?.kind === 'removed' &&
+      after?.kind === 'added' &&
+      before.lineEndingChange !== undefined &&
+      after.lineEndingChange !== undefined &&
+      before.text === after.text &&
+      before.lineEndingChange.before === after.lineEndingChange.before &&
+      before.lineEndingChange.after === after.lineEndingChange.after
+    );
+  };
 
   let index = 0;
 
@@ -356,10 +372,20 @@ export function splitRows(rows: readonly DiffRow[]): {
       continue;
     }
 
+    // El parser entrega cada conversión EOL como pareja adyacente explícita.
+    // Mantenerla unida evita emparejar un borrado anterior con su línea nueva,
+    // incluso si ambos contienen el mismo texto repetido.
+    if (isLineEndingPair(index)) {
+      left.push(row);
+      right.push(rows[index + 1]!);
+      index += 2;
+      continue;
+    }
+
     const removed: DiffRow[] = [];
     const added: DiffRow[] = [];
 
-    while (rows[index]?.kind === 'removed') {
+    while (rows[index]?.kind === 'removed' && !isLineEndingPair(index)) {
       removed.push(rows[index] as DiffRow);
       index += 1;
     }
@@ -400,7 +426,9 @@ function columnOf(
 
     if (tone === null) return;
 
-    marks.push({ line: index + 1, tone });
+    marks.push({ line: index + 1, tone: row.lineEndingChange ? 'lineEnding' : tone });
+
+    if (row.lineEndingChange) return;
 
     for (const span of row.words) {
       words.push({ line: index + 1, start: span.start + offset, end: span.end + offset, tone });
@@ -420,7 +448,11 @@ function columnOf(
 export function unifiedColumn(rows: readonly DiffRow[]): DiffColumn {
   return columnOf(
     rows,
-    (row) => numberOf(row.newLine ?? row.oldLine),
+    (row) =>
+      numberOf(
+        row.newLine ?? row.oldLine,
+        row.kind === 'removed' ? row.lineEndingChange?.before : row.lineEndingChange?.after,
+      ),
     true,
     (row) => (row.kind === 'added' ? 'added' : row.kind === 'removed' ? 'removed' : null),
   );
@@ -430,7 +462,7 @@ export function unifiedColumn(rows: readonly DiffRow[]): DiffColumn {
 export function oldColumn(rows: readonly DiffRow[]): DiffColumn {
   return columnOf(
     rows,
-    (row) => numberOf(row.oldLine),
+    (row) => numberOf(row.oldLine, row.lineEndingChange?.before),
     false,
     (row) => (row.kind === 'removed' ? 'removed' : null),
   );
@@ -440,14 +472,15 @@ export function oldColumn(rows: readonly DiffRow[]): DiffColumn {
 export function newColumn(rows: readonly DiffRow[]): DiffColumn {
   return columnOf(
     rows,
-    (row) => numberOf(row.newLine),
+    (row) => numberOf(row.newLine, row.lineEndingChange?.after),
     false,
     (row) => (row.kind === 'added' ? 'added' : null),
   );
 }
 
-function numberOf(line: number | null): string {
-  return line === null ? '' : String(line);
+function numberOf(line: number | null, ending?: 'lf' | 'crlf'): string {
+  if (line === null) return '';
+  return ending ? `${String(line)} ${ending.toUpperCase()}` : String(line);
 }
 
 /**
@@ -542,11 +575,13 @@ export function hunkMarkers(
 
       const from = offset;
       const changedRows: DiffRow[] = [];
+      const lineEndingOnly = Boolean(current.lineEndingChange);
 
       while (row < block.rows.length) {
         const changed = block.rows[row];
 
         if (changed?.kind !== 'added' && changed?.kind !== 'removed') break;
+        if (Boolean(changed.lineEndingChange) !== lineEndingOnly) break;
 
         changedRows.push(changed);
         offset += 1;
@@ -558,7 +593,11 @@ export function hunkMarkers(
         id: `${block.key}-change-${String(change)}`,
         from,
         to: offset,
-        tone: typeof tone === 'function' ? tone(block, changedRows) : tone,
+        tone: lineEndingOnly
+          ? 'neutral'
+          : typeof tone === 'function'
+            ? tone(block, changedRows)
+            : tone,
         label: label(block, changedRows),
       });
     }

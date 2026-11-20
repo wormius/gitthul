@@ -408,6 +408,7 @@ function blockDecorations(
 const TONE_CLASS: Record<CodeLineTone, string> = {
   added: styles.added ?? '',
   removed: styles.removed ?? '',
+  lineEnding: styles.lineEnding ?? '',
   ours: styles.ours ?? '',
   theirs: styles.theirs ?? '',
   both: styles.both ?? '',

@@ -1001,6 +1001,8 @@ export const esMX = {
   'working.diff.mode.changed': 'Tipo de archivo cambiado: {before} → {after}.',
   'working.diff.lineEndings.changed': 'Se cambiaron los finales de línea ({before} → {after}).',
   'working.diff.lineEndings.mixed': 'Mixtos',
+  'working.diff.lineEndings.aligned':
+    'Las filas marcadas LF/CRLF solo cambian el final de línea. Al agregarlas al staging se conservan los terminadores elegidos.',
   'working.diff.rename.identical': 'Archivo renombrado: {before} → {after}.',
   'working.diff.rename.changed':
     'Archivo renombrado: {before} → {after}. También cambió el contenido.',
@@ -1921,6 +1923,9 @@ export const esMX = {
   'error.history.mainlineInvalid.title': 'El padre {parent} no existe en el commit {sha}',
   'error.history.mainlineInvalid.cause':
     'El commit tiene {count} padres. GitThul no cambió nada; vuelve a elegir la línea principal.',
+  'error.write.partialLineBoundary.title': 'Esta selección necesita incluir el salto final',
+  'error.write.partialLineBoundary.cause':
+    'La selección dejaría una línea sin terminador antes de otra línea. Selecciona ambos lados del cambio o el hunk completo para conservar los bytes del archivo.',
   'error.write.stale.title': '{path} cambió mientras lo estabas viendo',
   'error.write.stale.cause':
     'GitThul no aplicó la selección a una versión distinta. Vuelve a leer el diff y elige de nuevo.',

@@ -301,6 +301,11 @@
   background-color: var(--diff-removed-bg);
 }
 
+.surface :global(.cm-editor .cm-line).lineEnding {
+  box-shadow: inset 2px 0 var(--border-strong);
+  background-color: var(--surface-sunken);
+}
+
 .surface :global(.cm-editor .cm-line).ours {
   background-color: var(--conflict-ours-bg);
 }

@@ -167,9 +167,22 @@ archivos ni combinar esta modalidad con drop. Los gitlinks requieren aplicar el
 stash completo y producen un error explícito en la aplicación parcial.
 
 TextDiff.lineEndingChange explica CRLF/LF cuando los textos decodificados coinciden
-al normalizar sus finales y Git registra blobs distintos. No normalizar los hunks
-ni sus bytes de escritura; omitir el aviso si Git ya normaliza la conversión o
-hay errores de decodificación. Los cambios de modo también deben verse sin hunks.
+al normalizar sus finales y Git registra blobs distintos. No normalizar los
+terminadores ni sus bytes de escritura; omitir el aviso si Git ya normaliza la
+conversión o hay errores de decodificación. Los cambios de modo también deben verse sin hunks.
+El diff normal refina los tramos de reemplazo del parche por contenido y presencia
+del salto final, con búsqueda acotada. Conserva rangos, IDs, precondiciones y el
+orden exacto de cada lado. Las coincidencias con bytes idénticos son contexto;
+las parejas que solo cambian LF/CRLF siguen siendo eliminadas/añadidas y llevan
+DiffLine.lineEndingChange para mostrarlas de forma discreta y explícita. La lectura
+del visor y la relectura previa a Stage/Unstage/Descartar usan el mismo refinado:
+no alinear únicamente las columnas ni emparejar selecciones por posiciones de un
+reemplazo global. Preparar un bloque incluye todas sus modificaciones reales,
+también los terminadores; las líneas de contexto no son selecciones preparables.
+Las escrituras parciales preservan el orden original también al revertir solo un
+lado de una pareja. Rechazar con write.partialLineBoundary una selección que
+dejaría una línea sin terminador antes de otra línea de salida; no añadir saltos
+ni unir contenido implícitamente.
 TextDiff.textChanges conserva datos de espacios y salto final, y avisos de BOM/codificación
 detectada, normalización canónica NFC/NFD y caracteres invisibles con sus puntos
 de código. Analizar solo blobs distintos y decodificaciones sin errores; no usar
