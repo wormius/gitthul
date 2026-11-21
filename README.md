@@ -36,7 +36,7 @@ and simulated terminal output. The interface is in English; sample repository co
 - **Recover supported local operations:** Undo and Redo cover recoverable operations from the current
   session. See [how recovery works](#deshacer-y-rehacer) for its scope and limits.
 
-The current release is **1.1.3**. The application does not send usage statistics. Network connections
+See the [latest stable release](https://github.com/wormius/gitthul/releases/latest). The application does not send usage statistics. Network connections
 are made for actions you request, such as clone, fetch, pull and push, and for startup update checks
 if you enable them; startup checks are off by default.
 
@@ -47,7 +47,7 @@ if you enable them; startup checks are off by default.
    [installation guide and dependencies](docs/instalacion.md).
 3. Open or clone a repository, review its changes and choose what belongs in your next commit.
 
-[Release notes for 1.1.3](docs/releases/1.1.3.md) · [User guides](docs/README.md) ·
+[Latest release notes](https://github.com/wormius/gitthul/releases/latest) · [User guides](docs/README.md) ·
 [Report a problem](https://github.com/wormius/gitthul/issues)
 
 The linked user guides and detailed product description below are currently in Spanish.
@@ -79,7 +79,7 @@ trabajo cotidiano como las operaciones complejas pueden realizarse sin perder co
 [Sitio web](https://gitthul.com/es/) · [Descargar GitThul](https://gitthul.com/es/downloads/) ·
 [Guías de uso](docs/README.md)
 
-La versión actual es **1.1.3**. No incluye telemetría ni una función de IA. Las conexiones de red
+Consulta la [última versión estable](https://github.com/wormius/gitthul/releases/latest). No incluye telemetría ni una función de IA. Las conexiones de red
 ocurren por acciones del usuario, como clonar, fetch, pull, push o abrir un enlace confirmado,
 y por la consulta de versiones al iniciar si activas esa opción, desactivada por defecto.
 
@@ -147,7 +147,7 @@ para conocer su alcance y las condiciones necesarias para una copia completa.
 ## Instalación y ayuda
 
 Los paquetes publicados están en [GitHub Releases](https://github.com/wormius/gitthul/releases).
-Consulta las [notas de 1.1.3](docs/releases/1.1.3.md) y la
+Consulta las [notas de la última versión](https://github.com/wormius/gitthul/releases/latest) y la
 [guía de instalación](docs/instalacion.md) para elegir el paquete de tu sistema.
 Revisa las [dependencias](docs/instalacion.md#dependencias), incluido Git instalado
 y disponible en el sistema.
